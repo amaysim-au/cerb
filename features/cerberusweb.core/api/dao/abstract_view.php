@@ -40,6 +40,12 @@ abstract class C4_AbstractView {
 	
 	public $renderTemplate = null;
 
+	function getContext() {
+		if(false == ($context_ext = Extension_DevblocksContext::getByViewClass(get_class($this))))
+			return null;
+		
+		return $context_ext->id;
+	}
 	abstract function getData();
 	function getDataAsObjects($ids=null) { return array(); }
 	function getDataSample($size) {}
@@ -2930,12 +2936,16 @@ interface IAbstractView_Subtotals {
 
 class CerbQuickSearchLexer {
 	private static function _recurse($token, $key, $node_callback, $after_children_callback=null) {
+		if(!is_object($token))
+			return;
+		
 		if(!is_callable($node_callback))
 			return;
 		
 		if(empty($key) || $token->type == $key)
 			$node_callback($token);
 		
+		if(isset($token->children) && is_array($token->children))
 		foreach($token->children as $child)
 			self::_recurse($child, $key, $node_callback, $after_children_callback);
 		

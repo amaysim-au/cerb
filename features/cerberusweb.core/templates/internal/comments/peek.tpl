@@ -1,5 +1,5 @@
 {$div_id = "peek{uniqid()}"}
-{$peek_context = 'cerberusweb.contexts.comment'}
+{$peek_context = CerberusContexts::CONTEXT_COMMENT}
 {$is_writeable = Context_Comment::isWriteableByActor($dict, $active_worker)}
 
 <div id="{$div_id}">
@@ -10,6 +10,7 @@
 			{/if}
 			
 			{if $dict->id}<button type="button" class="cerb-peek-profile"><span class="glyphicons glyphicons-nameplate"></span> {'common.profile'|devblocks_translate|capitalize}</button>{/if}
+			<button type="button" class="cerb-peek-comments-add" data-context="{CerberusContexts::CONTEXT_COMMENT}" data-context-id="0" data-edit="context:{$dict->target__context} context.id:{$dict->target_id}"><span class="glyphicons glyphicons-conversation"></span> {'display.ui.reply'|devblocks_translate|capitalize}</button>
 		</div>
 	</div>
 </div>
@@ -40,6 +41,8 @@
 
 {include file="devblocks:cerberusweb.core::internal/profiles/profile_record_links.tpl" properties_links=$links peek=true page_context=$peek_context page_context_id=$dict->id}
 
+{include file="devblocks:cerberusweb.core::internal/notifications/context_profile.tpl" context=$peek_context context_id=$dict->id view_id=$view_id}
+
 {include file="devblocks:cerberusweb.core::internal/peek/card_timeline_pager.tpl"}
 
 <script type="text/javascript">
@@ -63,12 +66,27 @@ $(function() {
 			.cerbPeekTrigger({ 'view_id': '{$view_id}' })
 			.on('cerb-peek-saved', function(e) {
 				genericAjaxPopup($layer,'c=internal&a=showPeekPopup&context={$peek_context}&context_id={$dict->id}&view_id={$view_id}','reuse',false,'50%');
+				$popup.trigger('peek_saved');
+				
+				if(e.id && e.comment_html) {
+					$('#comment' + e.id).html(e.comment_html);
+				}
 			})
 			.on('cerb-peek-deleted', function(e) {
+				$popup.trigger('peek_deleted');
+				$('#comment' + e.id).remove();
 				genericAjaxPopupClose($layer);
 			})
 			;
 		{/if}
+		
+		// Comments
+		$popup.find('button.cerb-peek-comments-add')
+			.cerbPeekTrigger()
+			.on('cerb-peek-saved', function() {
+				genericAjaxPopup($layer,'c=internal&a=showPeekPopup&context={$peek_context}&context_id={$dict->id}&view_id={$view_id}','reuse',false,'50%');
+			})
+			;
 		
 		// Peeks
 		$popup.find('.cerb-peek-trigger')
@@ -85,7 +103,7 @@ $(function() {
 		
 		// View profile
 		$popup.find('.cerb-peek-profile').click(function(e) {
-			if(e.metaKey) {
+			if(e.shiftKey || e.metaKey) {
 				window.open('{devblocks_url}c=profiles&type=comment&id={$dict->id}-{$dict->_label|devblocks_permalink}{/devblocks_url}', '_blank');
 				
 			} else {

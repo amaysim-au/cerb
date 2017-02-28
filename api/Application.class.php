@@ -39,8 +39,8 @@
  * - Jeff Standen and Dan Hildebrandt
  *	 Founders at Webgroup Media LLC; Developers of Cerb
  */
-define("APP_BUILD", 2017020801);
-define("APP_VERSION", '7.3.1');
+define("APP_BUILD", 2017022201);
+define("APP_VERSION", '7.3.3');
 
 define("APP_MAIL_PATH", APP_STORAGE_PATH . '/mail/');
 
@@ -336,7 +336,7 @@ class CerberusApplication extends DevblocksApplication {
 
 		// Memory Limit
 		$memory_limit = ini_get("memory_limit");
-		if ($memory_limit == '') { // empty string means failure or not defined, assume no compiled memory limits
+		if ($memory_limit == '' || $memory_limit == -1) { // empty string means failure or not defined, assume no compiled memory limits
 		} else {
 			$ini_memory_limit = DevblocksPlatform::parseBytesString($memory_limit);
 			if($ini_memory_limit < 16777216) {
@@ -1683,20 +1683,44 @@ class CerberusContexts {
 				if(isset($entry['urls']))
 				foreach($entry['urls'] as $token => $url) {
 					if(0 == strcasecmp('ctx://',substr($url,0,6))) {
-						$url = self::parseContextUrl($url);
+						$url = self::getUrlFromContextUrl($url);
 					} elseif(0 != strcasecmp('http',substr($url,0,4))) {
 						$url = $url_writer->writeNoProxy($url, true);
 					}
-
 					$vars[$token] = '<a href="'.$url.'" style="font-weight:bold;">'.$vars[$token].'</a>';
 				}
 				break;
 
+			case 'html-cards':
+				// HTML formatting and incorporating URLs
+				if(is_array($vars))
+				foreach($vars as $k => $v) {
+					$vars[$k] = DevblocksPlatform::strEscapeHtml($v);
+				}
+
+				if(isset($entry['urls']))
+				foreach($entry['urls'] as $token => $url) {
+					if(0 == strcasecmp('ctx://',substr($url,0,6))) {
+						if(false != ($parts = self::parseContextUrl($url))) {
+							$vars[$token] = sprintf('<a href="javascript:;" class="cerb-peek-trigger" data-context="%s" data-context-id="%d" data-profile-url="%s" style="font-weight:bold;">%s</a>',
+								$parts['context'],
+								$parts['id'],
+								$parts['url'],
+								$vars[$token]
+							);
+						}
+					} elseif(0 != strcasecmp('http',substr($url,0,4))) {
+						$url = $url_writer->writeNoProxy($url, true);
+						$vars[$token] = '<a href="'.$url.'" style="font-weight:bold;">'.$vars[$token].'</a>';
+					}
+				}
+				break;
+				
 			case 'markdown':
 				if(isset($entry['urls']))
 				foreach($entry['urls'] as $token => $url) {
 					if(0 == strcasecmp('ctx://',substr($url,0,6))) {
-						$url = self::parseContextUrl($url);
+						$url = self::getUrlFromContextUrl($url);
 					} elseif(0 != strcasecmp('http',substr($url,0,4))) {
 						$url = $url_writer->writeNoProxy($url, true);
 					}
@@ -1712,7 +1736,7 @@ class CerberusContexts {
 					break;
 
 				if(0 == strcasecmp('ctx://',substr($url,0,6))) {
-					$url = self::parseContextUrl($url);
+					$url = self::getUrlFromContextUrl($url);
 				} elseif(0 != strcasecmp('http',substr($url,0,4))) {
 					$url = $url_writer->writeNoProxy($url, true);
 				}
@@ -1731,6 +1755,50 @@ class CerberusContexts {
 	}
 
 	static function parseContextUrl($url) {
+		if(0 != strcasecmp('ctx://',substr($url,0,6))) {
+			return false;
+		}
+
+		$context_parts = explode('/', substr($url,6));
+		$context_pair = explode(':', $context_parts[0], 2);
+
+		if(count($context_pair) != 2)
+			return false;
+
+		$context = $context_pair[0];
+		$context_id = $context_pair[1];
+		
+		if(null == ($context_ext = Extension_DevblocksContext::get($context)))
+			return false;
+		
+		switch($context) {
+			case CerberusContexts::CONTEXT_TICKET:
+				if(!is_numeric($context_id)) {
+					$context_id = DAO_Ticket::getTicketIdByMask($context_id);
+				}
+				break;
+		}
+		
+		$url = null;
+		
+		if($context_ext instanceof IDevblocksContextProfile) {
+			$url = $context_ext->profileGetUrl($context_id);
+
+		} else {
+			$meta = $context_ext->getMeta($context_id);
+
+			if(is_array($meta) && isset($meta['permalink']))
+				$url = $meta['permalink'];
+		}
+		
+		return [
+			'context' => $context,
+			'id' => $context_id,
+			'url' => $url,
+		];
+	}
+	
+	static function getUrlFromContextUrl($url) {
 		if(0 != strcasecmp('ctx://',substr($url,0,6))) {
 			return false;
 		}
@@ -1774,15 +1842,16 @@ class CerberusContexts {
 	static public function popActivityDefaultActor() {
 		array_pop(self::$_default_actor_stack);
 
-		if(empty(self::$_default_actor_stack)) {
-			$context = null;
-			$context_id = null;
-
-		} else {
+		self::$_default_actor_context = null;
+		self::$_default_actor_context_id = null;
+		
+		if(!empty(self::$_default_actor_stack)) {
 			$context_pair = end(self::$_default_actor_stack);
 
-			$context = $context_pair['context'];
-			$context_id = $context_pair['context_id'];
+			if(is_array($context_pair) && 2 == count($context_pair)) {
+				self::$_default_actor_context = $context_pair[0];
+				self::$_default_actor_context_id = $context_pair[1];
+			}
 		}
 	}
 	

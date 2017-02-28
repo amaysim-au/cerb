@@ -50,6 +50,8 @@
 
 {include file="devblocks:cerberusweb.core::internal/profiles/profile_record_links.tpl" properties_links=$links peek=true page_context=$peek_context page_context_id=$dict->id}
 
+{include file="devblocks:cerberusweb.core::internal/notifications/context_profile.tpl" context=$peek_context context_id=$dict->id view_id=$view_id}
+
 <fieldset class="peek">
 	<legend>Train Classifier</legend>
 	<input type="text" class="expression-tester" style="width:100%;" autocomplete="off" spellcheck="false" autofocus="autofocus" placeholder="Enter some text and press ENTER for a classification prediction">
@@ -107,7 +109,7 @@ $(function() {
 		
 		// View profile
 		$popup.find('.cerb-peek-profile').click(function(e) {
-			if(e.metaKey) {
+			if(e.shiftKey || e.metaKey) {
 				window.open('{devblocks_url}c=profiles&type=classifier&id={$dict->id}-{$dict->_label|devblocks_permalink}{/devblocks_url}', '_blank');
 				
 			} else {

@@ -130,6 +130,7 @@ class PageSection_ProfilesComment extends Extension_PageSection {
 		@$do_delete = DevblocksPlatform::importGPC($_REQUEST['do_delete'], 'string', '');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		header('Content-Type: application/json; charset=utf-8');
 		
@@ -183,6 +184,8 @@ class PageSection_ProfilesComment extends Extension_PageSection {
 				DAO_Comment::update($id, $fields);
 			}
 			
+			$html = null;
+			
 			if($id) {
 				// Add attachments
 				if(is_array($file_ids) && !empty($file_ids))
@@ -191,12 +194,33 @@ class PageSection_ProfilesComment extends Extension_PageSection {
 				// Custom fields
 				@$field_ids = DevblocksPlatform::importGPC($_REQUEST['field_ids'], 'array', array());
 				DAO_CustomFieldValue::handleFormPost(CerberusContexts::CONTEXT_COMMENT, $id, $field_ids);
+				
+				// Refresh HTML
+				$model = DAO_Comment::get($id);
+				if($model->context == CerberusContexts::CONTEXT_MESSAGE) {
+					$tpl->assign('note', $model);
+					$ticket = DAO_Ticket::getTicketByMessageId($model->context_id);
+					$tpl->assign('ticket', $ticket);
+					$html = $tpl->fetch('devblocks:cerberusweb.core::internal/comments/note.tpl');
+					
+				} else {
+					$tpl->assign('comment', $model);
+					
+					if($model->context == CerberusContexts::CONTEXT_TICKET) {
+						$ticket = DAO_Ticket::get($model->context_id);
+						$tpl->assign('ticket', $ticket);
+					}
+					
+					$html = $tpl->fetch('devblocks:cerberusweb.core::internal/comments/comment.tpl');
+				}
 			}
 			
 			echo json_encode(array(
 				'status' => true,
 				'id' => $id,
 				'label' => $comment,
+				'context' => $context,
+				'comment_html' => $html,
 				'view_id' => $view_id,
 			));
 			return;
@@ -272,7 +296,7 @@ class PageSection_ProfilesComment extends Extension_PageSection {
 				if($opp_id==$explore_from)
 					$orig_pos = $pos;
 				
-				$url = $url_writer->writeNoProxy(sprintf("c=profiles&type=comment&id=%d-%s", $row[SearchFields_Comment::ID], DevblocksPlatform::strToPermalink($row[SearchFields_Comment::NAME])), true);
+				$url = $url_writer->writeNoProxy(sprintf("c=profiles&type=comment&id=%d", $row[SearchFields_Comment::ID]), true);
 				
 				$model = new Model_ExplorerSet();
 				$model->hash = $hash;

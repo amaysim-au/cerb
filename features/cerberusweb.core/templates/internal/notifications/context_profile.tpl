@@ -12,7 +12,7 @@
 			</td>
 			<td width="99%">
 				{$entry = json_decode($v->entry_json, true)}
-				{CerberusContexts::formatActivityLogEntry($entry,'html',['target'], true) nofilter}
+				{CerberusContexts::formatActivityLogEntry($entry,'html-cards',['target'], true) nofilter}
 			</td>
 		</tr>
 	{/foreach}
@@ -28,4 +28,17 @@
 	</table>
 	
 </fieldset>
+
+{if !empty($view_id)}
+<script type="text/javascript">
+$(function() {
+	var $view = $('#view{$view_id}');
+	
+	if(!$view.attr('data-context') == '{CerberusContexts::CONTEXT_NOTIFICATION}')
+		return;
+	
+	genericAjaxGet($view,'c=internal&a=viewRefresh&id={$view_id}');
+});
+</script>
+{/if}
 {/if}

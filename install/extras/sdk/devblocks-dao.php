@@ -1348,6 +1348,8 @@ class Context_<?php echo $class_name;?> extends Extension_DevblocksContext imple
 
 {include file="devblocks:cerberusweb.core::internal/profiles/profile_record_links.tpl" properties_links=$links peek=true page_context=$peek_context page_context_id=$dict->id}
 
+{include file="devblocks:cerberusweb.core::internal/notifications/context_profile.tpl" context=$peek_context context_id=$dict->id view_id=$view_id}
+
 {include file="devblocks:cerberusweb.core::internal/peek/card_timeline_pager.tpl"}
 
 <script type="text/javascript">
@@ -1401,7 +1403,7 @@ $(function() {
 		
 		// View profile
 		$popup.find('.cerb-peek-profile').click(function(e) {
-			if(e.metaKey) {
+			if(e.shiftKey || e.metaKey) {
 				window.open('{devblocks_url}c=profiles&type=<?php echo $table_name; ?>&id={$dict->id}-{$dict->_label|devblocks_permalink}{/devblocks_url}', '_blank');
 				
 			} else {

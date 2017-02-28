@@ -156,7 +156,7 @@ switch($step) {
 		}
 
 		$memory_limit = ini_get("memory_limit");
-		if ($memory_limit == '') { // empty string means failure or not defined, assume no compiled memory limits
+		if ($memory_limit == '' || $memory_limit == -1) { // empty string means failure or not defined, assume no compiled memory limits
 			$results['memory_limit'] = true;
 		} else {
 			$ini_memory_limit = DevblocksPlatform::parseBytesString($memory_limit);
@@ -370,23 +370,20 @@ switch($step) {
 					$discovered_engines[] = strtolower($row['Engine']);
 				}
 				mysqli_free_result($rs);
-
+				
 				// Check the preferred DB engine
 				if(!in_array($db_engine, $discovered_engines)) {
 					$db_passed = false;
 					$errors[] = sprintf("The '%s' storage engine is not enabled.", $db_engine);
 				}
 				
-				// We need this for fulltext indexing
-				if(mysqli_get_server_version($_db) < 50600 && (!in_array('myisam', $discovered_engines) || 0 == strcasecmp('innodb', $db_engine))) {
-					$db_passed = false;
-					$errors[] = "The 'MyISAM' storage engine is not enabled and is required for fulltext search in MySQL < 5.6.";
-				}
-				
 				// Check user privileges
 				if($db_passed) {
+					// RESET
+					mysqli_query($_db, "DROP TABLE IF EXISTS _installer_test_suite");
+					
 					// CREATE TABLE
-					if($db_passed && false === mysqli_query($_db, "CREATE TABLE IF NOT EXISTS _installer_test_suite (id int)")) {
+					if($db_passed && false === mysqli_query($_db, "CREATE TABLE _installer_test_suite (id int)")) {
 						$db_passed = false;
 						$errors[] = sprintf("The database user lacks the CREATE privilege.");
 					}
@@ -414,6 +411,11 @@ switch($step) {
 					if($db_passed && false === mysqli_query($_db, "ALTER TABLE _installer_test_suite MODIFY COLUMN id int unsigned")) {
 						$db_passed = false;
 						$errors[] = sprintf("The database user lacks the ALTER privilege.");
+					}
+					// ADD FULLTEXT INDEX
+					if($db_passed && false === mysqli_query($_db, "ALTER TABLE _installer_test_suite ADD COLUMN content TEXT, ADD FULLTEXT (content)")) {
+						$db_passed = false;
+						$errors[] = sprintf("The database engine doesn't support FULLTEXT indexes.");
 					}
 					// DROP TABLE
 					if($db_passed && false === mysqli_query($_db, "DROP TABLE IF EXISTS _installer_test_suite")) {

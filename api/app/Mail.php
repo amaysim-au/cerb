@@ -118,11 +118,11 @@ class CerberusMail {
 		return $results;
 	}
 	
-	static function quickSend($to, $subject, $body, $from_addy=null, $from_personal=null, $custom_headers=array(), $format=null, $html_template_id=null, $file_ids=array()) {
+	static function quickSend($to, $subject, $body, $from_addy=null, $from_personal=null, $custom_headers=array(), $format=null, $html_template_id=null, $file_ids=array(), $cc=null, $bcc=null) {
 		try {
 			$mail_service = DevblocksPlatform::getMailService();
 			$mail = $mail_service->createMessage();
-	
+			
 			$settings = DevblocksPlatform::getPluginSettingsService();
 			
 			if(empty($from_addy) || empty($from_personal)) {
@@ -136,6 +136,12 @@ class CerberusMail {
 			}
 			
 			$mail->setTo(DevblocksPlatform::parseCsvString($to));
+			
+			if(!empty($cc))
+				$mail->setCc(DevblocksPlatform::parseCsvString($cc));
+			
+			if(!empty($bcc))
+				$mail->setBcc(DevblocksPlatform::parseCsvString($bcc));
 
 			$custom_headers = self::_parseCustomHeaders($custom_headers);
 			
@@ -143,7 +149,7 @@ class CerberusMail {
 			if(isset($custom_headers['from'])) {
 				if(false !== ($custom_froms = imap_rfc822_parse_adrlist($custom_headers['from'], '')) && !empty($custom_froms)) {
 					$from_addy = $custom_froms[0]->mailbox . '@' . $custom_froms[0]->host;
-					$from_personal = ($custom_froms[0]->personal != $from_addy) ? $custom_froms[0]->personal : null;
+					$from_personal = (isset($custom_froms[0]->personal) && $custom_froms[0]->personal != $from_addy) ? $custom_froms[0]->personal : null;
 				}
 				
 				unset($custom_headers['from']);
@@ -1425,17 +1431,15 @@ class CerberusMail {
 					function($matches) use ($base_url, $mail, &$embedded_files, $exclude_files) {
 						if(3 == count($matches)) {
 							$file_parts = explode('/', $matches[2]);
-							@list($file_hash, $file_name) = explode('/', $matches[2], 2);
-							if($file_hash && $file_name) {
-								if($file_id = DAO_Attachment::getBySha1Hash($file_hash, urldecode($file_name))) {
-									if($file = DAO_Attachment::get($file_id)) {
-										
-										if(!in_array($file_id, $exclude_files))
-											$embedded_files[] = $file_id;
-										
-										$cid = $mail->embed(Swift_Image::newInstance($file->getFileContents(), $file->name, $file->mime_type));
-										return sprintf('"%s"', $cid);
-									}
+							@list($file_id, $file_name) = explode('/', $matches[2], 2);
+							if($file_id && $file_name) {
+								if($file = DAO_Attachment::get($file_id)) {
+									
+									if(!in_array($file_id, $exclude_files))
+										$embedded_files[] = $file_id;
+									
+									$cid = $mail->embed(Swift_Image::newInstance($file->getFileContents(), $file->name, $file->mime_type));
+									return sprintf('"%s"', $cid);
 								}
 							}
 						}
@@ -1458,9 +1462,9 @@ class CerberusMail {
 				sprintf('|(\!\[inline-image\]\(%s(.*?)\))|', preg_quote($base_url)),
 				function($matches) use ($base_url) {
 					if(3 == count($matches)) {
-						@list($file_hash, $file_name) = explode('/', $matches[2], 2);
+						@list($file_id, $file_name) = explode('/', $matches[2], 2);
 						
-						if($file_hash && $file_name)
+						if($file_id && $file_name)
 							return sprintf("[Image %s]", urldecode($file_name));
 					}
 					
