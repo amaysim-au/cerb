@@ -3,7 +3,7 @@ define('APP_DB_ENGINE','innodb');
 define('APP_DB_DATABASE','cerb');
 define('APP_DB_PCONNECT',false);
 
-define('APP_DB_HOST','192.168.1.20');
+define('APP_DB_HOST','mysql_a');
 define('APP_DB_USER','cerb');
 define('APP_DB_PASS','secret_password');
 
@@ -27,7 +27,7 @@ define('APP_TEMP_PATH',APP_STORAGE_PATH . '/tmp');
 define('DEVBLOCKS_PATH',APP_PATH . '/libs/devblocks/');
 define('DEVBLOCKS_REWRITE', file_exists(dirname(__FILE__).'/.htaccess'));
 define('DEVELOPMENT_MODE', false);
-define('AUTHORIZED_IPS_DEFAULTS','172.17.0.1');
+define('AUTHORIZED_IPS_DEFAULTS','{LOCAL_IP}');
 define('ONDEMAND_MODE', false);
 
 require_once(DEVBLOCKS_PATH . 'framework.defaults.php');
