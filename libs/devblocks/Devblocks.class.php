@@ -496,6 +496,17 @@ class DevblocksPlatform extends DevblocksEngine {
 		return false;
 	}
 	
+	static function strIsListItem($string) {
+		// Is it using a typical list item delimiter to start?
+		if(DevblocksPlatform::strStartsWith(ltrim($string), ['*','-','#']))
+			return true;
+		
+		if(preg_match('/^\(*\d+\.*\)*/', ltrim($string)))
+			return true;
+		
+		return false;
+	}
+	
 	/**
 	 * 
 	 * @param string $version
@@ -723,9 +734,17 @@ class DevblocksPlatform extends DevblocksEngine {
 	 * @return string
 	 * @test DevblocksPlatformTest
 	 */
-	static function stripHTML($str, $strip_whitespace=true, $skip_blockquotes=false) {
+	static function stripHTML($str, $strip_whitespace=true, $skip_blockquotes=false, $max_length = 500000) {
+		if($max_length && strlen($str) > $max_length) {
+			$str = substr($str, 0, $max_length);
+		}
 		
-		// Pre-process some HTML entities that confuse UTF-8
+		// Handle XHTML variations
+		$str = preg_replace(
+			'@<br[^>]*?>@si',
+			"<br>",
+			$str
+		);
 		
 		$str = str_ireplace(
 			array(
@@ -762,6 +781,8 @@ class DevblocksPlatform extends DevblocksEngine {
 		// Pre-process blockquotes
 		if(!$skip_blockquotes) {
 			$dom = new DOMDocument('1.0', LANG_CHARSET_CODE);
+			$dom->preserveWhiteSpace = true;
+			$dom->formatOutput = false;
 			$dom->strictErrorChecking = false;
 			$dom->recover = true;
 			$dom->validateOnParse = false;
@@ -801,7 +822,7 @@ class DevblocksPlatform extends DevblocksEngine {
 				}
 			}
 			
-			$html = $dom->saveXML();
+			$html = $dom->saveHTML();
 			
 			// Make sure it's not blank before trusting it.
 			if(!empty($html)) {
@@ -878,6 +899,8 @@ class DevblocksPlatform extends DevblocksEngine {
 		// Unordered and ordered lists
 		
 		$dom = new DOMDocument('1.0', LANG_CHARSET_CODE);
+		$dom->preserveWhiteSpace = true;
+		$dom->formatOutput = false;
 		$dom->strictErrorChecking = false;
 		$dom->recover = true;
 		$dom->validateOnParse = false;
@@ -929,8 +952,8 @@ class DevblocksPlatform extends DevblocksEngine {
 				$item->parentNode->removeChild($item);
 			}
 		}
-			
-		$html = $dom->saveXML();
+		
+		$html = $dom->saveHTML();
 		
 		// Make sure it's not blank before trusting it.
 		if(!empty($html)) {
@@ -958,13 +981,6 @@ class DevblocksPlatform extends DevblocksEngine {
 		$str = preg_replace(
 			'#\xc2\xa0#',
 			' ',
-			$str
-		);
-		
-		// Handle XHTML variations
-		$str = preg_replace(
-			'@<br[^>]*?>@si',
-			"<br>",
 			$str
 		);
 		
@@ -1023,7 +1039,7 @@ class DevblocksPlatform extends DevblocksEngine {
 		
 		// Translate HTML entities into text
 		$str = html_entity_decode($str, ENT_COMPAT, LANG_CHARSET_CODE);
-
+		
 		// Wrap quoted lines
 		// [TODO] This should be more reusable
 		$str = _DevblocksTemplateManager::modifier_devblocks_email_quote($str);
@@ -1070,6 +1086,7 @@ class DevblocksPlatform extends DevblocksEngine {
 		$config->set('HTML.Doctype', 'HTML 4.01 Transitional');
 		$config->set('CSS.AllowTricky', true);
 		$config->set('Attr.EnableID', true);
+		//$config->set('HTML.TidyLevel', 'light');
 		
 		// Remove class attributes if we inlined CSS styles
 		if($inline_css) {

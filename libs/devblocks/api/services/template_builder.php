@@ -604,6 +604,7 @@ class _DevblocksTwigExtensions extends Twig_Extension {
 			new Twig_SimpleFilter('json_pretty', [$this, 'filter_json_pretty']),
 			new Twig_SimpleFilter('md5', [$this, 'filter_md5']),
 			new Twig_SimpleFilter('parse_emails', [$this, 'filter_parse_emails']),
+			new Twig_SimpleFilter('quote', [$this, 'filter_quote']),
 			new Twig_SimpleFilter('regexp', [$this, 'filter_regexp']),
 			new Twig_SimpleFilter('secs_pretty', [$this, 'filter_secs_pretty']),
 			new Twig_SimpleFilter('split_crlf', [$this, 'filter_split_crlf']),
@@ -628,14 +629,14 @@ class _DevblocksTwigExtensions extends Twig_Extension {
 	}
 	
 	function filter_bytes_pretty($string, $precision='0') {
-		if(!is_string($string))
+		if(!is_string($string) && !is_numeric($string))
 			return '';
 		
 		return DevblocksPlatform::strPrettyBytes($string, $precision);
 	}
 	
 	function filter_date_pretty($string, $is_delta=false) {
-		if(!is_string($string))
+		if(!is_string($string) && !is_numeric($string))
 			return '';
 		
 		return DevblocksPlatform::strPrettyTime($string, $is_delta);
@@ -661,6 +662,19 @@ class _DevblocksTwigExtensions extends Twig_Extension {
 		
 		$results = CerberusMail::parseRfcAddresses($string);
 		return $results;
+	}
+	
+	function filter_quote($string, $wrap_to=76) {
+		if(!is_string($string))
+			return '';
+		
+		$lines = DevblocksPlatform::parseCrlfString(trim($string), true, false);
+		
+		array_walk($lines, function(&$line) {
+			$line = '> ' . $line;
+		});
+		
+		return _DevblocksTemplateManager::modifier_devblocks_email_quote(implode(PHP_EOL, $lines), $wrap_to);
 	}
 
 	function filter_regexp($string, $pattern, $group = 0) {

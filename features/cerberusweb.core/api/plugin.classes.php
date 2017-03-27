@@ -46,7 +46,7 @@ class ChPageController extends DevblocksControllerExtension {
 		if(null != ($page_manifest = CerberusApplication::getPageManifestByUri($controller))) {
 			$page = $page_manifest->createInstance(); /* @var $page CerberusPageExtension */
 		}
-
+		
 		if(empty($page)) {
 			switch($controller) {
 				case "portal":
@@ -616,7 +616,7 @@ class VaAction_HttpRequest extends Extension_DevblocksEventAction {
 private function _execute($verb='get', $url, $params=array(), $body=null, $headers=array(), $options=array(), $http_cert=null) {
 		if(!empty($params) && is_array($params))
 			$url .= '?' . http_build_query($params);
-		
+
 		$ch = DevblocksPlatform::curlInit($url);
 
         if(empty($http_cert)){
@@ -657,6 +657,8 @@ private function _execute($verb='get', $url, $params=array(), $body=null, $heade
 			if(false == $connected_account->authenticateHttpRequest($ch, $verb, $url, $body, $headers, CerberusContexts::getCurrentActor()))
 				return false;
 		}
+		
+		curl_setopt($ch, CURLOPT_URL, $url);
 		
 		if(!empty($headers))
 			curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);

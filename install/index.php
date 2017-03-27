@@ -25,8 +25,13 @@ if(!extension_loaded('mysqli')) {
 	die("Cerb requires the 'mysqli' PHP extension.  Please enable it.");
 }
 
+if(!extension_loaded('mbstring')) {
+	header('Status: 500');
+	die("Cerb requires the 'mbstring' PHP extension.  Please enable it.");
+}
+
 @set_time_limit(3600); // 1hr
-require('../framework.config.php');
+require_once('../framework.config.php');
 require_once(DEVBLOCKS_PATH . 'Devblocks.class.php');
 require_once(APP_PATH . '/api/Application.class.php');
 require_once(APP_PATH . '/install/classes.php');
@@ -318,14 +323,12 @@ switch($step) {
 		@$db_user = DevblocksPlatform::importGPC($_POST['db_user'],'string');
 		@$db_pass = DevblocksPlatform::importGPC($_POST['db_pass'],'string');
 
-		@$db = DevblocksPlatform::getDatabaseService();
-		if(!is_null($db)) {
+		if(defined('APP_DB_HOST') && defined('APP_DB_DATABASE') && APP_DB_HOST && APP_DB_DATABASE) {
 			// If we've been to this step, skip past framework.config.php
 			$tpl->assign('step', STEP_INIT_DB);
 			$tpl->display('steps/redirect.tpl');
 			exit;
 		}
-		unset($db);
 		
 		// [JAS]: Detect available database drivers
 		
@@ -452,8 +455,7 @@ switch($step) {
 			
 			// If passed, write config file and continue
 			if($db_passed) {
-				@$row = mysqli_fetch_row(mysqli_query($_db, "SHOW VARIABLES LIKE 'character_set_database'"));
-				$encoding = (is_array($row) && 0==strcasecmp($row[1],'utf8')) ? 'utf8' : 'latin1';
+				$encoding = 'utf8';
 				
 				// Write database settings to framework.config.php
 				$result = CerberusInstaller::saveFrameworkConfig($db_driver, $db_engine, $encoding, $db_server, $db_name, $db_user, $db_pass);
@@ -465,6 +467,7 @@ switch($step) {
 					$tpl->assign('template', 'steps/step_config_file.tpl');
 					
 				} else { // skip the config writing step
+					usleep(2500000);
 					$tpl->assign('step', STEP_INIT_DB);
 					$tpl->display('steps/redirect.tpl');
 					exit;
@@ -522,10 +525,13 @@ switch($step) {
 
 	// Initialize the database
 	case STEP_INIT_DB:
-		$tables = array();
+		if(false == ($db = DevblocksPlatform::getDatabaseService()) || !$db || !method_exists($db, 'metaTables')) {
+			$tpl->assign('error', "Can't connect to the database.");
+			$tpl->assign('template', 'steps/step_init_db.tpl');
+			break;
+		}
 		
-		if(false != ($db = DevblocksPlatform::getDatabaseService()))
-			$tables = $db->metaTables();
+		$tables = $db->metaTables();
 		
 		// [TODO] Add current user to patcher/upgrade authorized IPs
 		
@@ -536,6 +542,7 @@ switch($step) {
 			} catch(Exception $e) {
 				$tpl->assign('error', $e->getMessage());
 				$tpl->assign('template', 'steps/step_init_db.tpl');
+				break;
 			}
 			
 			// Read in plugin information from the filesystem to the database
@@ -582,7 +589,7 @@ switch($step) {
 			} catch(Exception $e) {
 				$tpl->assign('error', $e->getMessage());
 				$tpl->assign('template', 'steps/step_init_db.tpl');
-				exit;
+				break;
 			}
 			
 		} else { // upgrade / patch
@@ -917,10 +924,10 @@ If these default groups don't meet your needs, feel free to change them by click
 Simply reply to this message if you have any questions.  Our response will show up on this page as a new message.
 
 For project news, training resources, sneak peeks of development progress, tips & tricks, and more:
+ * https://cerb.ai/docs/home/
  * http://www.facebook.com/cerbapp
- * http://twitter.com/cerb_app
+ * http://twitter.com/cerb_ai
  * https://vimeo.com/channels/cerb
- * http://cerbweb.com/book/latest/worker_guide/
 
 Enjoy!
 -- 
@@ -954,51 +961,6 @@ EOF;
 		@$skip = DevblocksPlatform::importGPC($_POST['skip'],'integer',0);
 		
 		if(!empty($form_submit)) {
-			@$contact_name = str_replace(array("\r","\n"),'',stripslashes($_REQUEST['contact_name']));
-			@$contact_email = str_replace(array("\r","\n"),'',stripslashes($_REQUEST['contact_email']));
-			@$contact_company = stripslashes($_REQUEST['contact_company']);
-			
-			if(empty($skip) && !empty($contact_name)) {
-				@$contact_phone = stripslashes($_REQUEST['contact_phone']);
-				@$contact_refer = stripslashes($_REQUEST['contact_refer']);
-				@$q1 = stripslashes($_REQUEST['q1']);
-				@$q2 = stripslashes($_REQUEST['q2']);
-				@$q3 = stripslashes($_REQUEST['q3']);
-				@$q4 = stripslashes($_REQUEST['q4']);
-				@$q5 = stripslashes($_REQUEST['q5']);
-				@$comments = stripslashes($_REQUEST['comments']);
-				
-				if(isset($_REQUEST['form_submit'])) {
-				  $msg = sprintf(
-				    "Contact Name: %s\r\n".
-				    "Organization: %s\r\n".
-				    "Referred by: %s\r\n".
-				    "Phone: %s\r\n".
-				    "\r\n".
-				    "#1: Briefly, what does your organization do?\r\n%s\r\n\r\n".
-				    "#2: How is your team currently handling e-mail management?\r\n%s\r\n\r\n".
-				    "#3: Are you considering both free and commercial solutions?\r\n%s\r\n\r\n".
-				    "#4: What will be your first important milestone?\r\n%s\r\n\r\n".
-				    "#5: How many workers do you expect to use the helpdesk simultaneously?\r\n%s\r\n\r\n".
-				    "\r\n".
-				    "Additional Comments: \r\n%s\r\n\r\n"
-				    ,
-				    $contact_name,
-				    $contact_company,
-				    $contact_refer,
-				    $contact_phone,
-				    $q1,
-				    $q2,
-				    $q3,
-				    $q4,
-				    $q5,
-				    $comments
-				  );
-
-				  CerberusMail::quickSend('aboutme@cerberusweb.com',"About: $contact_name of $contact_company",$msg, $contact_email, $contact_name);
-				}
-			}
-			
 			$tpl->assign('step', STEP_FINISHED);
 			$tpl->display('steps/redirect.tpl');
 			exit;
@@ -1011,7 +973,6 @@ EOF;
 		$tpl->assign('template', 'steps/step_upgrade.tpl');
 		break;
 		
-	// [TODO] Delete the /install/ directory (security)
 	case STEP_FINISHED:
 		
 		// Set up the default cron jobs

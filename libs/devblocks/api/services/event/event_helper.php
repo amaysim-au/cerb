@@ -70,6 +70,41 @@ class DevblocksEventHelper {
 		return $value;
 	}
 	
+	public static function getWorkerValues($trigger) {
+		$values = [
+			0 => ['name' => '(' . DevblocksPlatform::translate('common.nobody', DevblocksPlatform::TRANSLATE_LOWER) . ')'],
+		];
+		
+		$workers = DAO_Worker::getAllActive();
+		
+		foreach($workers as $worker) {
+			$values[$worker->id] = ['name' => $worker->getName()];
+		}
+		
+		$event = $trigger->getEvent();
+		$values_to_contexts = $event->getValuesContexts($trigger);
+		
+		foreach($values_to_contexts as $val_key => $context_data) {
+			if($context_data['context'] == CerberusContexts::CONTEXT_WORKER && !$context_data['is_multiple']) {
+				$values[$val_key] = [
+					'name' => (DevblocksPlatform::strStartsWith($context_data['label'], '(') ? '' : '(placeholder) ') . $context_data['label'],
+					'context' => $context_data['context']
+				];
+			}
+		}
+		
+		foreach($trigger->variables as $var_key => $var_data) {
+			if($var_data['type'] != Model_CustomField::TYPE_WORKER)
+				continue;
+			
+			$values[$var_key] = ['name' => '(variable) ' . $var_data['label']];
+		}
+		
+		DevblocksPlatform::sortObjects($values, '[name]');
+
+		return $values;
+	}
+	
 	public static function renderSimulatorTarget($context, $context_id, $trigger, $event_model) {
 		if(false == ($context_ext = Extension_DevblocksContext::get($context)))
 			return;
@@ -206,8 +241,9 @@ class DevblocksEventHelper {
 				break;
 				
 			case Model_CustomField::TYPE_WORKER:
-				$workers = DAO_Worker::getAllActive();
-				$tpl->assign('workers', $workers);
+				$worker_values = DevblocksEventHelper::getWorkerValues($trigger);
+				$tpl->assign('worker_values', $worker_values);
+				
 				$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_worker.tpl');
 				break;
 		}
@@ -2818,11 +2854,8 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionSetTicketOwner($trigger) {
-		$tpl = DevblocksPlatform::getTemplateService();
-		$tpl->assign('workers', DAO_Worker::getAllActive());
-		
-		$event = $trigger->getEvent();
-		$tpl->assign('values_to_contexts', $event->getValuesContexts($trigger));
+		$worker_values = DevblocksEventHelper::getWorkerValues($trigger);
+		$tpl->assign('worker_values', $worker_values);
 		
 		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_worker.tpl');
 	}
@@ -3208,6 +3241,7 @@ class DevblocksEventHelper {
 		// Translate message tokens
 		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$content = $tpl_builder->build($params['content'], $dict);
+		$url = $tpl_builder->build($params['url'], $dict);
 
 		$trigger = $dict->__trigger;
 		$event = $trigger->getEvent();
@@ -3237,9 +3271,9 @@ class DevblocksEventHelper {
 				}
 			}
 			
-		} elseif(!empty($params['url'])) {
+		} elseif(!empty($url)) {
 			$out .= sprintf("\n>>> Link to:\n%s\n",
-				$params['url']
+				$url
 			);
 			
 		}
@@ -3281,7 +3315,7 @@ class DevblocksEventHelper {
 		
 		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$content = $tpl_builder->build($params['content'], $dict);
-		@$url = DevblocksPlatform::importVar($params['url'],'string','');
+		$url = $tpl_builder->build($params['url'], $dict);
 		
 		// On: Are we notifying about something else?
 		
@@ -3527,12 +3561,16 @@ class DevblocksEventHelper {
 		
 		@$notify_worker_ids = DevblocksPlatform::importVar($params['notify_worker_id'],'array',array());
 		$notify_worker_ids = DevblocksEventHelper::mergeWorkerVars($notify_worker_ids, $dict);
-				
-		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
-		$title = $tpl_builder->build($params['title'], $dict);
-
-		$due_date = $tpl_builder->build($params['due_date'], $dict);
+ 		@$owner_ids = DevblocksPlatform::importVar($params['owner_id'],'string','');
+		$owner_ids = DevblocksEventHelper::mergeWorkerVars($owner_ids, $dict);
+		$owner_id = array_shift($owner_ids) ?: 0;
+		
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+		$workers = DAO_Worker::getAll();
+		
+		@$title = $tpl_builder->build($params['title'], $dict);
+		@$due_date = $tpl_builder->build($params['due_date'], $dict);
 		
 		if(!is_numeric($due_date))
 			$due_date = intval(@strtotime($due_date));
@@ -3548,6 +3586,12 @@ class DevblocksEventHelper {
 			$params['due_date']
 		);
 
+		if(!empty($owner_id) && isset($workers[$owner_id])) {
+			$out .= sprintf("Owner: %s\n",
+				$workers[$owner_id]->getName()
+			);
+		}
+		
 		// Custom fields
 		$out .= DevblocksEventHelper::simulateActionCreateRecordSetCustomFields($params, $dict);
 		
@@ -3607,11 +3651,15 @@ class DevblocksEventHelper {
 		
 		@$notify_worker_ids = DevblocksPlatform::importVar($params['notify_worker_id'],'array',array());
 		$notify_worker_ids = DevblocksEventHelper::mergeWorkerVars($notify_worker_ids, $dict);
-				
-		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
-		$title = $tpl_builder->build($params['title'], $dict);
 		
-		$due_date = $tpl_builder->build($params['due_date'], $dict);
+ 		@$owner_ids = DevblocksPlatform::importVar($params['owner_id'],'string','');
+		$owner_ids = DevblocksEventHelper::mergeWorkerVars($owner_ids, $dict);
+		$owner_id = array_shift($owner_ids) ?: 0;
+		
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+		
+		@$title = $tpl_builder->build($params['title'], $dict);
+		@$due_date = $tpl_builder->build($params['due_date'], $dict);
 		
 		if(!is_numeric($due_date))
 			$due_date = intval(@strtotime($due_date));
@@ -3622,6 +3670,7 @@ class DevblocksEventHelper {
 			DAO_Task::TITLE => $title,
 			DAO_Task::UPDATED_DATE => time(),
 			DAO_Task::DUE_DATE => $due_date,
+			DAO_Task::OWNER_ID => $owner_id,
 		);
 		
 		if(false == ($task_id = DAO_Task::create($fields)))
@@ -3700,7 +3749,10 @@ class DevblocksEventHelper {
 		
 		@$status_id = $params['status_id'];
 		@$reopen_at = $params['reopen_at'];
-		@$owner_id = $params['owner_id'];
+		
+ 		@$owner_ids = DevblocksPlatform::importVar($params['owner_id'],'string','');
+		$owner_ids = DevblocksEventHelper::mergeWorkerVars($owner_ids, $dict);
+		$owner_id = array_shift($owner_ids) ?: 0;
 		
 		$out = sprintf(">>> Creating ticket\n".
 			"Group: %s <%s>\n".
@@ -3768,7 +3820,6 @@ class DevblocksEventHelper {
 		@$group_id = $params['group_id'];
 		@$status_id = $params['status_id'];
 		@$reopen_at = $params['reopen_at'];
-		@$owner_id = $params['owner_id'];
 		
 		if(null == ($group = DAO_Group::get($group_id)))
 			return;
@@ -3780,11 +3831,15 @@ class DevblocksEventHelper {
 		@$watcher_worker_ids = DevblocksPlatform::importVar($params['worker_id'],'array',array());
 		$watcher_worker_ids = DevblocksEventHelper::mergeWorkerVars($watcher_worker_ids, $dict);
 		
+ 		@$owner_ids = DevblocksPlatform::importVar($params['owner_id'],'string','');
+		$owner_ids = DevblocksEventHelper::mergeWorkerVars($owner_ids, $dict);
+		$owner_id = array_shift($owner_ids) ?: 0;
+		
 		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$requesters = $tpl_builder->build($params['requesters'], $dict);
 		$subject = $tpl_builder->build($params['subject'], $dict);
 		$content = $tpl_builder->build($params['content'], $dict);
-				
+		
 		$message = new CerberusParserMessage();
 		$message->headers['date'] = date('r');
 		$message->headers['to'] = $group_replyto->email;
@@ -4559,7 +4614,9 @@ class DevblocksEventHelper {
 	static function mergeWorkerVars($worker_ids, DevblocksDictionaryDelegate $dict, $include_inactive=false) {
 		$workers = DAO_Worker::getAll();
 		
-		if(is_array($worker_ids))
+		if(!is_array($worker_ids))
+			$worker_ids = [$worker_ids];
+		
 		foreach($worker_ids as $k => $worker_id) {
 			if(!is_numeric($worker_id)) {
 				$key = $worker_id;

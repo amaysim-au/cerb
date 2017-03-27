@@ -212,13 +212,22 @@ class _DevblocksTemplateManager {
 		return DevblocksPlatform::strToHyperlinks($string);
 	}
 	
-	static function modifier_devblocks_email_quote($string, $wrap_to=76) {
+	static function modifier_devblocks_email_quote($string, $wrap_to=76, $max_length=50000) {
+		// Max length on what we're quoting
+		if($max_length)
+			$string = substr($string, 0, $max_length);
+		
 		$lines = DevblocksPlatform::parseCrlfString($string, true);
 		$bins = array();
 		$last_prefix = null;
 		
 		// Sort lines into bins
 		foreach($lines as $i => $line) {
+			// If a line is all whitespace and quotes, and the previous line is the same, skip it
+			if($i && preg_match("/^[ >]+$/", $lines[$i-1], $matches) && preg_match("/^[ >]+$/", $line, $matches)) {
+				continue;
+			}
+			
 			$prefix = '';
 
 			if(preg_match("/^((\> )+)/", $line, $matches))
@@ -274,7 +283,9 @@ class _DevblocksTemplateManager {
 					// If we don't have more lines, add a new one
 					if(!empty($overflow)) {
 						if(isset($bins[$i]['lines'][$l+1])) {
-							if(mb_strlen($bins[$i]['lines'][$l+1]) == 0) {
+							$next_line = $bins[$i]['lines'][$l+1];
+							
+							if(mb_strlen($next_line) == 0 || DevblocksPlatform::strIsListItem($next_line)) {
 								array_splice($bins[$i]['lines'], $l+1, 0, $overflow);
 							} else {
 								$bins[$i]['lines'][$l+1] = $overflow . " " . $bins[$i]['lines'][$l+1];

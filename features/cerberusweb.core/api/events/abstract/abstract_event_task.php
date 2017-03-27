@@ -220,6 +220,8 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 				'create_ticket' => array('label' =>'Create ticket'),
 				'send_email' => array('label' => 'Send email'),
 				'set_due_date' => array('label' => 'Set task due date'),
+				'set_importance' => array('label' => 'Set task importance'),
+				'set_owner' => array('label' => 'Set task owner'),
 				'set_status' => array('label' => 'Set task status'),
 				'set_links' => array('label' => 'Set links'),
 			)
@@ -266,6 +268,17 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 				
 			case 'set_due_date':
 				$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_date.tpl');
+				break;
+				
+			case 'set_importance':
+				$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_number.tpl');
+				break;
+				
+			case 'set_owner':
+				$worker_values = DevblocksEventHelper::getWorkerValues($trigger);
+				$tpl->assign('worker_values', $worker_values);
+				
+				$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_worker.tpl');
 				break;
 				
 			case 'set_status':
@@ -331,12 +344,76 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 				);
 				return $out;
 				break;
+			
+			case 'set_importance':
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+				$value = $tpl_builder->build($params['value'], $dict);
+				$value = DevblocksPlatform::intClamp($value, 0, 100);
+				
+				$dict->task_importance = $value;
+				
+				$out = sprintf(">>> Setting task importance to: %d\n",
+					$dict->task_importance
+				);
+				return $out;
+				break;
+			
+			case 'set_owner':
+				@$owner_id = $params['worker_id'];
+				
+				if(empty($task_id))
+					return false;
+				
+				$out = ">>> Setting owner to:\n";
+		
+				// Placeholder?
+				if(!is_numeric($owner_id) && $dict->exists($owner_id)) {
+					if(is_numeric($dict->$owner_id)) {
+						@$owner_id = $dict->$owner_id;
+						
+					} elseif (is_array($dict->$owner_id)) {
+						@$owner_id = key($dict->$owner_id);
+					}
+				}
+				
+				$owner_id = intval($owner_id);
+				
+				if(empty($owner_id)) {
+					$out .= "(nobody)\n";
+					
+				} else {
+					if(null != ($owner_model = DAO_Worker::get($owner_id))) {
+						$out .= $owner_model->getName() . "\n";
+					}
+				}
+				
+				$dict->scrubKeys('task_owner_');
+				$dict->task_owner__context = CerberusContexts::CONTEXT_WORKER;
+				$dict->task_owner_id = $owner_id;
+				return $out;
+				break;
 				
 			case 'set_links':
 				return DevblocksEventHelper::simulateActionSetLinks($trigger, $params, $dict);
 				break;
 				
-
+			case 'set_status':
+				@$to_status = $params['status'];
+				@$current_status = $dict->task_status;
+				
+				switch($to_status) {
+					case 'active':
+					case 'completed':
+						$dict->task_status = $to_status;
+						break;
+				}
+				
+				$out = sprintf(">>> Setting status to: %s\n",
+					$dict->task_status
+				);
+				return $out;
+				break;
+				
 			default:
 				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token))
 					return DevblocksEventHelper::simulateActionSetCustomField($token, $params, $dict);
@@ -381,19 +458,30 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 				DAO_Task::update($task_id, array(
 					DAO_Task::DUE_DATE => $dict->task_due,
 				));
+				break;
 				
+			case 'set_importance':
+				$this->simulateAction($token, $trigger, $params, $dict);
+				
+				DAO_Task::update($task_id, array(
+					DAO_Task::IMPORTANCE => $dict->task_importance,
+				));
+				break;
+				
+			case 'set_owner':
+				$this->simulateAction($token, $trigger, $params, $dict);
+				
+				DAO_Task::update($task_id, array(
+					DAO_Task::OWNER_ID => intval($dict->task_owner_id),
+				));
 				break;
 				
 			case 'set_status':
-				@$to_status = $params['status'];
-				@$current_status = $dict->task_status;
-				
-				if($to_status == $current_status)
-					break;
+				$this->simulateAction($token, $trigger, $params, $dict);
 				
 				$fields = array();
 					
-				switch($to_status) {
+				switch($dict->task_status) {
 					case 'active':
 						$fields = array(
 							DAO_Task::IS_COMPLETED => 0,
@@ -409,7 +497,6 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 				}
 				
 				if(!empty($fields)) {
-					$dict->task_status = $to_status;
 					DAO_Task::update($task_id, $fields);
 				}
 				break;
