@@ -143,8 +143,8 @@ class _DevblocksTemplateBuilder {
 			$properties = [];
 			
 			$policy = new _DevblocksTwigSecurityPolicy($tags, $filters, $methods, $properties, $functions);
-			$sandbox = new Twig_Extension_Sandbox($policy, true);
-			$this->_twig->addExtension($sandbox);
+//			$sandbox = new Twig_Extension_Sandbox($policy, true);
+//			$this->_twig->addExtension($sandbox);
 		}
 	}
 	
