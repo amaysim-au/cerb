@@ -686,7 +686,7 @@ class ChDisplayPage extends CerberusPageExtension {
 
 			if(is_array($macros))
 			foreach($macros as $macro)
-				Event_MailBeforeUiReplyByWorker::trigger($macro->id, $message->id, $actions);
+				Event_MailBeforeUiReplyByWorker::trigger($macro->id, $message->id, $active_worker->id, $actions);
 
 			if(isset($actions['jquery_scripts']) && is_array($actions['jquery_scripts'])) {
 				$tpl->assign('jquery_scripts', $actions['jquery_scripts']);
@@ -1183,7 +1183,7 @@ class ChDisplayPage extends CerberusPageExtension {
 		// [TODO] Abstract this?
 		$vars = DAO_ContextScheduledBehavior::buildVariables($var_keys, $var_vals, $macro);
 		
-		Event_MailDuringUiReplyByWorker::trigger($macro_id, $message_id, $actions, $vars);
+		Event_MailDuringUiReplyByWorker::trigger($macro_id, $message_id, $active_worker->id, $actions, $vars);
 
 		// [TODO] Move script block to template?
 		if(isset($actions['jquery_scripts'])) {

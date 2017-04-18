@@ -39,8 +39,8 @@
  * - Jeff Standen and Dan Hildebrandt
  *	 Founders at Webgroup Media LLC; Developers of Cerb
  */
-define("APP_BUILD", 2017041001);
-define("APP_VERSION", '7.3.9');
+define("APP_BUILD", 2017041701);
+define("APP_VERSION", '7.3.10');
 
 define("APP_MAIL_PATH", APP_STORAGE_PATH . '/mail/');
 
@@ -1244,6 +1244,24 @@ class CerberusContexts {
 			return true;
 		}
 		return false;
+	}
+	
+	public static function isOwnableBy($owner_context, $owner_context_id, $actor) {
+		if(false == ($actor = CerberusContexts::polymorphActorToDictionary($actor)))
+			return false;
+		
+		// Admins can do whatever they want
+		if(CerberusContexts::isActorAnAdmin($actor))
+			return true;
+		
+		// Workers can own records, even though they can't write themselves
+		if(
+			$owner_context == CerberusContexts::CONTEXT_WORKER
+			&& $actor->_context == CerberusContexts::CONTEXT_WORKER
+			&& $actor->id == $owner_context_id
+		) return true;
+		
+		return self::isWriteableByActor($owner_context, $owner_context_id, $actor);
 	}
 	
 	public static function polymorphModelsToDictionaries($models, $context) {

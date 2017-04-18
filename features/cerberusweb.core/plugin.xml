@@ -4,7 +4,7 @@
 	<name>Cerb Core</name>
 	<description>The core functionality of Cerb.</description>
 	<author>Webgroup Media, LLC.</author>
-	<version>7.3.9</version>
+	<version>7.3.10</version>
 	<link>https://cerb.ai</link>
 	
 	<!-- Plugin Dependencies -->
@@ -1084,7 +1084,7 @@
 				</param>
 				<param key="alias" value="attachment" />
 				<param key="dao_class" value="DAO_Attachment" />
-				<param key="view_class" value="" />
+				<param key="view_class" value="View_Attachment" />
 				<param key="options">
 					<value>
 						<data key="cards" />

@@ -128,6 +128,22 @@ class PageSection_ProfilesSnippet extends Extension_PageSection {
 		$tpl->display('devblocks:cerberusweb.core::internal/snippets/profile.tpl');
 	}
 	
+	function showTabContentAction() {
+		@$context_id = DevblocksPlatform::importGPC($_REQUEST['context_id'],'integer',0);
+		
+		$tpl = DevblocksPlatform::getTemplateService();
+		$active_worker = CerberusApplication::getActiveWorker();
+		
+		if(!$context_id || false == ($snippet = DAO_Snippet::get($context_id)))
+			return;
+		
+		if(false == Context_Snippet::isReadableByActor($snippet, $active_worker))
+			return;
+		
+		$tpl->assign('snippet', $snippet);
+		$tpl->display('devblocks:cerberusweb.core::internal/snippets/profile/preview.tpl');
+	}
+	
 	function viewExploreAction() {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
@@ -275,7 +291,7 @@ class PageSection_ProfilesSnippet extends Extension_PageSection {
 				if(empty($owner_context))
 					throw new Exception_DevblocksAjaxValidationError("The 'Owner' field is required.", 'owner');
 				
-				if(!CerberusContexts::isWriteableByActor($owner_context, $owner_context_id, $active_worker))
+				if(!CerberusContexts::isOwnableBy($owner_context, $owner_context_id, $active_worker))
 					throw new Exception_DevblocksAjaxValidationError("You don't have permission to use this owner.", 'owner');
 				
 				if(empty($content))
