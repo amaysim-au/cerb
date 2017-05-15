@@ -263,52 +263,36 @@ class DevblocksPlatform extends DevblocksEngine {
 		$ch = curl_init($url);
 		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 90);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 90);
-
+		
 		return $ch;
 	}
 	
 	static function curlExec($ch, $follow=false, $return=true) {
-        if(1 == 1){
-            ob_start();
-            $log_out = fopen('php:///tmp/output.mc-debug', 'w');
-            curl_setopt($ch, CURLOPT_VERBOSE, true);
-            curl_setopt($ch, CURLOPT_STDERR, $log_out);
-        }
-        // Proxy
-        if(defined('DEVBLOCKS_HTTP_PROXY') && DEVBLOCKS_HTTP_PROXY) {
-            curl_setopt($ch, CURLOPT_PROXY, DEVBLOCKS_HTTP_PROXY);
-        }
-
-        // Return transfer
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, $return);
-
-
-            // Follow redirects
-            if($follow) {
-                curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
-                $out = curl_exec($ch);
-                $status = curl_getinfo($ch);
-
-                // It's a 3xx redirect
-                // [TODO] Catch redirect loops
-                if(isset($status['redirect_url']) && $status['redirect_url'] && floor($status['http_code']/100) == 3) {
-                    curl_setopt($ch, CURLOPT_URL, $status['redirect_url']);
-                    return self::curlExec($ch, $follow, $return);
-                }
-
-                fclose($log_out);
-                $debug = ob_get_clean();
-
-
-                return $out;
-            }
-
-		$resp = curl_exec($ch);
-
-        $debug = ob_get_clean();
-        fclose($log_out);
-        echo $debug . PHP_EOL;
-		return $resp;
+		// Proxy
+		if(defined('DEVBLOCKS_HTTP_PROXY') && DEVBLOCKS_HTTP_PROXY) {
+			curl_setopt($ch, CURLOPT_PROXY, DEVBLOCKS_HTTP_PROXY);
+		}
+		
+		// Return transfer
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, $return);
+		
+		// Follow redirects
+		if($follow) {
+			curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+			$out = curl_exec($ch);
+			$status = curl_getinfo($ch);
+			
+			// It's a 3xx redirect
+			// [TODO] Catch redirect loops
+			if(isset($status['redirect_url']) && $status['redirect_url'] && floor($status['http_code']/100) == 3) {
+				curl_setopt($ch, CURLOPT_URL, $status['redirect_url']);
+				return self::curlExec($ch, $follow, $return);
+			}
+			
+			return $out;
+		}
+		
+		return curl_exec($ch);
 	}
 	
 	/**
