@@ -263,37 +263,67 @@ class DevblocksPlatform extends DevblocksEngine {
 		$ch = curl_init($url);
 		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 90);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 90);
-		
+        if(CURL_DEBUG_PATH != '') {
+            curl_setopt($ch, CURLINFO_HEADER_OUT, true);
+            curl_setopt($ch, CURLOPT_VERBOSE, true);
+        }
 		return $ch;
 	}
-	
-	static function curlExec($ch, $follow=false, $return=true) {
-		// Proxy
-		if(defined('DEVBLOCKS_HTTP_PROXY') && DEVBLOCKS_HTTP_PROXY) {
-			curl_setopt($ch, CURLOPT_PROXY, DEVBLOCKS_HTTP_PROXY);
-		}
-		
-		// Return transfer
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, $return);
-		
-		// Follow redirects
-		if($follow) {
-			curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
-			$out = curl_exec($ch);
-			$status = curl_getinfo($ch);
-			
-			// It's a 3xx redirect
-			// [TODO] Catch redirect loops
-			if(isset($status['redirect_url']) && $status['redirect_url'] && floor($status['http_code']/100) == 3) {
-				curl_setopt($ch, CURLOPT_URL, $status['redirect_url']);
-				return self::curlExec($ch, $follow, $return);
-			}
-			
-			return $out;
-		}
-		
-		return curl_exec($ch);
-	}
+
+    static function curlExec($ch, $follow=false, $return=true) {
+        // Proxy
+        if(defined('DEVBLOCKS_HTTP_PROXY') && DEVBLOCKS_HTTP_PROXY) {
+            curl_setopt($ch, CURLOPT_PROXY, DEVBLOCKS_HTTP_PROXY);
+        }
+
+        // Return transfer
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, $return);
+
+        // Follow redirects
+        if($follow) {
+            curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+            $out = curl_exec($ch);
+            $curl_info = curl_getinfo($ch);
+
+            // It's a 3xx redirect
+            // [TODO] Catch redirect loops
+            if(isset($status['redirect_url']) && $status['redirect_url'] && floor($status['http_code']/100) == 3) {
+                curl_setopt($ch, CURLOPT_URL, $status['redirect_url']);
+
+                return self::curlExec($ch, $follow, $return);
+            }
+
+            self::curlDebug($curl_info,$out);
+
+            return $out;
+        }
+
+        $out = curl_exec($ch);
+        $curl_info = curl_getinfo($ch);
+
+        self::curlDebug($curl_info,$out);
+
+        return $out;
+    }
+
+    static function curlDebug($curl_info,$out){
+	    if(CURL_DEBUG_PATH != ''){
+	        $log_file = CURL_DEBUG_PATH;
+            $allowedTypes = array("application/json","application/xml","text/xml","application/soap+xml");
+            $output = "";
+            if(!in_array($curl_info['content_type'],$allowedTypes)){
+                $output = "Binary output, suppressed...";
+            }else{
+                $output = $out;
+            }
+            $_info = json_encode($curl_info);
+            $date = DateTime::createFromFormat('U.u', microtime(true));
+            $dateTime = $date->format("Y-m-d H:i:s.u");
+            $log = $dateTime . PHP_EOL . "Info: " . $_info . PHP_EOL . PHP_EOL .  "ResponsePayload: " . $output . PHP_EOL . "---" . PHP_EOL . PHP_EOL;
+            file_put_contents($log_file, $log,FILE_APPEND);
+        }
+    }
+
 	
 	/**
 	 * Returns a string as a regexp.

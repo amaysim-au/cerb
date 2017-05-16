@@ -10,7 +10,7 @@ define('APP_DB_PASS','');
 define('APP_DB_SLAVE_HOST','');
 define('APP_DB_SLAVE_USER','');
 define('APP_DB_SLAVE_PASS','');
-
+define('CURL_DEBUG_PATH','/var/log/nginx/php_curl_debug.log');  // Location must be writable by ngnix user. Set value to '' (empty string) to disable or /var/log/nginx/php_curl_debug.log to enable and set log file path
 define('LANG_CHARSET_CODE','utf-8'); // utf-8, iso-8859-1
 define('DB_CHARSET_CODE','utf8'); // utf8, latin1
 
