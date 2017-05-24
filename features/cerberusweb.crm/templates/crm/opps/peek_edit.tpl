@@ -51,16 +51,18 @@
 		<tr>
 			<td width="0%" nowrap="nowrap" align="right" valign="top">{'common.created'|devblocks_translate|capitalize}: </td>
 			<td width="100%">
-				<input type="text" name="created_date" size=35 class="input_date" value="{if !empty($opp->created_date)}{$opp->created_date|devblocks_date}{else}now{/if}">
+				{*<input type="text" name="created_date" size=35 class="input_date" value="{if !empty($opp->created_date)}{$opp->created_date|devblocks_date}{else}now{/if}">*}
+				<span class="input_date"><strong>{if !empty($opp->created_date)}{$opp->created_date|devblocks_date}{else}now{/if}</strong></span>
 			</td>
 		</tr>
-		<tr id="oppPeekClosedDate" {if !$opp->is_closed}style="display:none;"{/if}>
-			<td width="0%" nowrap="nowrap" align="right" valign="top">{'crm.opportunity.closed_date'|devblocks_translate|capitalize}: </td>
-			<td width="100%">
-				<input type="text" name="closed_date" size="35" class="input_date" value="{if !empty($opp->closed_date)}{$opp->closed_date|devblocks_date}{/if}">
-			</td>
-		</tr>
-		
+
+		{*<tr id="oppPeekClosedDate" {if !$opp->is_closed}style="display:none;"{/if}>*}
+			{*<td width="0%" nowrap="nowrap" align="right" valign="top">{'crm.opportunity.closed_date'|devblocks_translate|capitalize}: </td>*}
+			{*<td width="100%">*}
+				{*<input type="text" name="closed_date" size="35" class="input_date" value="{if !empty($opp->closed_date)}{$opp->closed_date|devblocks_date}{/if}">*}
+			{*</td>*}
+		{*</tr>*}
+
 	</table>
 </fieldset>
 
