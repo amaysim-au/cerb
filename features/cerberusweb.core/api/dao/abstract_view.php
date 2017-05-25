@@ -1311,7 +1311,7 @@ abstract class C4_AbstractView {
 					if(isset($cfield->params['options']))
 						$search_field_meta['examples'] = array_slice(
 								array_map(function($e) { 
-									return sprintf('("%s")', str_replace(array('(',')'),array('\(','\)'),$e));
+									return sprintf('"%s"', $e);
 								},
 								$cfield->params['options']
 							),
@@ -1326,7 +1326,7 @@ abstract class C4_AbstractView {
 					if(isset($cfield->params['options']))
 						$search_field_meta['examples'] = array_slice(
 								array_map(function($e) { 
-									return sprintf('("%s")', str_replace(array('(',')'),array('\(','\)'),$e));
+									return sprintf('"%s"', $e);
 								},
 								$cfield->params['options']
 							),
@@ -1625,10 +1625,14 @@ abstract class C4_AbstractView {
 			$keys = array_map(function($key) {
 				return '{{' . $key . '}}';
 			}, array_keys($labels));
+
+			$values = array_column($labels, 'label');
 			
-			$labels = array_combine($keys, array_column($labels, 'label'));
-			$placeholders_menu->children = Extension_DevblocksContext::getPlaceholderTree($labels, ' ', '_');
-			$menu['(placeholders)'] = $placeholders_menu;
+			if(count($keys) == count($values)) {
+				$labels = array_combine($keys, $values);
+				$placeholders_menu->children = Extension_DevblocksContext::getPlaceholderTree($labels, ' ', '_');
+				$menu['(placeholders)'] = $placeholders_menu;
+			}
 		}
 		
 		// Fields
@@ -1914,6 +1918,10 @@ abstract class C4_AbstractView {
 	protected function _getSubtotalCountForNumberColumn($context, $field_key, $label_map=array(), $value_oper='=', $value_key='value') {
 		$counts = array();
 		$results = $this->_getSubtotalDataForColumn($context, $field_key);
+		
+		if(is_callable($label_map)) {
+			$label_map = $label_map(array_column($results, 'label'));
+		}
 		
 		foreach($results as $result) {
 			$label = $result['label'];
@@ -2523,14 +2531,24 @@ abstract class C4_AbstractView {
 		$cfield_key = $search_class::getCustomFieldContextWhereKey($cfield->context);
 			
 		if($cfield_key) {
-			$cfield_select_sql .= sprintf("(SELECT %s FROM %s WHERE context=%s AND context_id=%s AND field_id=%d ORDER BY field_value%s)",
-				($is_multiple_value_cfield ? 'GROUP_CONCAT(field_value SEPARATOR "||")' : 'field_value'),
-				DAO_CustomFieldValue::getValueTableName($field_id),
-				Cerb_ORMHelper::qstr($cfield->context),
-				$cfield_key,
-				$field_id,
-				' LIMIT 1'
-			);
+			if($is_multiple_value_cfield) {
+				$cfield_select_sql .= sprintf("SELECT COUNT(field_value) AS hits, field_value AS %s FROM %s WHERE context=%s AND context_id IN (%%s) AND field_id=%d GROUP BY %s ORDER BY hits DESC",
+					$field_key,
+					DAO_CustomFieldValue::getValueTableName($field_id),
+					Cerb_ORMHelper::qstr($cfield->context),
+					$field_id,
+					$field_key
+				);
+				
+			} else {
+				$cfield_select_sql .= sprintf("(SELECT field_value FROM %s WHERE context=%s AND context_id=%s AND field_id=%d ORDER BY field_value%s)",
+					DAO_CustomFieldValue::getValueTableName($field_id),
+					Cerb_ORMHelper::qstr($cfield->context),
+					$cfield_key,
+					$field_id,
+					' LIMIT 1'
+				);
+			}
 		}
 		
 		// ... and that the DAO object is valid
@@ -2612,50 +2630,39 @@ abstract class C4_AbstractView {
 			case Model_CustomField::TYPE_NUMBER:
 			case Model_CustomField::TYPE_SINGLE_LINE:
 			case Model_CustomField::TYPE_URL:
-				$select = sprintf(
-					"SELECT COUNT(*) AS hits, %s AS %s ", //SQL_CALC_FOUND_ROWS
-					$cfield_select_sql,
-					$field_key
-				);
-				
-				$sql =
-					$select.
-					$join_sql.
-					$where_sql.
-					sprintf(
-						"GROUP BY %s ",
+				if($is_multiple_value_cfield) {
+					$subquery_sql =
+						sprintf("SELECT %s ", $cfield_key).
+						$join_sql.
+						$where_sql
+					;
+					
+					$sql = sprintf($cfield_select_sql, $subquery_sql);
+					
+				} else {
+					$select = sprintf(
+						"SELECT COUNT(*) AS hits, %s AS %s ",
+						$cfield_select_sql,
 						$field_key
-					).
-					"ORDER BY hits DESC ".
-					"LIMIT 20 "
-				;
+					);
+					
+					$sql =
+						$select.
+						$join_sql.
+						$where_sql.
+						sprintf(
+							"GROUP BY %s ",
+							$field_key
+						).
+						"ORDER BY hits DESC ".
+						"LIMIT 20 "
+					;
+				}
 				
 				$results = $db->GetArraySlave($sql);
 //				$total = count($results);
 //				$total = ($total < 20) ? $total : $db->GetOneSlave("SELECT FOUND_ROWS()");
 
-				// Expand multi-value results
-				
-				if($is_multiple_value_cfield) {
-					$counts = [];
-					foreach($results as $result) {
-						if(false == ($values = explode('||', $result[$field_key])))
-							continue;
-						
-						foreach($values as $value) {
-							if(!isset($counts[$value]))
-								$counts[$value] = [
-									'hits' => 0,
-									$field_key => $value,
-								];
-							
-							$counts[$value]['hits'] += $result['hits'];
-						}
-					}
-					
-					$results = $counts;
-				}
-				
 				if(is_array($results))
 				foreach($results as $result) {
 					$label = '';

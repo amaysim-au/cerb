@@ -165,6 +165,7 @@ class DAO_Ticket extends Cerb_ORMHelper {
 	}
 	
 	static function getViewForRequesterHistory($view_id, $ticket, $scope=null) {
+		/* @var $ticket Model_Ticket */
 		$translate = DevblocksPlatform::getTranslationService();
 		
 		// Defaults
@@ -195,15 +196,15 @@ class DAO_Ticket extends Cerb_ORMHelper {
 					SearchFields_Ticket::TICKET_ORG_ID => new DevblocksSearchCriteria(SearchFields_Ticket::TICKET_ORG_ID,'=',$ticket->org_id),
 					SearchFields_Ticket::TICKET_STATUS_ID => new DevblocksSearchCriteria(SearchFields_Ticket::TICKET_STATUS_ID,'!=',Model_Ticket::STATUS_DELETED),
 				), true);
-				$view->name = ucwords($translate->_('common.organization'));
+				$view->name = 'History: Tickets from this organization';
 				break;
 				
 			case 'domain':
 				$view->addParamsRequired(array(
-					SearchFields_Ticket::REQUESTER_ADDRESS => new DevblocksSearchCriteria(SearchFields_Ticket::REQUESTER_ADDRESS,'like','*@'.$email_parts[1]),
+					SearchFields_Ticket::VIRTUAL_PARTICIPANT_SEARCH => new DevblocksSearchCriteria(SearchFields_Ticket::VIRTUAL_PARTICIPANT_SEARCH, DevblocksSearchCriteria::OPER_CUSTOM, 'host:' . $email_parts[1]),
 					SearchFields_Ticket::TICKET_STATUS_ID => new DevblocksSearchCriteria(SearchFields_Ticket::TICKET_STATUS_ID,'!=',Model_Ticket::STATUS_DELETED),
 				), true);
-				$view->name = ucwords($translate->_('common.email')) . ": *@" . $email_parts[1];
+				$view->name = 'History: Tickets from *@' . $email_parts[1];
 				break;
 				
 			default:
@@ -215,7 +216,7 @@ class DAO_Ticket extends Cerb_ORMHelper {
 					SearchFields_Ticket::REQUESTER_ID => new DevblocksSearchCriteria(SearchFields_Ticket::REQUESTER_ID,'in',array_keys($requesters)),
 					SearchFields_Ticket::TICKET_STATUS_ID => new DevblocksSearchCriteria(SearchFields_Ticket::TICKET_STATUS_ID,'!=',Model_Ticket::STATUS_DELETED),
 				), true);
-				$view->name = sprintf("History: %d recipient(s)", count($requesters));
+				$view->name = "History: Tickets from these participants";
 				break;
 		}
 		
@@ -2677,7 +2678,7 @@ class View_Ticket extends C4_AbstractView implements IAbstractView_Subtotals, IA
 					$results = array_column(DevblocksPlatform::objectsToArrays($models), 'name', 'id');
 					return $results;
 				};
-				$counts = $this->_getSubtotalCountForStringColumn($context, $column, $label_map, 'in', 'context_id[]');
+				$counts = $this->_getSubtotalCountForNumberColumn($context, $column, $label_map, 'in', 'context_id[]');
 				break;
 				
 			case SearchFields_Ticket::TICKET_GROUP_ID:
@@ -4099,7 +4100,7 @@ class View_Ticket extends C4_AbstractView implements IAbstractView_Subtotals, IA
 				break;
 			
 			case SearchFields_Ticket::TICKET_ORG_ID:
-				@$context_ids = DevblocksPlatform::sanitizeArray(DevblocksPlatform::importGPC($_REQUEST['context_id'],'array',array()), 'integer', array('nonzero','unique'));
+				@$context_ids = DevblocksPlatform::sanitizeArray(DevblocksPlatform::importGPC($_REQUEST['context_id'],'array',[]), 'integer', array('unique'));
 				$criteria = new DevblocksSearchCriteria($field,$oper,$context_ids);
 				break;
 
@@ -4970,6 +4971,7 @@ class Context_Ticket extends Extension_DevblocksContext implements IDevblocksCon
 			'group_id' => DAO_WorkerPref::get($active_worker->id,'compose.group_id',0),
 			'bucket_id' => DAO_WorkerPref::get($active_worker->id,'compose.bucket_id',0),
 			'status' => DAO_WorkerPref::get($active_worker->id,'compose.status','waiting'),
+			'signature_pos' => DAO_WorkerPref::get($active_worker->id, 'mail_signature_pos', 2),
 		);
 		
 		// Continue a draft?

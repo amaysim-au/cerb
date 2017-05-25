@@ -39,8 +39,8 @@
  * - Jeff Standen and Dan Hildebrandt
  *	 Founders at Webgroup Media LLC; Developers of Cerb
  */
-define("APP_BUILD", 2017041701);
-define("APP_VERSION", '7.3.10');
+define("APP_BUILD", 2017052401);
+define("APP_VERSION", '7.3.12');
 
 define("APP_MAIL_PATH", APP_STORAGE_PATH . '/mail/');
 
@@ -1003,9 +1003,10 @@ class CerberusContexts {
 						// Hash with the parent we're loading from
 						$hash = md5(json_encode(array($context, end($stack), $prefix)));
 						$cache_key = sprintf("cerb:ctx:%s", $hash);
-
+						$cache_local = true;
+						
 						// Cache hit
-						if(null !== ($data = $cache->load($cache_key, false, true))) {
+						if(null !== ($data = $cache->load($cache_key, false, $cache_local))) {
 							$loaded_labels = $data['labels'];
 							$loaded_values = $data['values'];
 							unset($data);
@@ -1015,8 +1016,8 @@ class CerberusContexts {
 							$loaded_labels = array();
 							$loaded_values = array();
 							$ctx->getContext(null, $loaded_labels, $loaded_values, $prefix);
-
-							$cache->save(array('labels' => $loaded_labels, 'values' => $loaded_values), $cache_key, array(), 0, true);
+							
+							$cache->save(array('labels' => $loaded_labels, 'values' => $loaded_values), $cache_key, array(), 0, $cache_local);
 						}
 
 						$labels = $loaded_labels;
@@ -1112,14 +1113,18 @@ class CerberusContexts {
 
 		} else {
 			if(is_array($labels)) {
-				foreach($labels as $idx => $label) {
-					$label = mb_ucfirst(trim($label));
-					$label = strtr($label,':',' ');
-					$labels[$idx] = $label;
-				}
-
-				asort($labels);
-
+				$finished = (1 == count(self::$_stack));
+				
+				array_walk($labels, function(&$label) use ($finished) {
+					$label = strtr(trim($label), ':',' ');
+					
+					if($finished)
+						$label = DevblocksPlatform::strUpperFirst($label, true);
+				});
+				
+				if($finished)
+					asort($labels);
+				
 				$values['_labels'] = $labels;
 			}
 		}

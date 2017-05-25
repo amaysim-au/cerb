@@ -470,6 +470,16 @@ class DevblocksPlatform extends DevblocksEngine {
 		return mb_convert_case($string, MB_CASE_UPPER);
 	}
 	
+	static function strUpperFirst($string, $lower_rest=false) {
+		if(!is_string($string))
+			return null;
+		
+		if($lower_rest)
+			$string = mb_strtolower($string);
+		
+		return mb_strtoupper(mb_substr($string, 0, 1)) . mb_substr($string, 1);
+	}
+	
 	static function strLower($string) {
 		return mb_convert_case($string, MB_CASE_LOWER);
 	}
@@ -601,6 +611,19 @@ class DevblocksPlatform extends DevblocksEngine {
 	 */
 	static function strAlphaNum($arg, $also=null, $replace="") {
 		return preg_replace("/[^A-Z0-9" . $also . "]/i", $replace, $arg);
+	}
+	
+	/**
+	 * Return a string with only its numeric characters
+	 *
+	 * @param string $arg
+	 * @param string $also
+	 * @param string $replace
+	 * @return string
+	 * @test DevblocksPlatformTest
+	 */
+	static function strNum($arg, $also=null, $replace="") {
+		return preg_replace("/[^0-9" . $also . "]/i", $replace, $arg);
 	}
 	
 	/**
@@ -2477,6 +2500,12 @@ class DevblocksPlatform extends DevblocksEngine {
 					$array = array_unique($array);
 				}
 				
+				return $array;
+				break;
+				
+			case 'str':
+			case 'string':
+				$array = _DevblocksSanitizationManager::arrayAs($array, 'string');
 				return $array;
 				break;
 				
