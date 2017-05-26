@@ -1,0 +1,132 @@
+diff --git a/framework.config.php b/framework.config.php
+index 9c40b10..945ecd8 100644
+--- a/framework.config.php
++++ b/framework.config.php
+@@ -13,6 +13,7 @@ define('APP_DB_SLAVE_PASS','');
+ 
+ define('LANG_CHARSET_CODE','utf-8'); // utf-8, iso-8859-1
+ define('DB_CHARSET_CODE','utf8'); // utf8, latin1
++define('CURL_DEBUG_PATH','/var/log/nginx/php_curl_debug.log');  // Location must be writable by ngnix user. Set value to '' (empty string) to disable or /var/log/nginx/php_curl_debug.log to enable and set log file path
+ 
+ //@ini_set('memory_limit', '64M');
+ 
+diff --git a/libs/devblocks/Devblocks.class.php b/libs/devblocks/Devblocks.class.php
+index 6f402aa..ecb5a27 100644
+--- a/libs/devblocks/Devblocks.class.php
++++ b/libs/devblocks/Devblocks.class.php
+@@ -258,42 +258,65 @@ class DevblocksPlatform extends DevblocksEngine {
+ 	static function floatClamp($n, $min, $max) {
+ 		return min(max((float)$n, $min), $max);
+ 	}
+-	
+-	static function curlInit($url=null) {
+-		$ch = curl_init($url);
+-		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 90);
+-		curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+-		
+-		return $ch;
+-	}
+-	
+-	static function curlExec($ch, $follow=false, $return=true) {
+-		// Proxy
+-		if(defined('DEVBLOCKS_HTTP_PROXY') && DEVBLOCKS_HTTP_PROXY) {
+-			curl_setopt($ch, CURLOPT_PROXY, DEVBLOCKS_HTTP_PROXY);
+-		}
+-		
+-		// Return transfer
+-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, $return);
+-		
+-		// Follow redirects
+-		if($follow) {
+-			curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+-			$out = curl_exec($ch);
+-			$status = curl_getinfo($ch);
+-			
+-			// It's a 3xx redirect
+-			// [TODO] Catch redirect loops
+-			if(isset($status['redirect_url']) && $status['redirect_url'] && floor($status['http_code']/100) == 3) {
+-				curl_setopt($ch, CURLOPT_URL, $status['redirect_url']);
+-				return self::curlExec($ch, $follow, $return);
+-			}
+-			
+-			return $out;
+-		}
+-		
+-		return curl_exec($ch);
+-	}
++
++    static function curlInit($url=null) {
++        $ch = curl_init($url);
++        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 90);
++        curl_setopt($ch, CURLOPT_TIMEOUT, 90);
++        if(CURL_DEBUG_PATH != '') {
++            curl_setopt($ch, CURLINFO_HEADER_OUT, true);
++            curl_setopt($ch, CURLOPT_VERBOSE, true);
++        }
++        return $ch;
++    }
++
++    static function curlExec($ch, $follow=false, $return=true) {
++        // Proxy
++        if(defined('DEVBLOCKS_HTTP_PROXY') && DEVBLOCKS_HTTP_PROXY) {
++            curl_setopt($ch, CURLOPT_PROXY, DEVBLOCKS_HTTP_PROXY);
++        }
++
++        // Return transfer
++        curl_setopt($ch, CURLOPT_RETURNTRANSFER, $return);
++
++        // Follow redirects
++        if($follow) {
++            curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
++            $out = curl_exec($ch);
++            $curl_info = curl_getinfo($ch);
++
++            // It's a 3xx redirect
++            // [TODO] Catch redirect loops
++            if(isset($status['redirect_url']) && $status['redirect_url'] && floor($status['http_code']/100) == 3) {
++                curl_setopt($ch, CURLOPT_URL, $status['redirect_url']);
++
++                return self::curlExec($ch, $follow, $return);
++            }
++
++            self::curlDebug($curl_info,$out);
++
++            return $out;
++        }
++
++        $out = curl_exec($ch);
++        $curl_info = curl_getinfo($ch);
++
++        self::curlDebug($curl_info,$out);
++
++        return $out;
++    }
++
++    static function curlDebug($curl_info,$out){
++        if(CURL_DEBUG_PATH != ''){
++            $log_file = CURL_DEBUG_PATH;
++            $output = self::getDebugString($curl_info['content_type'],$out);
++            $_info = json_encode($curl_info);
++            $date = DateTime::createFromFormat('U.u', microtime(true));
++            $dateTime = $date->format("Y-m-d H:i:s.u");
++            $log = $dateTime . PHP_EOL . "Info: " . $_info . PHP_EOL . PHP_EOL .  "ResponsePayload: " . $output . PHP_EOL . "---" . PHP_EOL . PHP_EOL;
++            file_put_contents($log_file, $log,FILE_APPEND);
++        }
++    }
+ 	
+ 	/**
+ 	 * Returns a string as a regexp.
+diff --git a/libs/devblocks/framework.defaults.php b/libs/devblocks/framework.defaults.php
+index 54495bc..fa9bd31 100644
+--- a/libs/devblocks/framework.defaults.php
++++ b/libs/devblocks/framework.defaults.php
+@@ -131,6 +131,9 @@ if(!defined('DEVELOPMENT_MODE_QUERIES'))
+ if(!defined('DEVELOPMENT_MODE_ALLOW_CSRF'))
+ 	define('DEVELOPMENT_MODE_ALLOW_CSRF', false);
+ 
++if(!defined('CURL_DEBUG_PATH'))
++    define('CURL_DEBUG_PATH','');
++
+ // ----
+ 
+ @date_default_timezone_set(date_default_timezone_get());
