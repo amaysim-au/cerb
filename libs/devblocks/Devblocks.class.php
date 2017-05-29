@@ -317,6 +317,16 @@ class DevblocksPlatform extends DevblocksEngine {
             file_put_contents($log_file, $log,FILE_APPEND);
         }
     }
+
+    static function getDebugString($contentType, $out){
+        $allowedTypes = array("application/json","application/xml","text/xml","application/soap+xml","text/plain");
+        foreach ($allowedTypes as &$cType){
+            if (preg_match('#^'.$contentType .'#i', $cType) === 1) {
+                return $out;
+            }
+        }
+        return "Binary output, suppressed...";
+    }
 	
 	/**
 	 * Returns a string as a regexp.
