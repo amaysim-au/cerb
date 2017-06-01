@@ -287,8 +287,8 @@ class DevblocksPlatform extends DevblocksEngine {
 
             // It's a 3xx redirect
             // [TODO] Catch redirect loops
-            if(isset($status['redirect_url']) && $status['redirect_url'] && floor($status['http_code']/100) == 3) {
-                curl_setopt($ch, CURLOPT_URL, $status['redirect_url']);
+            if(isset($curl_info['redirect_url']) && $curl_info['redirect_url'] && floor($curl_info['http_code']/100) == 3) {
+                curl_setopt($ch, CURLOPT_URL, $curl_info['redirect_url']);
 
                 return self::curlExec($ch, $follow, $return);
             }
