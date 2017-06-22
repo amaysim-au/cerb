@@ -13,6 +13,7 @@ define('APP_DB_SLAVE_PASS','');
 
 define('LANG_CHARSET_CODE','utf-8'); // utf-8, iso-8859-1
 define('DB_CHARSET_CODE','utf8'); // utf8, latin1
+define('CURL_DEBUG_PATH','/var/log/abb-sp/cerb-curl-debug.log');  // Location must be writable by ngnix user. Set value to '' (empty string) to disable or /var/log/abb-sp/cerb-curl-debug.log to enable and set log file path
 
 //@ini_set('memory_limit', '64M');
 
