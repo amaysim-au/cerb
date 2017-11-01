@@ -338,7 +338,9 @@ class WgmCerb_API {
 		// HTTP verb-specific options
 		switch($verb) {
 			case 'DELETE':
+				$header[] = 'Content-Length: ' .  strlen($postfields);
 				curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+				curl_setopt($ch, CURLOPT_POSTFIELDS, $postfields);
 				break;
 
 			case 'GET':
