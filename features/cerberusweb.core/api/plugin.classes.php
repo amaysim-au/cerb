@@ -647,6 +647,8 @@ private function _execute($verb='get', $url, $params=array(), $body=null, $heade
 				
 			case 'delete':
 				curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
+                                curl_setopt($ch, CURLOPT_POST, 1);
+                                curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
 				break;
 		}
 

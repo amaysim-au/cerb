@@ -23,7 +23,7 @@
 	</div>
 </div>
 
-<div class="cerb-httprequest-body" style="{if !in_array($params.http_verb,[post,put])}display:none;{/if}">
+<div class="cerb-httprequest-body" style="{if !in_array($params.http_verb,[post,put,delete])}display:none;{/if}">
 	<b>Request body:</b>
 	<div style="margin-left:10px;margin-bottom:10px;">
 		<textarea rows="3" cols="60" name="{$namePrefix}[http_body]" style="width:100%;white-space:pre;word-wrap:normal;" class="placeholders" spellcheck="false">{$params.http_body}</textarea>
