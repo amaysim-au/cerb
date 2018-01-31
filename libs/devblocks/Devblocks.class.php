@@ -487,8 +487,7 @@ class DevblocksPlatform extends DevblocksEngine {
 		return '#' . DevblocksPlatform::strUpper($color);
 	}
 	
-	static function 
-    (array $colors) {
+	static function colorLerpArray (array $colors) {
 		if(!is_array($colors))
 			return [];
 		
@@ -583,7 +582,7 @@ class DevblocksPlatform extends DevblocksEngine {
         }
     }
     return "Binary output, suppressed...";
-  =====
+  }
 	
 	/**
 	 * Returns a string as a regexp.
