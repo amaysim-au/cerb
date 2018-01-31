@@ -17,24 +17,12 @@ class DevblocksEventHelper {
 		
 		if(is_array($trigger->variables))
 		foreach($trigger->variables as $var_key => $var) {
-			if(DevblocksPlatform::strStartsWith($var_key, 'var_')) {
-				if('contexts' == $var['type']) {
-					$values_to_contexts[$var_key] = array(
-						'label' => '(variable) ' . $var['label'],
-						'is_polymorphic' => true,
-					);
-					
-				} else if(DevblocksPlatform::strStartsWith($var['type'], 'ctx_')) {
-					$ctx_id = substr($var['type'], 4);
+			if(substr($var_key,0,4) == 'var_') {
+				if(substr($var['type'],0,4) == 'ctx_') {
+					$ctx_id = substr($var['type'],4);
 					$values_to_contexts[$var_key] = array(
 						'label' => '(variable) ' . $var['label'],
 						'context' => $ctx_id,
-					);
-					
-				} else if(Model_CustomField::TYPE_WORKER == $var['type']) {
-					$values_to_contexts[$var_key] = array(
-						'label' => '(variable) ' . $var['label'],
-						'context' => CerberusContexts::CONTEXT_WORKER,
 					);
 				}
 			}
@@ -57,9 +45,9 @@ class DevblocksEventHelper {
 		return $context_to_macros;
 	}
 	
-	public static function getRelativeDateUsingCalendar($calendar_id, $rel_date) {
+	private static function _getRelativeDateUsingCalendar($calendar_id, $rel_date) {
 		$today = strtotime('today', time());
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		if(empty($calendar_id) || false == ($calendar = DAO_Calendar::get($calendar_id))) {
 			// Fallback to plain 24-hour time
@@ -96,9 +84,8 @@ class DevblocksEventHelper {
 		$event = $trigger->getEvent();
 		$values_to_contexts = $event->getValuesContexts($trigger);
 		
-		if(is_array($values_to_contexts))
 		foreach($values_to_contexts as $val_key => $context_data) {
-			if($context_data['context'] == CerberusContexts::CONTEXT_WORKER && !@$context_data['is_multiple']) {
+			if($context_data['context'] == CerberusContexts::CONTEXT_WORKER && !$context_data['is_multiple']) {
 				$values[$val_key] = [
 					'name' => (DevblocksPlatform::strStartsWith($context_data['label'], '(') ? '' : '(placeholder) ') . $context_data['label'],
 					'context' => $context_data['context']
@@ -106,7 +93,6 @@ class DevblocksEventHelper {
 			}
 		}
 		
-		if(is_array($trigger->variables))
 		foreach($trigger->variables as $var_key => $var_data) {
 			if($var_data['type'] != Model_CustomField::TYPE_WORKER)
 				continue;
@@ -127,7 +113,7 @@ class DevblocksEventHelper {
 		$values = array();
 		CerberusContexts::getContext($context, $context_id, $labels, $values, null, true, true);
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('context', $context);
 		$tpl->assign('context_id', $context_id);
@@ -153,10 +139,14 @@ class DevblocksEventHelper {
 				if(!isset($custom_fields[$cf_id]))
 					continue;
 				
-				if(Model_CustomField::hasMultipleValues($custom_fields[$cf_id]->type)) {
-					$custom_field_values[$cf_id] = array_combine($val, $val);
-				} else {
-					$custom_field_values[$cf_id] = $val;
+				switch($custom_fields[$cf_id]->type) {
+					case Model_CustomField::TYPE_MULTI_CHECKBOX:
+						$custom_field_values[$cf_id] = array_combine($val, $val);
+						break;
+						
+					default:
+						$custom_field_values[$cf_id] = $val;
+						break;
 				}
 			}
 		}
@@ -193,7 +183,7 @@ class DevblocksEventHelper {
 		
 		// Set custom fields
 		foreach($labels as $key => $label) {
-			if(preg_match('#(.*?_*)custom_([0-9]+)#', $key, $matches)) {
+			if(preg_match('#(.*?)_custom_([0-9]+)#', $key, $matches)) {
 				if(!isset($matches[2]) || !isset($custom_fields[$matches[2]]))
 					continue;
 				
@@ -214,7 +204,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function renderActionSetCustomField(Model_CustomField $custom_field, $trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		switch($custom_field->type) {
 			case Model_CustomField::TYPE_MULTI_LINE:
@@ -244,10 +234,6 @@ class DevblocksEventHelper {
 				$tpl->clearAssign('options');
 				break;
 				
-			case Model_CustomField::TYPE_LIST:
-				$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_list.tpl');
-				break;
-				
 			case Model_CustomField::TYPE_MULTI_CHECKBOX:
 				$tpl->assign('options', @$custom_field->params['options']);
 				$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_multi_checkbox.tpl');
@@ -257,6 +243,7 @@ class DevblocksEventHelper {
 			case Model_CustomField::TYPE_WORKER:
 				$worker_values = DevblocksEventHelper::getWorkerValues($trigger);
 				$tpl->assign('worker_values', $worker_values);
+				
 				$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_worker.tpl');
 				break;
 		}
@@ -293,20 +280,20 @@ class DevblocksEventHelper {
 			case Model_CustomField::TYPE_URL:
 				@$value = $params['value'];
 				
-				$builder = DevblocksPlatform::services()->templateBuilder();
+				$builder = DevblocksPlatform::getTemplateBuilder();
 				$value = $builder->build($value, $dict);
 				
 				$out .= sprintf("%s\n",
 					$value
 				);
-				
+				 
 				if(!empty($value_key)) {
 					$dict->$value_key = $value;
 				}
 				break;
 			
 			case Model_CustomField::TYPE_DATE:
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				$value = $tpl_builder->build($params['value'], $dict);
 				
 				if(!is_numeric($value))
@@ -321,21 +308,6 @@ class DevblocksEventHelper {
 				
 				if(!empty($value_key)) {
 					$dict->$value_key = $value;
-				}
-				break;
-				
-			case Model_CustomField::TYPE_LIST:
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-				@$values = $tpl_builder->build($params['values'], $dict);
-				
-				$values = DevblocksPlatform::parseCrlfString($values);
-				
-				$out .= sprintf("%s\n",
-					implode(', ', $values)
-				);
-				
-				if(!empty($value_key)) {
-					$dict->$value_key = implode(',', $values);
 				}
 				break;
 				
@@ -386,7 +358,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function simulateActionSetCustomField($token, $params, DevblocksDictionaryDelegate $dict) {
-		if(!preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token, $matches))
+		if(!preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token, $matches))
 			return;
 		
 		$custom_key = $matches[1];
@@ -396,12 +368,8 @@ class DevblocksEventHelper {
 			return;
 
 		$context = $custom_field->context;
-		$custom_key_id = $custom_key . 'id';
+		$custom_key_id = $custom_key . '_id';
 		$context_id = $dict->$custom_key_id;
-		$value_key = $custom_key . 'custom';
-		
-		// Lazy load custom fields
-		$dict->custom_;
 
 		if(empty($field_id) || empty($context) || empty($context_id))
 			return;
@@ -421,12 +389,10 @@ class DevblocksEventHelper {
 				);
 				
 				if(!empty($value_key)) {
-					$key_to_set = $value_key.'_'.$field_id;
-					$dict->$key_to_set = $value;
+					$dict->$value_key.'_'.$field_id = $value;
 					
 					$array =& $dict->$value_key;
-					if(is_array($array))
-						$array[$field_id] = $value;
+					$array[$field_id] = $value;
 				}
 				break;
 				
@@ -436,7 +402,7 @@ class DevblocksEventHelper {
 			case Model_CustomField::TYPE_URL:
 				@$value = $params['value'];
 				
-				$builder = DevblocksPlatform::services()->templateBuilder();
+				$builder = DevblocksPlatform::getTemplateBuilder();
 				$value = $builder->build($value, $dict);
 
 				$out .= sprintf(">>> Setting %s to:\n",
@@ -446,21 +412,19 @@ class DevblocksEventHelper {
 				$out .= sprintf("%s\n",
 					$value
 				);
-				
+				 
 				if(!empty($value_key)) {
-					$key_to_set = $value_key.'_'.$field_id;
-					$dict->$key_to_set = $value;
+					$dict->$value_key.'_'.$field_id = $value;
 					
 					$array =& $dict->$value_key;
-					if(is_array($array))
-						$array[$field_id] = $value;
+					$array[$field_id] = $value;
 				}
 				break;
 				
 			case Model_CustomField::TYPE_DROPDOWN:
 				@$value = $params['value'];
 				
-				$builder = DevblocksPlatform::services()->templateBuilder();
+				$builder = DevblocksPlatform::getTemplateBuilder();
 				$value = $builder->build($value, $dict);
 				
 				if(!isset($custom_field->params['options']) || !is_array($custom_field->params['options'])) {
@@ -468,7 +432,7 @@ class DevblocksEventHelper {
 					break;
 				}
 				
-				$possible_values = array_map('mb_strtolower', $custom_field->params['options']);
+				$possible_values = array_map('strtolower', $custom_field->params['options']);
 				
 				if(false !== ($value_idx = array_search(DevblocksPlatform::strLower($value), $possible_values))) {
 					$value = $custom_field->params['options'][$value_idx];
@@ -484,14 +448,12 @@ class DevblocksEventHelper {
 				$out .= sprintf("%s\n",
 					$value
 				);
-				
+				 
 				if(!empty($value_key)) {
-					$key_to_set = $value_key.'_'.$field_id;
-					$dict->$key_to_set = $value;
+					$dict->$value_key.'_'.$field_id = $value;
 					
 					$array =& $dict->$value_key;
-					if(is_array($array))
-						$array[$field_id] = $value;
+					$array[$field_id] = $value;
 				}
 				break;
 			
@@ -507,7 +469,7 @@ class DevblocksEventHelper {
 						@$calendar_id = $params['calendar_id'];
 						@$rel_date = $params['calendar_reldate'];
 
-						$value = DevblocksEventHelper::getRelativeDateUsingCalendar($calendar_id, $rel_date);
+						$value = DevblocksEventHelper::_getRelativeDateUsingCalendar($calendar_id, $rel_date);
 						
 						if(false !== $value)
 							$dict->$token = $value;
@@ -518,7 +480,7 @@ class DevblocksEventHelper {
 						if(!isset($params['value']))
 							return;
 						
-						$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+						$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 						$value = $tpl_builder->build($params['value'], $dict);
 						break;
 				}
@@ -533,40 +495,11 @@ class DevblocksEventHelper {
 				}
 				
 				if(!empty($value_key)) {
-					$key_to_set = $value_key.'_'.$field_id;
-					$dict->$key_to_set = $value;
+					$dict->$value_key.'_'.$field_id = $value;
 					
 					$array =& $dict->$value_key;
-					if(is_array($array))
-						$array[$field_id] = $value;
+					$array[$field_id] = $value;
 				}
-				break;
-				
-			case Model_CustomField::TYPE_LIST:
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-				@$values = $tpl_builder->build($params['values'], $dict);
-				
-				$out .= sprintf(">>> Setting %s to:\n",
-					$custom_field->name
-				);
-				
-				$opts = DevblocksPlatform::parseCrlfString($values) ?: [];
-
-				foreach($opts as $opt) {
-					$out .= sprintf("* %s\n", $opt);
-				}
-				
-				if(!empty($value_key)) {
-					$key_to_set = $value_key.'_'.$field_id;
-					$dict->$key_to_set = implode(', ', $opts);
-
-					$array =& $dict->$value_key;
-					if(is_array($array))
-						$array[$field_id] = $opts;
-				}
-				
-				self::runActionSetCustomField($token, $params, $dict);
-				
 				break;
 				
 			case Model_CustomField::TYPE_MULTI_CHECKBOX:
@@ -581,12 +514,10 @@ class DevblocksEventHelper {
 				);
 				
 				if(!empty($value_key)) {
-					$key_to_set = $value_key.'_'.$field_id;
-					$dict->$key_to_set = implode(', ', $opts);
+					$dict->$value_key.'_'.$field_id = implode(',',$opts);
 
 					$array =& $dict->$value_key;
-					if(is_array($array))
-						$array[$field_id] = $opts;
+					$array[$field_id] = $opts;
 				}
 				
 				break;
@@ -615,12 +546,10 @@ class DevblocksEventHelper {
 				}
 				
 				if(!empty($value_key)) {
-					$key_to_set = $value_key.'_'.$field_id;
-					$dict->$key_to_set = $value;
+					$dict->$value_key.'_'.$field_id = $worker_id;
 
 					$array =& $dict->$value_key;
-					if(is_array($array))
-						$array[$field_id] = $value;
+					$array[$field_id] = $worker_id;
 				}
 				break;
 				
@@ -634,9 +563,9 @@ class DevblocksEventHelper {
 	}
 	
 	static function runActionSetCustomField($token, $params, DevblocksDictionaryDelegate $dict) {
-		if(!preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token, $matches))
+		if(!preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token, $matches))
 			return;
-
+		
 		$custom_key = $matches[1];
 		$field_id = $matches[2];
 		
@@ -644,15 +573,11 @@ class DevblocksEventHelper {
 			return;
 		
 		$context = $custom_field->context;
-		$custom_key_id = $custom_key . 'id';
+		$custom_key_id = $custom_key . '_id';
 		$context_id = $dict->$custom_key_id;
-		$value_key = $custom_key . 'custom';
 		
 		if(empty($field_id) || empty($context) || empty($context_id))
 			return;
-		
-		// Lazy load custom fields
-		$dict->custom_;
 		
 		/**
 		 * If we have a fieldset-based custom field that doesn't exist in scope yet
@@ -670,39 +595,35 @@ class DevblocksEventHelper {
 			case Model_CustomField::TYPE_URL:
 				@$value = $params['value'];
 				
-				$builder = DevblocksPlatform::services()->templateBuilder();
+				$builder = DevblocksPlatform::getTemplateBuilder();
 				$value = $builder->build($value, $dict);
 				
 				DAO_CustomFieldValue::setFieldValue($context, $context_id, $field_id, $value);
 
 				if(!empty($value_key)) {
-					$key_to_set = $value_key.'_'.$field_id;
-					$dict->$key_to_set = $value;
+					$dict->$value_key.'_'.$field_id = $value;
 
 					$array =& $dict->$value_key;
-					if(is_array($array))
-						$array[$field_id] = $value;
+					$array[$field_id] = $value;
 				}
 				break;
 				
 			case Model_CustomField::TYPE_DROPDOWN:
 				@$value = $params['value'];
 				
-				$builder = DevblocksPlatform::services()->templateBuilder();
+				$builder = DevblocksPlatform::getTemplateBuilder();
 				$value = $builder->build($value, $dict);
 				
-				$possible_values = array_map('mb_strtolower', $custom_field->params['options']);
+				$possible_values = array_map('strtolower', $custom_field->params['options']);
 				
 				if(false === (DAO_CustomFieldValue::setFieldValue($context, $context_id, $field_id, $value)))
 					break;
 
 				if(!empty($value_key)) {
-					$key_to_set = $value_key.'_'.$field_id;
-					$dict->$key_to_set = $value;
+					$dict->$value_key.'_'.$field_id = $value;
 
 					$array =& $dict->$value_key;
-					if(is_array($array))
-						$array[$field_id] = $value;
+					$array[$field_id] = $value;
 				}
 				break;
 			
@@ -714,7 +635,7 @@ class DevblocksEventHelper {
 						@$calendar_id = $params['calendar_id'];
 						@$rel_date = $params['calendar_reldate'];
 
-						$value = DevblocksEventHelper::getRelativeDateUsingCalendar($calendar_id, $rel_date);
+						$value = DevblocksEventHelper::_getRelativeDateUsingCalendar($calendar_id, $rel_date);
 						
 						break;
 						
@@ -722,83 +643,22 @@ class DevblocksEventHelper {
 						if(!isset($params['value']))
 							return;
 						
-						$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+						$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 						$value = $tpl_builder->build($params['value'], $dict);
 						break;
 				}
 
 				$value = is_numeric($value) ? $value : @strtotime($value);
 				
-				if(empty($value)) {
-					DAO_CustomFieldValue::unsetFieldValue($context, $context_id, $field_id);
-				} else {
-					DAO_CustomFieldValue::setFieldValue($context, $context_id, $field_id, $value);
-				}
-				
+				DAO_CustomFieldValue::setFieldValue($context, $context_id, $field_id, $value);
+						
 				if(!empty($value_key)) {
-					$key_to_set = $value_key.'_'.$field_id;
-					$dict->$key_to_set = $value;
+					$dict->$value_key.'_'.$field_id = $value;
 					
 					$array =& $dict->$value_key;
-					if(is_array($array))
-						$array[$field_id] = $value;
+					$array[$field_id] = $value;
 				}
 				
-				break;
-				
-			case Model_CustomField::TYPE_LIST:
-				@$mode = $params['mode'];
-				$is_delta = !($mode == 'replace');
-				
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-				@$values = $tpl_builder->build($params['values'], $dict);
-				
-				$opts = DevblocksPlatform::parseCrlfString($values) ?: [];
-				
-				if(!$is_delta) {
-					DAO_CustomFieldValue::setFieldValue($context, $context_id, $field_id, $opts);
-					
-					if(!empty($value_key)) {
-						$key_to_set = $value_key.'_'.$field_id;
-						$dict->$key_to_set = implode(', ', $opts);
-						
-						$array =& $dict->$value_key;
-						
-						if(is_array($array))
-							$array[$field_id] = $opts;
-					}
-				} else {
-					$value_key_prefix = $value_key . '_';
-					
-					if(!empty($value_key)) {
-						$dict->$value_key_prefix;
-						
-						$key_to_set = $value_key_prefix.$field_id;
-						$dict->$key_to_set = implode(', ', $opts);
-						
-						$array =& $dict->$value_key;
-						
-						if(!is_array($array[$field_id]))
-							$array[$field_id] = [];
-						
-						if(is_array($opts))
-						foreach($opts as $opt) {
-							
-							// Remove
-							if(DevblocksPlatform::strStartsWith($opt, '-')) {
-								$opt = ltrim($opt, '-');
-								
-								DAO_CustomFieldValue::unsetFieldValue($context, $context_id, $field_id, $opt);
-								unset($array[$field_id][$opt]);
-								
-							} else {
-								DAO_CustomFieldValue::setFieldValue($context, $context_id, $field_id, $opt, true);
-								$array[$field_id][$opt] = $opt;
-							}
-							
-						}
-					}
-				}
 				break;
 				
 			case Model_CustomField::TYPE_MULTI_CHECKBOX:
@@ -807,38 +667,29 @@ class DevblocksEventHelper {
 				DAO_CustomFieldValue::setFieldValue($context, $context_id, $field_id, $opts, true);
 
 				if(!empty($value_key)) {
-					$key_to_set = $value_key.'_'.$field_id;
-					$dict->$key_to_set = implode(', ', $opts);
+					$dict->$value_key.'_'.$field_id = implode(',',$opts);
 
-					// [TODO] In delta mode this replaces the previous values for the behavior run
 					$array =& $dict->$value_key;
-					if(is_array($array))
-						$array[$field_id] = $opts;
+					$array[$field_id] = $opts;
 				}
 				
 				break;
 				
 			case Model_CustomField::TYPE_WORKER:
 				@$worker_id = $params['worker_id'];
-				
+
 				// Variable?
-				if(DevblocksPlatform::strStartsWith($worker_id, 'var_')) {
-					if(is_array($dict->$worker_id)) {
-						@$worker_id = intval(key($dict->worker_id));
-					} else {
-						@$worker_id = intval($dict->$worker_id);
-					}
+				if(substr($worker_id,0,4) == 'var_') {
+					@$worker_id = intval($dict->$worker_id);
 				}
 				
 				DAO_CustomFieldValue::setFieldValue($context, $context_id, $field_id, $worker_id);
 				
 				if(!empty($value_key)) {
-					$key_to_set = $value_key.'_'.$field_id;
-					$dict->$key_to_set = $worker_id;
+					$dict->$value_key.'_'.$field_id = $worker_id;
 					
 					$array =& $dict->$value_key;
-					if(is_array($array))
-						$array[$field_id] = $worker_id;
+					$array[$field_id] = $worker_id;
 				}
 				break;
 				
@@ -864,10 +715,9 @@ class DevblocksEventHelper {
 	}
 	
 	static function simulateActionCreateRecordSetCustomFields($params, $dict) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		$workers = DAO_Worker::getAll();
-		$custom_fieldsets = DAO_CustomFieldset::getAll();
 		$custom_fields = DAO_CustomField::getAll();
 		$custom_field_values = DevblocksEventHelper::getCustomFieldValuesFromParams($params);
 		
@@ -885,14 +735,6 @@ class DevblocksEventHelper {
 				$val = implode('; ', $val);
 			
 			switch($custom_fields[$cf_id]->type) {
-				case Model_CustomField::TYPE_CHECKBOX:
-					if($val) {
-						$val = DevblocksPlatform::translate('common.yes', DevblocksPlatform::TRANSLATE_LOWER);
-					} else {
-						$val = DevblocksPlatform::translate('common.no', DevblocksPlatform::TRANSLATE_LOWER);
-					}
-					break;
-					
 				case Model_CustomField::TYPE_WORKER:
 					if(!empty($val) && !is_numeric($val)) {
 						if(isset($dict->$val)) {
@@ -928,18 +770,14 @@ class DevblocksEventHelper {
 					break;
 			}
 			
-			$field = $custom_fields[$cf_id];
-			$fieldset = $field->custom_fieldset_id ? @$custom_fieldsets[$field->custom_fieldset_id] : null;
-			$label = ($fieldset ? ($fieldset->name . ' ') : '') . $field->name;
-			
-			$out .= $label . ': ' . $val . "\n";
+			$out .= $custom_fields[$cf_id]->name . ': ' . $val . "\n";
 		}
 		
 		return $out;
 	}
 	
 	static function runActionCreateRecordSetCustomFields($context, $context_id, $params, &$dict) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		if(empty($context) || empty($context_id))
 			return false;
@@ -1001,7 +839,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function runActionCreateRecordSetLinks($context, $context_id, $params, &$dict) {
-		@$link_to = DevblocksPlatform::importVar($params['link_to'],'array',[]);
+		@$link_to = DevblocksPlatform::importVar($params['link_to'],'array',array());
 		
 		if(!empty($link_to)) {
 			$trigger = $dict->__trigger;
@@ -1060,7 +898,7 @@ class DevblocksEventHelper {
 				@$calendar_id = $params['calendar_id'];
 				@$rel_date = $params['calendar_reldate'];
 
-				$value = DevblocksEventHelper::getRelativeDateUsingCalendar($calendar_id, $rel_date);
+				$value = DevblocksEventHelper::_getRelativeDateUsingCalendar($calendar_id, $rel_date);
 				
 				if(false !== $value)
 					$dict->$token = $value;
@@ -1071,7 +909,7 @@ class DevblocksEventHelper {
 				if(!isset($params['value']))
 					return;
 				
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				$value = $tpl_builder->build($params['value'], $dict);
 				
 				$value = is_numeric($value) ? $value : @strtotime($value);
@@ -1085,13 +923,13 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionSetVariableString($labels) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('token_labels', $labels);
 		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_var_string.tpl');
 	}
 	
 	static function renderActionSetVariablePicklist($token, $trigger, $params) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		//$tpl->assign('token_labels', $labels);
 		
 		if(isset($trigger->variables[$token])) {
@@ -1105,7 +943,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function renderActionSetVariableWorker($token, $trigger, $params) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 
 		// Workers
 		$tpl->assign('workers', DAO_Worker::getAll());
@@ -1127,7 +965,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function renderActionSetListVariable($token, $trigger, $params, $context) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		if(null == ($view = DevblocksEventHelper::getViewFromAbstractJson($token, $params, $trigger, $context)))
 			return;
@@ -1141,54 +979,26 @@ class DevblocksEventHelper {
 		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_var_list.tpl');
 	}
 	
-	static function renderActionSetListAbstractVariable($token, $trigger, $params) {
-		$tpl = DevblocksPlatform::services()->template();
-		$tpl->assign('params', $params);
-		
-		$contexts_list = Extension_DevblocksContext::getAll(false, 'va_variable');
-		$tpl->assign('contexts_list', $contexts_list);
-		
-		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_var_list_abstract.tpl');
-	}
-	
 	static function simulateActionSetVariable($token, $trigger, $params, DevblocksDictionaryDelegate $dict) {
 		@$var = $trigger->variables[$token];
 		
 		if(empty($var) || !is_array($var))
 			return;
-		
+
 		@$var_type = $var['type'];
-		
-		// Handle abstract lists
-		if($var_type == 'contexts') {
-			@$var_context = $params['context'];
-			if(DevblocksPlatform::strStartsWith($var_context, 'var_'))
-				$var_context = $dict->$var_context;
-			
-			$var_type = 'ctx_' . $var_context;
-		}
-		
-		if(DevblocksPlatform::strStartsWith($var_type,'ctx_')) {
+	 
+		if(substr($var_type,0,4) == 'ctx_') {
 			@$objects = $dict->$token;
 			
 			if(empty($objects)) {
-				$out = sprintf(">>> Setting empty list %s\n",
+				return sprintf(">>> Setting empty list %s\n",
 					$token
 				);
-				
-				if(@$params['search_mode'] == 'quick_search' && @$params['quick_search']) {
-					$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-					$query = $tpl_builder->build($params['quick_search'], $dict);
-					$out .= sprintf("Query: %s\n",
-						$query
-					);
-				}
-				
-				return $out;
 			}
 			
 			$context_extid = substr($var_type,4);
-			$context_ext = Extension_DevblocksContext::get($context_extid, false);
+			//$context_ext = Extension_DevblocksContext::get($context_extid);
+			$context_ext = DevblocksPlatform::getExtension($context_extid, false);
 			
 			$out = sprintf(">>> Putting %d objects in %s list '%s':\n",
 				count($objects),
@@ -1196,16 +1006,8 @@ class DevblocksEventHelper {
 				$token
 			);
 			
-			if(@$params['search_mode'] == 'quick_search' && @$params['quick_search']) {
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-				$query = $tpl_builder->build($params['quick_search'], $dict);
-				$out .= sprintf("Query: %s\n",
-					$query
-				);
-			}
-			
-			$fields = [];
-			$null = [];
+			$fields = array();
+			$null = array();
 			CerberusContexts::getContext($context_extid, null, $fields, $null, null, true);
 
 			$out .= "\n";
@@ -1295,7 +1097,7 @@ class DevblocksEventHelper {
 						@$calendar_id = $params['calendar_id'];
 						@$rel_date = $params['calendar_reldate'];
 						
-						$value = DevblocksEventHelper::getRelativeDateUsingCalendar($calendar_id, $rel_date);
+						$value = DevblocksEventHelper::_getRelativeDateUsingCalendar($calendar_id, $rel_date);
 						
 						if(false !== $value)
 							$dict->$token = $value;
@@ -1306,7 +1108,7 @@ class DevblocksEventHelper {
 						if(!isset($params['value']))
 							return;
 						
-						$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+						$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 						$value = $tpl_builder->build($params['value'], $dict);
 						
 						$value = is_numeric($value) ? $value : @strtotime($value);
@@ -1328,7 +1130,7 @@ class DevblocksEventHelper {
 				if(!isset($params['value']))
 					break;
 				
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				$value = $tpl_builder->build($params['value'], $dict);
 				$dict->$token = $value;
 				break;
@@ -1448,7 +1250,7 @@ class DevblocksEventHelper {
 						$log = EventListener_Triggers::getNodeLog();
 						$node_id = end($log);
 
-						$registry = DevblocksPlatform::services()->registry();
+						$registry = DevblocksPlatform::getRegistryService();
 
 						$key = sprintf("trigger.%d.action.%d.counter", $trigger->id, $node_id);
 						
@@ -1472,7 +1274,7 @@ class DevblocksEventHelper {
 						}
 						
 						// Consult database
-						$db = DevblocksPlatform::services()->database();
+						$db = DevblocksPlatform::getDatabaseService();
 						$sql = sprintf("SELECT COUNT(id) AS hits, owner_id FROM ticket WHERE status_id = 0 AND owner_id != 0 AND owner_id IN (%s) GROUP BY owner_id",
 							implode(',', array_keys($possible_workers))
 						);
@@ -1502,14 +1304,10 @@ class DevblocksEventHelper {
 				
 				$dict->$token = $chosen_worker_id;
 				break;
-			
-			case 'contexts':
-				DevblocksEventHelper::runActionSetListAbstractVariable($token, $params, $dict);
-				break;
-			
+				
 			default:
 				@$var_type = $var['type'];
-			
+			 
 				if(substr($var_type,0,4) == 'ctx_') {
 					$list_context = substr($var_type,4);
 					DevblocksEventHelper::runActionSetListVariable($token, $list_context, $params, $dict);
@@ -1521,7 +1319,7 @@ class DevblocksEventHelper {
 	// Set Links
 	
 	static function renderActionSetLinks($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$contexts = Extension_DevblocksContext::getAll(false);
 		$tpl->assign('contexts', $contexts);
@@ -1689,7 +1487,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionSetPlaceholderUsingSnippet($trigger, $params) { /* @var $trigger Model_TriggerEvent */
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('trigger', $trigger);
 
@@ -1709,282 +1507,11 @@ class DevblocksEventHelper {
 	}
 	
 	/*
-	 * Action: Get worklist metric
-	 */
-	
-	static function renderActionGetWorklistMetric($trigger) { /* @var $trigger Model_TriggerEvent */
-		$tpl = DevblocksPlatform::services()->template();
-		$tpl->assign('trigger', $trigger);
-		
-		// Link contexts
-		$contexts = Extension_DevblocksContext::getAll(false, 'search');
-		$tpl->assign('contexts', $contexts);
-		
-		$tpl->display('devblocks:cerberusweb.core::events/action_get_worklist_metric.tpl');
-	}
-	
-	static function simulateActionGetWorklistMetric($params, DevblocksDictionaryDelegate $dict) {
-		@$key = DevblocksPlatform::importVar($params['key'],'string','');
-		@$var = DevblocksPlatform::importVar($params['var'],'string','');
-
-		$out = '';
-		
-		$trigger = $dict->__trigger;
-
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-		$key = $tpl_builder->build($key, $dict);
-		
-		// Run it in the simulator too
-		self::runActionGetWorklistMetric($params, $dict);
-		
-		@$value = $dict->$var;
-		
-		$out .= sprintf(">> Getting value for worklist metric:\nType: %s\nQuery: %s\nFunction: %s\nField: %s\n\n%s",
-			@$params['context'],
-			@$params['query'],
-			@$params['metric_func'],
-			@$params['metric_field'],
-			$value
-		);
-		
-		return $out;
-	}
-	
-	static function runActionGetWorklistMetric($params, $dict) {
-		@$context = DevblocksPlatform::importVar($params['context'],'string','');
-		@$query = DevblocksPlatform::importVar($params['query'],'string','');
-		@$metric_func = DevblocksPlatform::importVar($params['metric_func'],'string','');
-		@$metric_field = DevblocksPlatform::importVar($params['metric_field'],'string','');
-		@$var = DevblocksPlatform::importVar($params['var'],'string','');
-		
-		if(false == ($context_ext = Extension_DevblocksContext::get($context)))
-			return false;
-		
-		if(false == ($view = $context_ext->getSearchView()))
-			return false;
-		
-		if(false == ($dao_class = $context_ext->getDaoClass()))
-			return false;
-		
-		if(false == ($search_class = $context_ext->getSearchClass()))
-			return false;
-		
-		if(false == ($primary_key = $search_class::getPrimaryKey()))
-			return false;
-		
-		$select_func = null;
-		
-		$fields = $view->getFields();
-		@$metric_field = $fields[$metric_field]; /* @var $metric_field DevblocksSearchField */
-		
-		$view->addParamsWithQuickSearch($query, true);
-		$view->renderPage = 0;
-		
-		$query_parts = $dao_class::getSearchQueryComponents([], $view->getParams());
-		
-		if($metric_field && DevblocksPlatform::strStartsWith($metric_field->token, 'cf_')) {
-			$cfield = DAO_CustomField::get(substr($metric_field->token,3));
-			//$cfield_key = $search_class::getCustomFieldContextWhereKey($cfield->context);
-			
-			switch($metric_func) {
-				case 'sum':
-					$select_func = 'SUM(field_value)';
-					break;
-					
-				case 'avg':
-					$select_func = 'AVG(field_value)';
-					break;
-					
-				case 'min':
-					$select_func = 'MIN(field_value)';
-					break;
-					
-				case 'max':
-					$select_func = 'MAX(field_value)';
-					break;
-					
-				default:
-				case 'count':
-					$select_func = 'COUNT(*)';
-					break;
-			}
-			
-			$sql = sprintf("SELECT %s FROM %s WHERE context=%s AND field_id=%d AND context_id IN (%s)",
-				$select_func,
-				DAO_CustomFieldValue::getValueTableName($cfield->id),
-				Cerb_ORMHelper::qstr($cfield->context),
-				$cfield->id,
-				sprintf("SELECT %s %s %s", $primary_key, $query_parts['join'], $query_parts['where'])
-			);
-			
-		} else {
-			$select_query = sprintf("%s.%s",
-				$metric_field->db_table,
-				$metric_field->db_column
-			);
-			
-			switch($metric_func) {
-				case 'sum':
-					$select_func = sprintf("SELECT SUM(%s) ",
-						$select_query
-					);
-					break;
-					
-				case 'avg':
-					$select_func = sprintf("SELECT AVG(%s) ",
-						$select_query
-					);
-					break;
-					
-				case 'min':
-					$select_func = sprintf("SELECT MIN(%s) ",
-						$select_query
-					);
-					break;
-					
-				case 'max':
-					$select_func = sprintf("SELECT MAX(%s) ",
-						$select_query
-					);
-					break;
-					
-				default:
-				case 'count':
-					$select_func = 'SELECT COUNT(*) ';
-					break;
-			}
-			
-			$sql = 
-				$select_func
-				. $query_parts['join']
-				. $query_parts['where']
-				;
-		}
-		
-		if(empty($sql))
-			return false;
-		
-		$db = DevblocksPlatform::services()->database();
-		$value = $db->GetOneSlave($sql);
-		
-		$dict->$var = $value;
-	}
-	
-	/*
-	 * Action: Get persistent key
-	 */
-	
-	static function renderActionGetKey($trigger) { /* @var $trigger Model_TriggerEvent */
-		$tpl = DevblocksPlatform::services()->template();
-		$tpl->assign('trigger', $trigger);
-
-		$tpl->display('devblocks:cerberusweb.core::events/action_get_key.tpl');
-	}
-	
-	static function simulateActionGetKey($params, DevblocksDictionaryDelegate $dict) {
-		@$key = DevblocksPlatform::importVar($params['key'],'string','');
-		@$var = DevblocksPlatform::importVar($params['var'],'string','');
-		
-		$out = '';
-		
-		$trigger = $dict->__trigger;
-		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-		$key = $tpl_builder->build($key, $dict);
-		
-		// Run it in the simulator too
-		self::runActionGetKey($params, $dict);
-		
-		@$value = $dict->$var;
-		
-		$out .= sprintf(">> Getting value for persistent key: %s\n\n%s\n",
-			$key,
-			$value
-		);
-		
-		return $out;
-	}
-	
-	static function runActionGetKey($params, $dict) {
-		@$key = DevblocksPlatform::importVar($params['key'],'string','');
-		@$var = DevblocksPlatform::importVar($params['var'],'string','');
-		
-		if(false == ($trigger = $dict->__trigger))
-			return false;
-		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-		$key = $tpl_builder->build($key, $dict);
-		
-		$value = DAO_BotDatastore::get($trigger->bot_id, $key);
-		$dict->$var = $value;
-	}
-	
-	/*
-	 * Action: Set persistent key
-	 */
-	
-	static function renderActionSetKey($trigger) { /* @var $trigger Model_TriggerEvent */
-		$tpl = DevblocksPlatform::services()->template();
-		$tpl->assign('trigger', $trigger);
-		
-		$tpl->display('devblocks:cerberusweb.core::events/action_set_key.tpl');
-	}
-	
-	static function simulateActionSetKey($params, DevblocksDictionaryDelegate $dict) {
-		@$key = DevblocksPlatform::importVar($params['key'],'string','');
-		@$value = DevblocksPlatform::importVar($params['value'],'string','');
-		@$expires_at = DevblocksPlatform::importVar($params['expires_at'],'string','');
-		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-		$key = $tpl_builder->build($key, $dict);
-		$value = $tpl_builder->build($value, $dict);
-		
-		$expires_at = $tpl_builder->build($expires_at, $dict);
-		@$expires_at = intval(strtotime($expires_at));
-		
-		$out = '';
-		
-		$trigger = $dict->__trigger;
-		
-		// Run it in the simulator too
-		self::runActionSetKey($params, $dict);
-		
-		$out .= sprintf(">> Setting value for persistent key: %s\nExpires: %s\n\n%s\n",
-			$key,
-			(!$expires_at ? 'Never' : date('r', $expires_at)),
-			$value
-		);
-		
-		return $out;
-	}
-	
-	static function runActionSetKey($params, $dict) {
-		@$key = DevblocksPlatform::importVar($params['key'],'string','');
-		@$value = DevblocksPlatform::importVar($params['value'],'string','');
-		@$expires_at = DevblocksPlatform::importVar($params['expires_at'],'string','');
-		
-		if(false == ($trigger = $dict->__trigger))
-			return false;
-		
-		if(empty($key))
-			return false;
-		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-		$key = $tpl_builder->build($key, $dict);
-		$value = $tpl_builder->build($value, $dict);
-
-		$expires_at = $tpl_builder->build($expires_at, $dict);
-		@$expires_at = intval(strtotime($expires_at));
-		
-		$value = DAO_BotDatastore::set($trigger->bot_id, $key, $value, $expires_at);
-	}
-	
-	/*
 	 * Action: Get links
 	 */
 	
 	static function renderActionGetLinks($trigger) { /* @var $trigger Model_TriggerEvent */
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('trigger', $trigger);
 
@@ -2128,7 +1655,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionRunBehavior($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		// Macros
 		
@@ -2157,15 +1684,12 @@ class DevblocksEventHelper {
 			return "[ERROR] No behavior is selected. Skipping...";
 		}
 		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		if(null == ($behavior = DAO_TriggerEvent::get($behavior_id)))
 			return "[ERROR] Behavior does not exist. Skipping...";
 		
-		if($behavior->isDisabled())
-			return "[ERROR] Skipping disabled behavior...";
-		
-		if(null == ($ext = Extension_DevblocksEvent::get($behavior->event_point, true))) /* @var $ext Extension_DevblocksEvent */
+		if(null == ($ext = DevblocksPlatform::getExtension($behavior->event_point, true))) /* @var $ext Extension_DevblocksEvent */
 			return "[ERROR] Behavior event does not exist. Skipping...";
 		
 		$out = sprintf(">>> Running behavior: %s\n",
@@ -2178,15 +1702,15 @@ class DevblocksEventHelper {
 		
 		if(is_array($params))
 		foreach($params as $k => $v) {
-			if(DevblocksPlatform::strStartsWith($k, 'var_')) {
+			if(substr($k, 0, 4) == 'var_') {
 				if(!isset($behavior->variables[$k]))
 					continue;
 				
 				try {
 					if(is_string($v))
 						$v = $tpl_builder->build($v, $dict);
-					
-					$v = $behavior->formatVariable($behavior->variables[$k], $v, $dict);
+
+					$v = $behavior->formatVariable($behavior->variables[$k], $v);
 					
 					$vars[$k] = $v;
 					
@@ -2291,17 +1815,14 @@ class DevblocksEventHelper {
 		if(false == ($behavior = DAO_TriggerEvent::get($behavior_id)))
 			return FALSE;
 		
-		if($behavior->isDisabled())
-			return FALSE;
-		
 		// Load event manifest
-		if(false == ($ext = Extension_DevblocksEvent::get($behavior->event_point, false))) /* @var $ext DevblocksExtensionManifest */
+		if(false == ($ext = DevblocksPlatform::getExtension($behavior->event_point, false))) /* @var $ext DevblocksExtensionManifest */
 			return FALSE;
 		
 		if(empty($var))
 			return FALSE;
 		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		// Variables as parameters
 		
@@ -2309,15 +1830,15 @@ class DevblocksEventHelper {
 		
 		if(is_array($params))
 		foreach($params as $k => $v) {
-			if(DevblocksPlatform::strStartsWith($k, 'var_')) {
+			if(substr($k, 0, 4) == 'var_') {
 				if(!isset($behavior->variables[$k]))
 					continue;
 				
 				try {
 					if(is_string($v))
 						$v = $tpl_builder->build($v, $dict);
-					
-					$v = $behavior->formatVariable($behavior->variables[$k], $v, $dict);
+
+					$v = $behavior->formatVariable($behavior->variables[$k], $v);
 					
 					$vars[$k] = $v;
 					
@@ -2343,7 +1864,7 @@ class DevblocksEventHelper {
 				foreach($on_objects as $on_object) {
 					if(!isset($on_object->id) && empty($on_object->id))
 						continue;
-					
+
 					$log = EventListener_Triggers::getNodeLog();
 					$runners = call_user_func(array($ext->class, 'trigger'), $behavior->id, $on_object->id, $vars);
 					EventListener_Triggers::setNodeLog($log);
@@ -2364,7 +1885,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionScheduleBehavior($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		// Macros
 		
@@ -2424,7 +1945,7 @@ class DevblocksEventHelper {
 			return "[ERROR] No behavior is selected. Skipping...";
 		}
 		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$run_date = $tpl_builder->build($run_date, $dict);
 		
 		@$run_timestamp = strtotime($run_date);
@@ -2458,7 +1979,7 @@ class DevblocksEventHelper {
 		
 		if(is_array($params))
 		foreach($params as $k => $v) {
-			if(DevblocksPlatform::strStartsWith($k, 'var_')) {
+			if(substr($k, 0, 4) == 'var_') {
 				if(!isset($behavior->variables[$k]))
 					continue;
 				
@@ -2466,7 +1987,7 @@ class DevblocksEventHelper {
 					if(is_string($v))
 						$v = $tpl_builder->build($v, $dict);
 					
-					$v = $behavior->formatVariable($behavior->variables[$k], $v, $dict);
+					$v = $behavior->formatVariable($behavior->variables[$k], $v);
 					
 					$vars[$k] = $v;
 					
@@ -2529,7 +2050,7 @@ class DevblocksEventHelper {
 		if(null == ($behavior = DAO_TriggerEvent::get($behavior_id)))
 			return FALSE;
 		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$run_date = $tpl_builder->build($run_date, $dict);
 		
 		@$run_timestamp = strtotime($run_date);
@@ -2540,7 +2061,7 @@ class DevblocksEventHelper {
 		
 		if(is_array($params))
 		foreach($params as $k => $v) {
-			if(DevblocksPlatform::strStartsWith($k, 'var_')) {
+			if(substr($k, 0, 4) == 'var_') {
 				if(!isset($behavior->variables[$k]))
 					continue;
 				
@@ -2548,7 +2069,7 @@ class DevblocksEventHelper {
 					if(is_string($v))
 						$v = $tpl_builder->build($v, $dict);
 					
-					$v = $behavior->formatVariable($behavior->variables[$k], $v, $dict);
+					$v = $behavior->formatVariable($behavior->variables[$k], $v);
 					
 					$vars[$k] = $v;
 					
@@ -2629,7 +2150,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionUnscheduleBehavior($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		// Macros
 		
@@ -2743,7 +2264,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionCreateCalendarEvent($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$event = $trigger->getEvent();
 
@@ -2804,7 +2325,7 @@ class DevblocksEventHelper {
 		@$notify_worker_ids = DevblocksPlatform::importVar($params['notify_worker_id'],'array',array());
 		$notify_worker_ids = DevblocksEventHelper::mergeWorkerVars($notify_worker_ids, $dict);
 				
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		@$title = $tpl_builder->build($params['title'], $dict);
 		@$when = $tpl_builder->build($params['when'], $dict);
@@ -2926,7 +2447,7 @@ class DevblocksEventHelper {
 		@$notify_worker_ids = DevblocksPlatform::importVar($params['notify_worker_id'],'array',array());
 		$notify_worker_ids = DevblocksEventHelper::mergeWorkerVars($notify_worker_ids, $dict);
 		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 
 		@$title = $tpl_builder->build($params['title'], $dict);
 		@$when = $tpl_builder->build($params['when'], $dict);
@@ -2990,7 +2511,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionCreateComment($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$event = $trigger->getEvent();
 		
@@ -3005,7 +2526,7 @@ class DevblocksEventHelper {
 		$event = $trigger->getEvent();
 		
 		// Translate message tokens
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$content = $tpl_builder->build($params['content'], $dict);
 
 		$notify_worker_ids = array_keys(CerberusApplication::getWorkersByAtMentionsText($content));
@@ -3066,7 +2587,7 @@ class DevblocksEventHelper {
 		$event = $trigger->getEvent();
 		
 		// Translate message tokens
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$content = $tpl_builder->build($params['content'], $dict);
 		
 		$notify_worker_ids = array_keys(CerberusApplication::getWorkersByAtMentionsText($content));
@@ -3106,7 +2627,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function renderActionScheduleTicketReply() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->display('devblocks:cerberusweb.core::events/model/ticket/action_schedule_email_recipients.tpl');
 	}
 	
@@ -3117,7 +2638,7 @@ class DevblocksEventHelper {
 			$delivery_date = time();
 		
 		// Translate message tokens
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$content = $tpl_builder->build($params['content'], $dict);
 		
 		$fields = array(
@@ -3144,12 +2665,12 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionSetTicketImportance($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_number.tpl');
 	}
 	
 	static function simulateActionSetTicketImportance($params, DevblocksDictionaryDelegate $dict, $default_on, $key) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		@$ticket_id = $dict->$default_on;
 		
 		// Importance
@@ -3172,7 +2693,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function runActionSetTicketImportance($params, DevblocksDictionaryDelegate $dict, $default_on, $key) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		@$ticket_id = $dict->$default_on;
 		
 		// Importance
@@ -3199,7 +2720,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionSetTicketOrg($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$event = $trigger->getEvent();
 		
@@ -3219,7 +2740,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function simulateActionSetTicketOrg($params, DevblocksDictionaryDelegate $dict, $default_on) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		@$org = trim(
 			$tpl_builder->build(
@@ -3265,7 +2786,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function runActionSetTicketOrg($params, DevblocksDictionaryDelegate $dict, $ticket_id, $values_prefix) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		@$org = trim(
 			$tpl_builder->build(
@@ -3335,7 +2856,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionSetTicketOwner($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$worker_values = DevblocksEventHelper::getWorkerValues($trigger);
 		$tpl->assign('worker_values', $worker_values);
@@ -3354,11 +2875,7 @@ class DevblocksEventHelper {
 
 		// Placeholder?
 		if(!is_numeric($owner_id) && $dict->exists($owner_id)) {
-			if(is_array($dict->$owner_id)) {
-				$owner_id = intval(key($dict->$owner_id));
-			} else {
-				$owner_id = intval($dict->$owner_id);
-			}
+			@$owner_id = intval($dict->$owner_id);
 		}
 		
 		if(empty($owner_id)) {
@@ -3382,11 +2899,7 @@ class DevblocksEventHelper {
 		
 		// Placeholder?
 		if(!is_numeric($owner_id) && $dict->exists($owner_id)) {
-			if(is_array($dict->$owner_id)) {
-				$owner_id = intval(key($dict->$owner_id));
-			} else {
-				$owner_id = intval($dict->$owner_id);
-			}
+			@$owner_id = intval($dict->$owner_id);
 		}
 		
 		if(empty($owner_id) || null != ($owner_model = DAO_Worker::get($owner_id))) {
@@ -3420,7 +2933,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionAddRecipients($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_picker_email_addresses.tpl');
 	}
 	
@@ -3446,7 +2959,7 @@ class DevblocksEventHelper {
 	}
 
 	static function simulateActionAddRecipients($params, DevblocksDictionaryDelegate $dict, $default_on) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$recipients = array();
 
 		$email_addresses_str = $tpl_builder->build(
@@ -3491,7 +3004,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function runActionAddRecipients($params, DevblocksDictionaryDelegate $dict, $default_on) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$recipients = array();
 
 		$email_addresses_str = $tpl_builder->build(
@@ -3533,12 +3046,12 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionRemoveRecipients($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_picker_email_addresses.tpl');
 	}
 
 	static function simulateActionRemoveRecipients($params, DevblocksDictionaryDelegate $dict, $default_on) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$recipients = array();
 
 		$email_addresses_str = $tpl_builder->build(
@@ -3583,7 +3096,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function runActionRemoveRecipients($params, DevblocksDictionaryDelegate $dict, $default_on) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$recipients = array();
 
 		$email_addresses_str = $tpl_builder->build(
@@ -3628,7 +3141,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionAddWatchers($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('workers', DAO_Worker::getAllActive());
 		
 		$event = $trigger->getEvent();
@@ -3716,7 +3229,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionCreateNotification($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('workers', DAO_Worker::getAll());
 
@@ -3730,7 +3243,7 @@ class DevblocksEventHelper {
 	
 	static function simulateActionCreateNotification($params, DevblocksDictionaryDelegate $dict, $default_on) {
 		// Translate message tokens
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$content = $tpl_builder->build($params['content'], $dict);
 		$url = $tpl_builder->build($params['url'], $dict);
 
@@ -3804,7 +3317,7 @@ class DevblocksEventHelper {
 		
 		// Template
 		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$content = $tpl_builder->build($params['content'], $dict);
 		$url = $tpl_builder->build($params['url'], $dict);
 		
@@ -3896,7 +3409,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionCreateMessageStickyNote($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('workers', DAO_Worker::getAll());
 
@@ -3918,7 +3431,7 @@ class DevblocksEventHelper {
 	
 	static function simulateActionCreateMessageStickyNote($params, DevblocksDictionaryDelegate $dict, $default_on) {
 		// Translate message tokens
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$content = $tpl_builder->build($params['content'], $dict);
 
 		$trigger = $dict->__trigger;
@@ -3983,7 +3496,7 @@ class DevblocksEventHelper {
 		
 		// Template
 		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$content = $tpl_builder->build($params['content'], $dict);
 		
 		$notify_contexts = array();
@@ -4027,7 +3540,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionCreateTask($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('workers', DAO_Worker::getAll());
 		
 		// Context placeholders
@@ -4053,11 +3566,11 @@ class DevblocksEventHelper {
 		@$notify_worker_ids = DevblocksPlatform::importVar($params['notify_worker_id'],'array',array());
 		$notify_worker_ids = DevblocksEventHelper::mergeWorkerVars($notify_worker_ids, $dict);
 		
-		@$owner_ids = DevblocksPlatform::importVar($params['owner_id'],'string','');
+ 		@$owner_ids = DevblocksPlatform::importVar($params['owner_id'],'string','');
 		$owner_ids = DevblocksEventHelper::mergeWorkerVars($owner_ids, $dict);
 		$owner_id = array_shift($owner_ids) ?: 0;
 		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$workers = DAO_Worker::getAll();
 		
 		@$title = $tpl_builder->build($params['title'], $dict);
@@ -4143,11 +3656,11 @@ class DevblocksEventHelper {
 		@$notify_worker_ids = DevblocksPlatform::importVar($params['notify_worker_id'],'array',array());
 		$notify_worker_ids = DevblocksEventHelper::mergeWorkerVars($notify_worker_ids, $dict);
 		
-		@$owner_ids = DevblocksPlatform::importVar($params['owner_id'],'string','');
+ 		@$owner_ids = DevblocksPlatform::importVar($params['owner_id'],'string','');
 		$owner_ids = DevblocksEventHelper::mergeWorkerVars($owner_ids, $dict);
 		$owner_id = array_shift($owner_ids) ?: 0;
 		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		@$title = $tpl_builder->build($params['title'], $dict);
 		@$due_date = $tpl_builder->build($params['due_date'], $dict);
@@ -4202,7 +3715,7 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionCreateTicket($trigger) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('groups', DAO_Group::getAll());
 		$tpl->assign('workers', DAO_Worker::getAll());
 		
@@ -4233,7 +3746,7 @@ class DevblocksEventHelper {
 		@$watcher_worker_ids = DevblocksPlatform::importVar($params['worker_id'],'array',array());
 		$watcher_worker_ids = DevblocksEventHelper::mergeWorkerVars($watcher_worker_ids, $dict);
 		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$requesters = $tpl_builder->build($params['requesters'], $dict);
 		$subject = $tpl_builder->build($params['subject'], $dict);
 		$content = $tpl_builder->build($params['content'], $dict);
@@ -4241,7 +3754,7 @@ class DevblocksEventHelper {
 		@$status_id = $params['status_id'];
 		@$reopen_at = $params['reopen_at'];
 		
-		@$owner_ids = DevblocksPlatform::importVar($params['owner_id'],'string','');
+ 		@$owner_ids = DevblocksPlatform::importVar($params['owner_id'],'string','');
 		$owner_ids = DevblocksEventHelper::mergeWorkerVars($owner_ids, $dict);
 		$owner_id = array_shift($owner_ids) ?: 0;
 		
@@ -4336,11 +3849,11 @@ class DevblocksEventHelper {
 		@$watcher_worker_ids = DevblocksPlatform::importVar($params['worker_id'],'array',array());
 		$watcher_worker_ids = DevblocksEventHelper::mergeWorkerVars($watcher_worker_ids, $dict);
 		
-		@$owner_ids = DevblocksPlatform::importVar($params['owner_id'],'string','');
+ 		@$owner_ids = DevblocksPlatform::importVar($params['owner_id'],'string','');
 		$owner_ids = DevblocksEventHelper::mergeWorkerVars($owner_ids, $dict);
 		$owner_id = array_shift($owner_ids) ?: 0;
 		
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		$requesters = $tpl_builder->build($params['requesters'], $dict);
 		$subject = $tpl_builder->build($params['subject'], $dict);
 		$content = $tpl_builder->build($params['content'], $dict);
@@ -4385,8 +3898,6 @@ class DevblocksEventHelper {
 			'ticket_id' => $ticket_id,
 			'subject' => $subject,
 			'content' => $content,
-			'group_id' => $group->id,
-			'bucket_id' => $group->getDefaultBucket()->id,
 			'worker_id' => 0,
 			'status_id' => $status_id,
 			'owner_id' => $owner_id,
@@ -4434,12 +3945,12 @@ class DevblocksEventHelper {
 	 */
 	
 	static function renderActionSendEmail($trigger, $placeholders=array()) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
-		$replyto_default = DAO_Address::getDefaultLocalAddress();
+		$replyto_default = DAO_AddressOutgoing::getDefault();
 		$tpl->assign('replyto_default', $replyto_default);
 		
-		$replyto_addresses = DAO_Address::getLocalAddresses();
+		$replyto_addresses = DAO_AddressOutgoing::getAll();
 		$tpl->assign('replyto_addresses', $replyto_addresses);
 		
 		$event = $trigger->getEvent();
@@ -4455,7 +3966,7 @@ class DevblocksEventHelper {
 	}
 	
 	static private function _getEmailsFromTokens($params, $dict, $string_key, $var_key) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		$results = [];
 		@$vars = @$params[$var_key];
@@ -4500,7 +4011,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function simulateActionSendEmail($params, DevblocksDictionaryDelegate $dict) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 
 		@$trigger = $dict->__trigger;
 		
@@ -4508,8 +4019,8 @@ class DevblocksEventHelper {
 		$cc = self::_getEmailsFromTokens($params, $dict, 'cc', 'cc_var');
 		$bcc = self::_getEmailsFromTokens($params, $dict, 'bcc', 'bcc_var');
 
-		$replyto_addresses = DAO_Address::getLocalAddresses();
-		$replyto_default = DAO_Address::getDefaultLocalAddress();
+		$replyto_addresses = DAO_AddressOutgoing::getAll();
+		$replyto_default = DAO_AddressOutgoing::getDefault();
 		
 		if(empty($replyto_default))
 			return "[ERROR] There is no default sender address.  Please configure one from Setup->Mail";
@@ -4520,11 +4031,10 @@ class DevblocksEventHelper {
 			$from_address_id = 0;
 			$from_placeholders = DevblocksPlatform::parseCsvString($params['from_address_id']);
 			
-			if(is_array($from_placeholders))
 			foreach($from_placeholders as $from_placeholder) {
 				if(!empty($from_address_id))
 					continue;
-				
+
 				if(isset($dict->$from_placeholder)) {
 					$possible_from_id = $dict->$from_placeholder;
 					
@@ -4535,14 +4045,10 @@ class DevblocksEventHelper {
 		}
 		
 		if(empty($from_address_id) || !isset($replyto_addresses[$from_address_id]))
-			$from_address_id = $replyto_default->id;
+			$from_address_id = $replyto_default->address_id;
 
 		if(empty($from_address_id)) {
 			return "[ERROR] The 'from' address is invalid.";
-		}
-		
-		if(false === ($send_as = $tpl_builder->build($params['send_as'], $dict))) {
-			return "[ERROR] The 'send_as' field has invalid placeholders.";
 		}
 		
 		if(empty($to)) {
@@ -4567,19 +4073,18 @@ class DevblocksEventHelper {
 		}
 		
 		$out = sprintf(">>> Sending email\n".
-			"From: %s<%s>\n".
-			"To: <%s>\n".
+			"To: %s\n".
 			"%s".
 			"%s".
+			"From: %s\n".
 			"Subject: %s\n".
 			"%s".
 			"\n".
 			"%s\n",
-			(!empty($send_as) ? ($send_as . ' ') : ''),
-			$replyto_addresses[$from_address_id]->email,
 			implode(",\n  ", $to),
 			(!empty($cc) ? ('Cc: ' . implode(",\n  ", $cc) . "\n") : ''),
 			(!empty($bcc) ? ('Bcc: ' . implode(",\n  ", $bcc) . "\n") : ''),
+			$replyto_addresses[$from_address_id]->email,
 			$subject,
 			(!empty($headers) ? (implode("\n", $headers) . "\n") : ''),
 			$content
@@ -4614,17 +4119,11 @@ class DevblocksEventHelper {
 			}
 		}
 		
-		@$run_in_simulator = $params['run_in_simulator'];
-		
-		if($run_in_simulator) {
-			self::runActionSendEmail($params, $dict);
-		}
-		
 		return $out;
 	}
 	
 	static function runActionSendEmail($params, DevblocksDictionaryDelegate $dict) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		@$trigger = $dict->__trigger;
 		
@@ -4634,8 +4133,8 @@ class DevblocksEventHelper {
 		
 		// From
 		
-		$replyto_addresses = DAO_Address::getLocalAddresses();
-		$replyto_default = DAO_Address::getDefaultLocalAddress();
+		$replyto_addresses = DAO_AddressOutgoing::getAll();
+		$replyto_default = DAO_AddressOutgoing::getDefault();
 		
 		if(empty($replyto_default))
 			return;
@@ -4660,14 +4159,13 @@ class DevblocksEventHelper {
 		}
 		
 		if(empty($from_address_id) || !isset($replyto_addresses[$from_address_id]))
-			$from_address_id = $replyto_default->id;
+			$from_address_id = $replyto_default->address_id;
 		
 		if(empty($from_address_id))
 			return;
 		
 		// Properties
 		
-		@$send_as = $tpl_builder->build($params['send_as'], $dict);
 		@$subject = $tpl_builder->build($params['subject'], $dict);
 		@$content = $tpl_builder->build($params['content'], $dict);
 		@$format = $params['format'];
@@ -4677,9 +4175,23 @@ class DevblocksEventHelper {
 		
 		@$headers = DevblocksPlatform::parseCrlfString($tpl_builder->build($params['headers'], $dict));
 		
+		// Format
+		switch($format) {
+			case 'parsedown':
+				
+				// HTML template
+				
+				// Default to reply-to if empty
+				if(!$html_template_id && false != ($replyto = $replyto_addresses[$from_address_id])) {
+					$html_template = $replyto->getReplyHtmlTemplate();
+					$html_template_id = $html_template->id;
+				}
+				break;
+		}
+		
 		// Attachments
 		
-		$file_ids = [];
+		$file_ids = array();
 		
 		// Attachment list variables
 		
@@ -4713,7 +4225,7 @@ class DevblocksEventHelper {
 			$subject,
 			$content,
 			$replyto_addresses[$from_address_id]->email,
-			$send_as,
+			$replyto_addresses[$from_address_id]->reply_personal,
 			$headers,
 			$format,
 			$html_template_id,
@@ -4728,7 +4240,7 @@ class DevblocksEventHelper {
 	 */
 
 	static function simulateActionSendEmailRecipients($params, DevblocksDictionaryDelegate $dict) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		// Headers
 		
@@ -4789,7 +4301,7 @@ class DevblocksEventHelper {
 	// [TODO] Move this to an event parent so we can presume values
 	
 	static function renderActionRelayEmail($filter_to_worker_ids=array(), $show=array('owner','watchers','workers'), $content_token='content') {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$translate = DevblocksPlatform::getTranslationService();
 		
 		$tpl->assign('show', $show);
@@ -4887,7 +4399,7 @@ class DevblocksEventHelper {
 	}
 	
 	static function simulateActionRelayEmail($params, DevblocksDictionaryDelegate $dict, $context, $context_id, $group_id, $bucket_id, $message_id, $owner_id, $sender_email, $sender_name, $subject) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		$subject = $tpl_builder->build($params['subject'], $dict);
 		$content = $tpl_builder->build($params['content'], $dict);
@@ -4909,10 +4421,10 @@ class DevblocksEventHelper {
 	
 	
 	static function runActionRelayEmail($params, DevblocksDictionaryDelegate $dict, $context, $context_id, $group_id, $bucket_id, $message_id, $owner_id, $sender_email, $sender_name, $subject) {
-		$logger = DevblocksPlatform::services()->log('Bot');
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-		$mail_service = DevblocksPlatform::services()->mail();
-		$settings = DevblocksPlatform::services()->pluginSettings();
+		$logger = DevblocksPlatform::getConsoleLog('Bot');
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+		$mail_service = DevblocksPlatform::getMailService();
+		$settings = DevblocksPlatform::getPluginSettingsService();
 		
 		$relay_spoof_from = $settings->get('cerberusweb.core', CerberusSettings::RELAY_SPOOF_FROM, CerberusSettingsDefaults::RELAY_SPOOF_FROM);
 		
@@ -4927,7 +4439,7 @@ class DevblocksEventHelper {
 		if($relay_spoof_from) {
 			$replyto = $group->getReplyTo($bucket_id);
 		} else {
-			$replyto = DAO_Address::getDefaultLocalAddress();
+			$replyto = DAO_AddressOutgoing::getDefault();
 		}
 
 		// Attachments
@@ -4959,8 +4471,16 @@ class DevblocksEventHelper {
 					$mail->setReplyTo($replyto->email);
 					
 				} else {
-					$mail->setFrom($replyto->email);
-					$mail->setReplyTo($replyto->email);
+					$replyto_personal = $replyto->getReplyPersonal($worker);
+					
+					if(!empty($replyto_personal)) {
+						$mail->setFrom($replyto->email, !empty($replyto_personal) ? $replyto_personal : null);
+						$mail->setReplyTo($replyto->email, !empty($replyto_personal) ? $replyto_personal : null);
+						
+					} else {
+						$mail->setFrom($replyto->email);
+						$mail->setReplyTo($replyto->email);
+					}
 				}
 				
 				if(!isset($params['subject']) || empty($params['subject'])) {
@@ -5094,24 +4614,11 @@ class DevblocksEventHelper {
 				foreach($vals as $ctx_id => $ctx_object) {
 					if(empty($ctx_object))
 						continue;
-					
+
 					if(!is_object($ctx_object)) {
 						$ctx_id = $ctx_object;
 					}
 					
-					// Polymorphic per row
-					if($is_polymorphic && DevblocksPlatform::strStartsWith($on, 'var_')) {
-						$trigger = $dict->__trigger;
-						$var = $trigger->variables[$on];
-						
-						if($var['type'] == 'contexts') {
-							$var_dict = $dict->$on;
-							$var_dict = $var_dict[$ctx_id];
-							$ctx_ext = $var_dict->_context;
-						}
-					}
-					
-					// [TODO] This is slow and should bulk load
 					if($load_objects) {
 						$ctx_values = array();
 						CerberusContexts::getContext($ctx_ext, $ctx_id, $null, $ctx_values);
@@ -5204,17 +4711,6 @@ class DevblocksEventHelper {
 		return C4_AbstractViewLoader::unserializeViewFromAbstractJson($worklist_model, $view_id);
 	}
 	
-	static function runActionSetListAbstractVariable($token, $params, DevblocksDictionaryDelegate $dict) {
-		@$context = $params['context'];
-		
-		if(DevblocksPlatform::strStartsWith($context, 'var_'))
-			$context = $dict->$context;
-		
-		$params['search_mode'] = 'quick_search';
-		
-		return self::runActionSetListVariable($token, $context, $params, $dict);
-	}
-	
 	static function runActionSetListVariable($token, $context, $params, DevblocksDictionaryDelegate $dict) {
 		$trigger = $dict->__trigger;
 		
@@ -5251,7 +4747,7 @@ class DevblocksEventHelper {
 
 		$old_ids = array_keys($dict->$token);
 		$new_ids = array_keys($results);
-		
+
 		// Are we reducing the list?
 		if(isset($params['limit']) && !empty($params['limit'])) {
 			@$limit_to = intval($params['limit_count']);
@@ -5303,7 +4799,7 @@ class DevblocksEventHelper {
 		// Preload these from DAO
 		if(is_array($new_ids))
 			$objects = $view->getDataAsObjects($new_ids);
-		
+
 		if(is_array($objects))
 		foreach($new_ids as $new_id) {
 			$object = isset($objects[$new_id]) ? $objects[$new_id] : null;

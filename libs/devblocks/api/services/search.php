@@ -88,7 +88,7 @@ class DevblocksSearchEngineSphinx extends Extension_DevblocksSearchEngine {
 	}
 	
 	public function renderConfigForSchema(Extension_DevblocksSearchSchema $schema) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('engine', $this);
 		
 		$engine_params = $schema->getEngineParams();
@@ -191,7 +191,7 @@ class DevblocksSearchEngineSphinx extends Extension_DevblocksSearchEngine {
 			$max_results
 		);
 
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache_key = sprintf("search:%s", sha1($sql));
 		$is_only_cached_for_request = !$cache->isVolatile();
 		
@@ -435,7 +435,7 @@ class DevblocksSearchEngineElasticSearch extends Extension_DevblocksSearchEngine
 	}
 	
 	public function renderConfigForSchema(Extension_DevblocksSearchSchema $schema) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('engine', $this);
 		
 		$engine_params = $schema->getEngineParams();
@@ -484,7 +484,7 @@ class DevblocksSearchEngineElasticSearch extends Extension_DevblocksSearchEngine
 		if(empty($type))
 			return false;
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$schema_attributes = $schema->getAttributes();
 		
 		if(is_array($attributes))
@@ -525,7 +525,7 @@ class DevblocksSearchEngineElasticSearch extends Extension_DevblocksSearchEngine
 		@$max_results = intval($limit) ?: intval($this->_config['max_results']) ?: 1000;
 		@$max_results = DevblocksPlatform::intClamp($max_results, 1, 1000);
 		
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache_key = sprintf("elasticsearch:%s:%s", $type, sha1($query));
 		$cache_ttl = 300;
 		$is_only_cached_for_request = !$cache->isVolatile();
@@ -718,7 +718,7 @@ class DevblocksSearchEngineMysqlFulltext extends Extension_DevblocksSearchEngine
 	}
 	
 	public function renderConfigForSchema(Extension_DevblocksSearchSchema $schema) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('engine', $this);
 		
 		$engine_params = $schema->getEngineParams();
@@ -739,7 +739,7 @@ class DevblocksSearchEngineMysqlFulltext extends Extension_DevblocksSearchEngine
 	}
 	
 	private function _getMaxId(Extension_DevblocksSearchSchema $schema) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$tables = DevblocksPlatform::getDatabaseTables();
 		$ns = $schema->getNamespace();
 		
@@ -750,7 +750,7 @@ class DevblocksSearchEngineMysqlFulltext extends Extension_DevblocksSearchEngine
 	}
 	
 	private function _getCount(Extension_DevblocksSearchSchema $schema) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$tables = DevblocksPlatform::getDatabaseTables();
 		$ns = $schema->getNamespace();
 
@@ -770,7 +770,7 @@ class DevblocksSearchEngineMysqlFulltext extends Extension_DevblocksSearchEngine
 	}
 	
 	public function query(Extension_DevblocksSearchSchema $schema, $query, array $attributes=array(), $limit=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$tables = DevblocksPlatform::getDatabaseTables();
 		$ns = $schema->getNamespace();
 		
@@ -863,7 +863,7 @@ class DevblocksSearchEngineMysqlFulltext extends Extension_DevblocksSearchEngine
 		
 		$start_time = microtime(true);
 		
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$is_only_cached_for_request = !$cache->isVolatile();
 		$cache_ttl = 300;
 		$is_cached = true;
@@ -1029,7 +1029,7 @@ class DevblocksSearchEngineMysqlFulltext extends Extension_DevblocksSearchEngine
 
 		// Allow wildcards in queries
 		if($is_query) {
-			$regexp = '[^[:alnum:]_\*]';
+			$regexp = '[^[:alnum:]\*]';
 			$text = mb_ereg_replace($regexp, ' ', mb_convert_case($text, MB_CASE_LOWER));
 			
 			$words = explode(' ', $text);
@@ -1047,11 +1047,7 @@ class DevblocksSearchEngineMysqlFulltext extends Extension_DevblocksSearchEngine
 			// Remove min/max sizes
 			// [TODO] Make this configurable
 			$words = array_filter($words, function($word) {
-				// Less than 3 characters and not a wildcard
-				if(strlen($word) < 3 && !DevblocksPlatform::strEndsWith($word, '*'))
-					return false;
-				
-				if(strlen($word) > 83)
+				if(strlen($word) < 3 || strlen($word) > 83)
 					return false;
 				
 				return true;
@@ -1069,7 +1065,7 @@ class DevblocksSearchEngineMysqlFulltext extends Extension_DevblocksSearchEngine
 	}
 	
 	private function _index(Extension_DevblocksSearchSchema $schema, $id, array $doc, $attributes=array()) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$tables = DevblocksPlatform::getDatabaseTables();
 		$ns = $schema->getNamespace();
 		
@@ -1083,10 +1079,10 @@ class DevblocksSearchEngineMysqlFulltext extends Extension_DevblocksSearchEngine
 		// Remove 4 byte characters
 		// [TODO] Move to Devblocks?
 		$content = preg_replace('%(?:
-					\xF0[\x90-\xBF][\x80-\xBF]{2}
-				| [\xF1-\xF3][\x80-\xBF]{3}
-				| \xF4[\x80-\x8F][\x80-\xBF]{2}
-		)%xs', '\xEF\xBF\xBD', $content);
+          \xF0[\x90-\xBF][\x80-\xBF]{2}
+        | [\xF1-\xF3][\x80-\xBF]{3}
+        | \xF4[\x80-\x8F][\x80-\xBF]{2}
+    )%xs', '\xEF\xBF\xBD', $content);
 		
 		$fields = array(
 			'id' => intval($id),
@@ -1142,7 +1138,7 @@ class DevblocksSearchEngineMysqlFulltext extends Extension_DevblocksSearchEngine
 	}
 	
 	private function _createTable(Extension_DevblocksSearchSchema $schema) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$tables = DevblocksPlatform::getDatabaseTables();
 		$namespace = $schema->getNamespace();
 		$attributes = $schema->getAttributes();
@@ -1227,7 +1223,7 @@ class DevblocksSearchEngineMysqlFulltext extends Extension_DevblocksSearchEngine
 	}
 	
 	public function delete(Extension_DevblocksSearchSchema $schema, $ids) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$tables = DevblocksPlatform::getDatabaseTables();
 		
 		$ns = $schema->getNamespace();

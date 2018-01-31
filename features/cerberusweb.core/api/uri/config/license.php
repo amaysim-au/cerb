@@ -17,7 +17,7 @@
 
 class PageSection_SetupLicense extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$visit = CerberusApplication::getVisit();
 		
 		$visit->set(ChConfigurationPage::ID, 'license');

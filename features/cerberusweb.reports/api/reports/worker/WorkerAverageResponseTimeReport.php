@@ -17,10 +17,10 @@
 
 class ChReportAverageResponseTime extends Extension_Report {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 
 		// init
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// import dates from form
 		@$start = DevblocksPlatform::importGPC($_REQUEST['start'],'string','');

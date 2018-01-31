@@ -71,7 +71,7 @@ class _DevblocksOAuthService {
 			return false;
 		}
 		
-		$results = DevblocksPlatform::strParseQueryString($out);
+		parse_str($out, $results);
 		
 		$this->_response_info = curl_getinfo($ch);
 		
@@ -87,75 +87,6 @@ class _DevblocksOAuthService {
 			$url .= '?oauth_token=' . rawurlencode($request_token);
 		
 		return $url;
-	}
-	
-	public function getRefreshToken($refresh_token_url, $postdata=[]) {
-		if(!$this->_consumer_key || !$this->_consumer_secret)
-			return false;
-		
-		$ch = DevblocksPlatform::curlInit($refresh_token_url);
-		
-		$url_parts = parse_url($refresh_token_url);
-		
-		$base_url = sprintf('%s://%s%s%s',
-			$url_parts['scheme'],
-			$url_parts['host'],
-			(isset($url_parts['port']) && !in_array(intval($url_parts['port']),array(0,80,443))) ? sprintf(':%d', $url_parts['port']) : '',
-			$url_parts['path']
-		);
-		
-		$query = [];
-		
-		if(isset($url_parts['query']))
-			$query = DevblocksPlatform::strParseQueryString($url_parts['query']);
-		
-		$query = array_map('rawurlencode', $query);
-		$postdata = array_map('rawurlencode', $postdata);
-		
-		$params = array_merge($query, $postdata);
-
-		$http_headers = array(
-			'Content-Type: application/x-www-form-urlencoded',
-			'User-Agent: Cerb ' . APP_VERSION,
-		);
-		
-		if(!empty($accept))
-			$http_headers[] = 'Accept: ' . $accept;
-		
-		curl_setopt($ch, CURLOPT_HTTPHEADER, $http_headers);
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, urldecode(http_build_query($params)));
-		
-		if(false == ($out = DevblocksPlatform::curlExec($ch))) {
-			error_log(sprintf("cURL error: %s", curl_error($ch)));
-			return false;
-		}
-		
-		$this->_response_info = curl_getinfo($ch);
-		
-		$content_type = $this->_response_info['content_type'];
-		
-		if(false !== strpos($content_type, ';'))
-			@list($content_type, $content_type_opts) = explode(';', $content_type);
-		
-		$results = array();
-		
-		// Handle JSON or FORM responses
-		switch(trim(DevblocksPlatform::strLower($content_type))) {
-			case 'application/json':
-				$results = json_decode($out, true);
-				break;
-				
-			case 'application/x-www-form-urlencoded':
-			case 'text/html':
-			case 'text/plain':
-				$results = DevblocksPlatform::strParseQueryString($out);
-				break;
-		}
-		
-		curl_close($ch);
-		
-		return $results;
 	}
 	
 	public function getAccessToken($access_token_url, $postdata=array(), $oauth_headers=array(), $accept=null) {
@@ -182,10 +113,10 @@ class _DevblocksOAuthService {
 			$url_parts['path']
 		);
 		
-		$query = [];
+		$query = array();
 		
 		if(isset($url_parts['query']))
-			$query = DevblocksPlatform::strParseQueryString($url_parts['query']);
+			parse_str($url_parts['query'], $query);
 		
 		$oauth_headers = array_map('rawurlencode', $oauth_headers);
 		$query = array_map('rawurlencode', $query);
@@ -252,7 +183,7 @@ class _DevblocksOAuthService {
 			case 'application/x-www-form-urlencoded':
 			case 'text/html':
 			case 'text/plain':
-				$results = DevblocksPlatform::strParseQueryString($out);
+				parse_str($out, $results);
 				break;
 		}
 		
@@ -307,7 +238,7 @@ class _DevblocksOAuthService {
 				break;
 				
 			case 'application/x-www-form-urlencoded':
-				$results = DevblocksPlatform::strParseQueryString($out);
+				parse_str($out, $results);
 				break;
 		}
 		
@@ -359,7 +290,8 @@ class _DevblocksOAuthService {
 			switch($this->_getContentTypeFromHeaders($headers)) {
 				// Decode pre-encoded form params for signing
 				case 'application/x-www-form-urlencoded':
-					$postdata = DevblocksPlatform::strParseQueryString($body);
+					$postdata = array();
+					parse_str($body, $postdata);
 					break;
 				
 				// Otherwise, keep the plaintext as a payload
@@ -390,10 +322,10 @@ class _DevblocksOAuthService {
 			$url_parts['path']
 		);
 		
-		$query = [];
+		$query = array();
 		
 		if(isset($url_parts['query']))
-			$query = DevblocksPlatform::strParseQueryString($url_parts['query']);
+			parse_str($url_parts['query'], $query);
 		
 		$oauth_headers = array_map('rawurlencode', $oauth_headers);
 		$query = array_map('rawurlencode', $query);
@@ -462,8 +394,10 @@ class _DevblocksOAuthService {
 		
 		$query = array();
 		
+		// [TODO] Merge payload
+		
 		if(isset($url_parts['query']))
-			$query = DevblocksPlatform::strParseQueryString($url_parts['query']);
+			parse_str($url_parts['query'], $query);
 		
 		$oauth_headers = array_map('rawurlencode', $oauth_headers);
 		$query = array_map('rawurlencode', $query);

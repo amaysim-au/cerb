@@ -16,83 +16,19 @@
 ***********************************************************************/
 
 class DAO_Notification extends Cerb_ORMHelper {
-	const ACTIVITY_POINT = 'activity_point';
+	const CACHE_COUNT_PREFIX = 'notification_count_';
+	
+	const ID = 'id';
 	const CONTEXT = 'context';
 	const CONTEXT_ID = 'context_id';
 	const CREATED_DATE = 'created_date';
-	const ENTRY_JSON = 'entry_json';
-	const ID = 'id';
-	const IS_READ = 'is_read';
 	const WORKER_ID = 'worker_id';
-	
-	const CACHE_COUNT_PREFIX = 'notification_count_';
-	
-	private function __construct() {}
+	const IS_READ = 'is_read';
+	const ACTIVITY_POINT = 'activity_point';
+	const ENTRY_JSON = 'entry_json';
 
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// varchar(255)
-		$validation
-			->addField(self::ACTIVITY_POINT)
-			->string()
-			->setMaxLength(255)
-			;
-		// varchar(255)
-		$validation
-			->addField(self::CONTEXT)
-			->context()
-			->setRequired(true)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::CONTEXT_ID)
-			->id()
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::CREATED_DATE)
-			->timestamp()
-			;
-		// text
-		$validation
-			->addField(self::ENTRY_JSON)
-			->string()
-			->setMaxLength(65535)
-			->setRequired(true)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		// tinyint(1) unsigned
-		$validation
-			->addField(self::IS_READ)
-			->bit()
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::WORKER_ID)
-			->id()
-			->setRequired(true)
-			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_WORKER))
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
-	
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
-		
-		if(!isset($fields[DAO_Notification::CREATED_DATE]))
-			$fields[DAO_Notification::CREATED_DATE] = time();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("INSERT INTO notification () ".
 			"VALUES ()"
@@ -102,15 +38,21 @@ class DAO_Notification extends Cerb_ORMHelper {
 		
 		self::update($id, $fields);
 		
+		// If a worker was provided
+		if(isset($fields[self::WORKER_ID])) {
+			// Invalidate the worker notification count cache
+			self::clearCountCache($fields[self::WORKER_ID]);
+			
+			// Trigger notification
+			Event_NotificationReceivedByWorker::trigger($id, $fields[self::WORKER_ID]);
+		}
+		
 		return $id;
 	}
 	
 	static function update($ids, $fields, $check_deltas=true) {
 		if(!is_array($ids))
 			$ids = array($ids);
-		
-		$context = CerberusContexts::CONTEXT_NOTIFICATION;
-		self::_updateAbstract($context, $ids, $fields);
 		
 		// Make a diff for the requested objects in batches
 		
@@ -131,7 +73,7 @@ class DAO_Notification extends Cerb_ORMHelper {
 			if($check_deltas) {
 				
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::services()->event();
+				$eventMgr = DevblocksPlatform::getEventService();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.notification.update',
@@ -145,48 +87,10 @@ class DAO_Notification extends Cerb_ORMHelper {
 				DevblocksPlatform::markContextChanged(CerberusContexts::CONTEXT_NOTIFICATION, $batch_ids);
 			}
 		}
-		
-		// If a worker was provided
-		if(isset($fields[self::WORKER_ID])) {
-			// Invalidate the worker notification count cache
-			self::clearCountCache($fields[self::WORKER_ID]);
-			
-			if(is_array($ids))
-			foreach($ids as $id)
-				Event_NotificationReceivedByWorker::trigger($id, $fields[self::WORKER_ID]);
-		}
 	}
 	
 	static function updateWhere($fields, $where) {
 		parent::_updateWhere('notification', $fields, $where);
-	}
-	
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		$context = CerberusContexts::CONTEXT_NOTIFICATION;
-		
-		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
-			return false;
-		
-		if(!$id && !isset($fields[self::WORKER_ID])) {
-			$error = "A 'worker_id' is required.";
-			return false;
-		}
-		
-		if(isset($fields[self::WORKER_ID])) {
-			@$worker_id = $fields[self::WORKER_ID];
-			
-			if(!$worker_id) {
-				$error = "Invalid 'worker_id' value.";
-				return false;
-			}
-			
-			if(!CerberusContexts::isOwnableBy(CerberusContexts::CONTEXT_WORKER, $worker_id, $actor)) {
-				$error = "You do not have permission to create notifications for this worker.";
-				return false;
-			}
-		}
-		
-		return true;
 	}
 	
 	/**
@@ -194,7 +98,7 @@ class DAO_Notification extends Cerb_ORMHelper {
 	 * @return boolean
 	 */
 	static function bulkUpdate(Model_ContextBulkUpdate $update) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 
 		$do = $update->actions;
 		$ids = $update->context_ids;
@@ -243,7 +147,7 @@ class DAO_Notification extends Cerb_ORMHelper {
 	 * @return Model_Notification[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -285,7 +189,7 @@ class DAO_Notification extends Cerb_ORMHelper {
 		if(empty($count))
 			return array();
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$contexts = array();
 		
@@ -356,8 +260,8 @@ class DAO_Notification extends Cerb_ORMHelper {
 	}
 	
 	static function getUnreadCountByWorker($worker_id) {
-		$db = DevblocksPlatform::services()->database();
-		$cache = DevblocksPlatform::services()->cache();
+		$db = DevblocksPlatform::getDatabaseService();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		if(null === ($count = $cache->load(self::CACHE_COUNT_PREFIX.$worker_id))) {
 			$sql = sprintf("SELECT count(*) ".
@@ -408,7 +312,7 @@ class DAO_Notification extends Cerb_ORMHelper {
 		if(!is_array($ids))
 			$ids = array($ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -419,7 +323,7 @@ class DAO_Notification extends Cerb_ORMHelper {
 		$db->ExecuteMaster(sprintf("DELETE FROM notification WHERE id IN (%s)", $ids_list));
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
+		$eventMgr = DevblocksPlatform::getEventService();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -446,7 +350,7 @@ class DAO_Notification extends Cerb_ORMHelper {
 		
 		$context_ids = DevblocksPlatform::sanitizeArray($context_ids, 'int');
 			
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$db->ExecuteMaster(sprintf("DELETE FROM notification WHERE context = %s AND context_id IN (%s) ",
 			$db->qstr($context),
@@ -461,7 +365,7 @@ class DAO_Notification extends Cerb_ORMHelper {
 	}
 	
 	static function deleteByContextActivityAndWorker($context, $context_ids, $activity_point=null, $worker_ids=array()) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(!is_array($context_ids))
 			$context_ids = array($context_ids);
@@ -512,14 +416,14 @@ class DAO_Notification extends Cerb_ORMHelper {
 	}
 
 	static function maint() {
-		$db = DevblocksPlatform::services()->database();
-		$logger = DevblocksPlatform::services()->log();
+		$db = DevblocksPlatform::getDatabaseService();
+		$logger = DevblocksPlatform::getConsoleLog();
 		
 		$db->ExecuteMaster("DELETE FROM notification WHERE is_read = 1");
 		$logger->info('[Maint] Purged ' . $db->Affected_Rows() . ' notification records.');
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
+		$eventMgr = DevblocksPlatform::getEventService();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.maint',
@@ -533,7 +437,7 @@ class DAO_Notification extends Cerb_ORMHelper {
 	}
 	
 	static function clearCountCache($worker_id=null) {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		$workers = array();
 		
@@ -599,6 +503,7 @@ class DAO_Notification extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param DevblocksSearchCriteria[] $params
 	 * @param integer $limit
@@ -609,7 +514,7 @@ class DAO_Notification extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -771,7 +676,7 @@ class Model_Notification {
 		}
 		
 		if(empty($url)) {
-			$url_writer = DevblocksPlatform::services()->url();
+			$url_writer = DevblocksPlatform::getUrlService();
 			$url = $url_writer->write('c=profiles&obj=worker&who=me&what=notifications', true);
 		}
 		
@@ -863,7 +768,7 @@ class View_Notification extends C4_AbstractView implements IAbstractView_Subtota
 					
 				// Valid custom fields
 				default:
-					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
+					if('cf_' == substr($field_key,0,3))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -1013,7 +918,7 @@ class View_Notification extends C4_AbstractView implements IAbstractView_Subtota
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1025,7 +930,7 @@ class View_Notification extends C4_AbstractView implements IAbstractView_Subtota
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1197,7 +1102,7 @@ class Context_Notification extends Extension_DevblocksContext {
 	
 	function getMeta($context_id) {
 		$notification = DAO_Notification::get($context_id);
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		if(false == ($url = $notification->getURL())) {
 			$url = $url_writer->writeNoProxy('c=preferences&action=redirectRead&id='.$context_id, true);
@@ -1248,7 +1153,7 @@ class Context_Notification extends Extension_DevblocksContext {
 		
 		$translate = DevblocksPlatform::getTranslationService();
 		$fields = DAO_CustomField::getByContext(CerberusContexts::CONTEXT_NOTIFICATION);
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPLatform::getUrlService();
 
 		// Polymorph
 		if(is_numeric($notification)) {
@@ -1345,46 +1250,6 @@ class Context_Notification extends Extension_DevblocksContext {
 			$token_labels,
 			$token_values
 		);
-		
-		return true;
-	}
-	
-	function getKeyToDaoFieldMap() {
-		return [
-			'activity_point' => DAO_Notification::ACTIVITY_POINT,
-			'assignee_id' => DAO_Notification::WORKER_ID,
-			'created' => DAO_Notification::CREATED_DATE,
-			'event_json' => DAO_Notification::ENTRY_JSON,
-			'id' => DAO_Notification::ID,
-			'is_read' => DAO_Notification::IS_READ,
-			'links' => '_links',
-			'target__context' => DAO_Notification::CONTEXT,
-			'target_id' => DAO_Notification::CONTEXT_ID,
-			'worker_id' => DAO_Notification::WORKER_ID,
-		];
-	}
-	
-	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
-		$dict_key = DevblocksPlatform::strLower($key);
-		switch($dict_key) {
-			case 'links':
-				$this->_getDaoFieldsLinks($value, $out_fields, $error);
-				break;
-				
-			case 'params':
-				if(!is_array($value)) {
-					$error = 'must be an object.';
-					return false;
-				}
-				
-				if(false == ($json = json_encode($value))) {
-					$error = 'could not be JSON encoded.';
-					return false;
-				}
-				
-				$out_fields[DAO_Notification::ENTRY_JSON] = $json;
-				break;
-		}
 		
 		return true;
 	}

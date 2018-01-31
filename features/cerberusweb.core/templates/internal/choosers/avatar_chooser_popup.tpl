@@ -6,7 +6,7 @@
 			<canvas class="canvas-avatar" width="100" height="100" style="width:100px;height:100px;cursor:move;"></canvas>
 		</div>
 		<div style="margin-top:5px;">
-			<input type="text" name="bgcolor" value="#{sprintf('%02x%02x%02x',mt_rand(0,180),mt_rand(0,180),mt_rand(0,180))}" size="8" class="color-picker">
+			<input type="hidden" name="bgcolor" value="#{sprintf('%02x%02x%02x',mt_rand(0,180),mt_rand(0,180),mt_rand(0,180))}" style="width:100%;" class="color-picker">
 		</div>
 		<input type="hidden" name="imagedata" class="canvas-avatar-imagedata">
 	</div>
@@ -44,7 +44,7 @@
 		<button type="button" class="canvas-avatar-zoomin" title="{'common.zoom.in'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-zoom-in"></span></button>
 		<button type="button" class="canvas-avatar-zoomout" title="{'common.zoom.out'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-zoom-out"></span></button>
 		<button type="button" class="canvas-avatar-remove" title="{'common.clear'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-erase"></span></button>
-		<button type="button" class="canvas-avatar-export" title="{'common.save_changes'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate|capitalize}</button>
+		<button type="button" class="canvas-avatar-export" title="{'common.save_changes'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-circle-ok"></span></button>
 	</div>
 	
 	<div class="cerb-avatar-error"></div>
@@ -57,7 +57,6 @@ $(function() {
 	
 	$popup.one('popup_open', function(event,ui) {
 		$popup.dialog('option','title',"Profile Picture Editor");
-		$popup.css('overflow', 'inherit');
 		
 		var $canvas = $popup.find('canvas.canvas-avatar');
 		var canvas = $canvas.get(0);
@@ -70,9 +69,8 @@ $(function() {
 		var $bgcolor_well = $popup.find('input.color-picker');
 		var $monogram = $popup.find('fieldset.cerb-avatar-monogram');
 		
-		$bgcolor_well.minicolors({
-			swatches: ['#CF2C1D','#FEAF03','#57970A','#007CBD','#7047BA','#CF25F5','#ADADAD','#34434E', '#FFFFFF'],
-			opacity: true,
+		$bgcolor_well.miniColors({
+			color_favorites: ['#CF2C1D','#FEAF03','#57970A','#007CBD','#7047BA','#CF25F5','#ADADAD','#34434E', '#FFFFFF'],
 			change: function() {
 				$canvas.trigger('avatar-redraw');
 			}
@@ -188,7 +186,7 @@ $(function() {
 		*/
 		
 		$canvas.on('avatar-redraw', function() {
-			var bgcolor = $bgcolor_well.minicolors('rgbaString');
+			var bgcolor = $bgcolor_well.val();
 			
 			context.save();
 			
@@ -252,7 +250,7 @@ $(function() {
 			scale = 1.0;
 			x = 0;
 			y = 0;
-			$bgcolor_well.minicolors('value', { color: 'rgb(255,255,255)', opacity:0 });
+			$bgcolor_well.miniColors('value', '#FFFFFF');
 			$(img).attr('src', '');
 			$canvas.trigger('avatar-redraw');
 		});
@@ -284,7 +282,7 @@ $(function() {
 				x = 0;
 				y = 0;
 				$(img).one('load', function() {
-					$bgcolor_well.minicolors('value', { color: 'rgb(255,255,255)', opacity:1 });
+					$bgcolor_well.miniColors('value', '#FFFFFF');
 					$canvas.trigger('avatar-redraw');
 				});
 				$(img).attr('src', json.imageData);

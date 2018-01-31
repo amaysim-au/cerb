@@ -48,6 +48,9 @@
 			<class name="DevblocksStorageEngineDisk" />
 			<class name="DevblocksStorageEngineS3" />
 		</file>
+		<file path="libs/user_agent_parser.php">
+			<class name="UserAgentParser" />
+		</file>
 	</class_loader>
 	
 	<!-- Extensions -->

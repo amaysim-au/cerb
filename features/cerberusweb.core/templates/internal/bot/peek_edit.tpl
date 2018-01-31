@@ -1,5 +1,4 @@
 {$form_id = "frm{uniqid()}"}
-{$peek_context = CerberusContexts::CONTEXT_BOT}
 <form action="{devblocks_url}{/devblocks_url}" method="post" id="{$form_id}">
 <input type="hidden" name="c" value="profiles">
 <input type="hidden" name="a" value="handleSectionAction">
@@ -64,13 +63,6 @@
 
 {include file="devblocks:cerberusweb.core::internal/custom_fieldsets/peek_custom_fieldsets.tpl" context=CerberusContexts::CONTEXT_BOT context_id=$model->id}
 
-<fieldset class="peek">
-	<legend>{'common.configuration'|devblocks_translate|capitalize} (JSON)</legend>
-	
-	<textarea name="config_json" data-editor-mode="ace/mode/json" style="width:98%;height:5em;" spellcheck="false">{$model->params.config|json_encode|devblocks_prettyjson}</textarea>
-	<div>(these values will be available to every behavior on this bot)</div>
-</fieldset>
-
 <fieldset class="peek va-fieldset-interactions">
 	<legend>Interactions</legend>
 	
@@ -81,6 +73,26 @@
 				<input type="text" name="at_mention_name" value="{$model->at_mention_name}" style="width:98%;" spellcheck="false" placeholder="mybot">
 			</td>
 		</tr>
+		
+		{if $model->id}
+		<tr>
+			<td width="1%" nowrap="nowrap"><b>Worker chat:</b></td>
+			<td width="99%">
+				<button type="button" class="chooser-abstract" data-field-name="interactions[worker]" data-context="{CerberusContexts::CONTEXT_BEHAVIOR}" data-single="true" data-query="bot.id:{$model->id} event:event.interaction.chat.worker"><span class="glyphicons glyphicons-search"></span></button>
+				<ul class="bubbles chooser-container">
+					{if $model->params.interactions.worker}
+						{$behavior = $interaction_behaviors[$model->params.interactions.worker]}
+						{if $behavior}
+						<li>
+							<input type="hidden" name="interactions[worker]" value="{$behavior->id}">
+							<a href="javascript:;" class="cerb-peek-trigger no-underline" data-context="{CerberusContexts::CONTEXT_BEHAVIOR}" data-context-id="{$behavior->id}">{$behavior->title}</a>
+						</li>
+						{/if}
+					{/if}
+				</ul>
+			</td>
+		</tr>
+		{/if}
 	</table>
 </fieldset>
 
@@ -124,8 +136,8 @@
 		Are you sure you want to permanently delete this bot and all of its behaviors?
 	</div>
 	
-	<button type="button" class="delete red">{'common.yes'|devblocks_translate|capitalize}</button>
-	<button type="button" onclick="$(this).closest('form').find('div.buttons').fadeIn();$(this).closest('fieldset.delete').fadeOut();">{'common.no'|devblocks_translate|capitalize}</button>
+	<button type="button" class="delete red"></span> {'common.yes'|devblocks_translate|capitalize}</button>
+	<button type="button" onclick="$(this).closest('form').find('div.buttons').fadeIn();$(this).closest('fieldset.delete').fadeOut();"></span> {'common.no'|devblocks_translate|capitalize}</button>
 </fieldset>
 {/if}
 
@@ -133,7 +145,7 @@
 
 <div class="buttons">
 	<button type="button" class="submit"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate|capitalize}</button>
-	{if !empty($model->id) && $active_worker->hasPriv("contexts.{$peek_context}.delete")}<button type="button" onclick="$(this).parent().siblings('fieldset.delete').fadeIn();$(this).closest('div').fadeOut();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
+	{if !empty($model->id)}<button type="button" onclick="$(this).parent().siblings('fieldset.delete').fadeIn();$(this).closest('div').fadeOut();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
 </div>
 
 </form>
@@ -233,11 +245,6 @@ $(function() {
 			else
 				$actions_container.show();
 		});
-		
-		// Editor
-		$popup.find('textarea[name=config_json]')
-			.cerbCodeEditor()
-		;
 		
 		// Avatar
 		

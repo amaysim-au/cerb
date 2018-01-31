@@ -17,6 +17,7 @@ class _DevblocksEmailManager {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @return _DevblocksEmailManager
 	 */
@@ -28,6 +29,7 @@ class _DevblocksEmailManager {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @return Swift_Message
 	 */
@@ -42,13 +44,10 @@ class _DevblocksEmailManager {
 		if(empty($sender))
 			return false;
 		
-		if(false == ($replyto = DAO_Address::getByEmail($sender)))
+		if(false == ($replyto = DAO_AddressOutgoing::getByEmail($sender)))
 			return false;
 		
-		if(!DAO_Address::isLocalAddressId($replyto->id))
-			$replyto = DAO_Address::getDefaultLocalAddress();
-		
-		if(false == ($model = $replyto->getMailTransport()))
+		if(false == ($model = $replyto->getReplyMailTransport()))
 			return false;
 		
 		if(false == ($transport = $model->getExtension()))
@@ -106,7 +105,7 @@ class _DevblocksEmailManager {
 					$port
 				);
 				break;
-				
+				 
 			case 'pop3-ssl': // 995
 				$connect = sprintf("{%s:%d/pop3/ssl%s}INBOX",
 					$server,
@@ -114,7 +113,7 @@ class _DevblocksEmailManager {
 					$ssl_ignore_validation ? '/novalidate-cert' : ''
 				);
 				break;
-				
+				 
 			case 'imap': // 143
 				$connect = sprintf("{%s:%d/notls}INBOX",
 					$server,

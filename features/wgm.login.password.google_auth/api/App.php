@@ -57,7 +57,7 @@ class Login_PasswordAndGoogleAuth extends Extension_LoginAuthenticator {
 	}
 	
 	function renderWorkerPrefs($worker) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('worker', $worker);
 		$tpl->display('devblocks:wgm.login.password.google_auth::login/prefs.tpl');
 	}
@@ -65,7 +65,7 @@ class Login_PasswordAndGoogleAuth extends Extension_LoginAuthenticator {
 	function saveWorkerPrefs($worker) {
 		@$reset_login = DevblocksPlatform::importGPC($_REQUEST['reset_login'], 'integer', 0);
 		
-		$session = DevblocksPlatform::services()->session();
+		$session = DevblocksPlatform::getSessionService();
 		$visit = CerberusApplication::getVisit();
 		$worker = CerberusApplication::getActiveWorker();
 		
@@ -86,7 +86,7 @@ class Login_PasswordAndGoogleAuth extends Extension_LoginAuthenticator {
 	
 	private function _renderLoginForm(Model_Worker $worker) {
 		// draws HTML form of controls needed for login information
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('worker', $worker);
 		
@@ -98,7 +98,7 @@ class Login_PasswordAndGoogleAuth extends Extension_LoginAuthenticator {
 	
 	private function _renderLoginSetupForm(Model_Worker $worker) {
 		// draws HTML form of controls needed for login information
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 
 		$tpl->assign('worker', $worker);
 
@@ -113,14 +113,8 @@ class Login_PasswordAndGoogleAuth extends Extension_LoginAuthenticator {
 			
 			$_SESSION['recovery_code'] = $worker->getEmailString() . ':' . $recovery_code;
 			
-			$labels = $values = [];
-			CerberusContexts::getContext(CerberusContexts::CONTEXT_WORKER, $worker, $worker_labels, $worker_values, '', true, true);
-			CerberusContexts::merge('worker_', null, $worker_labels, $worker_values, $labels, $values);
-			
-			$values['code'] = $recovery_code;
-			$values['ip'] = DevblocksPlatform::getClientIp();
-			
-			CerberusApplication::sendEmailTemplate($worker->getEmailString(), 'worker_recover', $values);
+			// [TODO] Email or SMS it through the new recovery platform service
+			CerberusMail::quickSend($worker->getEmailString(), 'Your confirmation code', $recovery_code);
 		}
 		
 		if(isset($_SESSION['recovery_seed'])) {

@@ -17,31 +17,20 @@
 
 class PageSection_ProfilesTimeTracking extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$request = DevblocksPlatform::getHttpRequest();
 		$translate = DevblocksPlatform::getTranslationService();
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$context = CerberusContexts::CONTEXT_TIMETRACKING;
 		
 		$stack = $request->path;
 		@array_shift($stack); // profiles
 		@array_shift($stack); // time_tracking
 		@$id = intval(array_shift($stack));
 		
-		if(false == ($time_entry = DAO_TimeTrackingEntry::get($id))) {
-			DevblocksPlatform::redirect(new DevblocksHttpRequest());
-			return;
+		if(null != ($time_entry = DAO_TimeTrackingEntry::get($id))) {
+			$tpl->assign('time_entry', $time_entry);
 		}
-		
-		$tpl->assign('time_entry', $time_entry);
-		
-		// Dictionary
-		$labels = array();
-		$values = array();
-		CerberusContexts::getContext($context, $time_entry, $labels, $values, '', true, false);
-		$dict = DevblocksDictionaryDelegate::instance($values);
-		$tpl->assign('dict', $dict);
 		
 		// Remember the last tab/URL
 		
@@ -111,14 +100,17 @@ class PageSection_ProfilesTimeTracking extends Extension_PageSection {
 		
 		$tpl->assign('properties', $properties);
 		
+		// Macros
+		
+		$macros = DAO_TriggerEvent::getReadableByActor(
+			$active_worker,
+			'event.macro.timetracking'
+		);
+		$tpl->assign('macros', $macros);
+		
 		// Tabs
 		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_TIMETRACKING);
 		$tpl->assign('tab_manifests', $tab_manifests);
-		
-		// Interactions
-		$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
-		$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
-		$tpl->assign('interactions_menu', $interactions_menu);
 		
 		// Template
 		$tpl->display('devblocks:cerberusweb.timetracking::timetracking/profile.tpl');
@@ -142,6 +134,9 @@ class PageSection_ProfilesTimeTracking extends Extension_PageSection {
 			@$time_actual_mins = DevblocksPlatform::importGPC($_POST['time_actual_mins'],'integer',0);
 			@$is_closed = DevblocksPlatform::importGPC($_POST['is_closed'],'integer',0);
 			
+			if(empty($time_actual_mins))
+				throw new Exception_DevblocksAjaxValidationError("The 'Time Spent' field is required.", 'time_actual_mins');
+			
 			// Date
 			@$log_date = DevblocksPlatform::importGPC($_REQUEST['log_date'],'string','now');
 			if(false == (@$log_date = strtotime($log_date)))
@@ -155,9 +150,11 @@ class PageSection_ProfilesTimeTracking extends Extension_PageSection {
 				if(false == ($entry = DAO_TimeTrackingEntry::get($id)))
 					throw new Exception_DevblocksAjaxValidationError("Record not found.");
 				
-				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_TIMETRACKING)))
-					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
-					
+				// Check privs
+				if(!(($active_worker->hasPriv('timetracking.actions.create') && $active_worker->id==$entry->worker_id)
+					|| $active_worker->hasPriv('timetracking.actions.update_all')))
+						throw new Exception_DevblocksAjaxValidationError("You do not have permission to delete this record.");
+						
 				DAO_TimeTrackingEntry::delete($id);
 						
 				echo json_encode(array(
@@ -179,17 +176,10 @@ class PageSection_ProfilesTimeTracking extends Extension_PageSection {
 			if(empty($id)) { // create
 				$fields[DAO_TimeTrackingEntry::WORKER_ID] = intval($active_worker->id);
 				
-				if(!DAO_TimeTrackingEntry::validate($fields, $error))
-					throw new Exception_DevblocksAjaxValidationError($error);
-				
-				if(!DAO_TimeTrackingEntry::onBeforeUpdateByActor($active_worker, $fields, null, $error))
-					throw new Exception_DevblocksAjaxValidationError($error);
-				
 				$id = DAO_TimeTrackingEntry::create($fields);
-				DAO_TimeTrackingEntry::onUpdateByActor($active_worker, $fields, $id);
 				
 				$translate = DevblocksPlatform::getTranslationService();
-				$url_writer = DevblocksPlatform::services()->url();
+				$url_writer = DevblocksPlatform::getUrlService();
 				
 				// Context Link (if given)
 				@$link_context = DevblocksPlatform::importGPC($_REQUEST['link_context'],'string','');
@@ -295,18 +285,11 @@ class PageSection_ProfilesTimeTracking extends Extension_PageSection {
 				}
 				
 			} else { // modify
-				if(!DAO_TimeTrackingEntry::validate($fields, $error, $id))
-					throw new Exception_DevblocksAjaxValidationError($error);
-				
-				if(!DAO_TimeTrackingEntry::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
-					throw new Exception_DevblocksAjaxValidationError($error);
-				
 				DAO_TimeTrackingEntry::update($id, $fields);
-				DAO_TimeTrackingEntry::onUpdateByActor($active_worker, $fields, $id);
 			}
 			
 			// Custom field saves
-			@$field_ids = DevblocksPlatform::importGPC($_POST['field_ids'], 'array', []);
+			@$field_ids = DevblocksPlatform::importGPC($_POST['field_ids'], 'array', array());
 			DAO_CustomFieldValue::handleFormPost(CerberusContexts::CONTEXT_TIMETRACKING, $id, $field_ids);
 			
 			// Comments
@@ -359,7 +342,7 @@ class PageSection_ProfilesTimeTracking extends Extension_PageSection {
 
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('view_id', $view_id);
 
 		if(!empty($id_csv)) {
@@ -374,6 +357,14 @@ class PageSection_ProfilesTimeTracking extends Extension_PageSection {
 		// Custom Fields
 		$custom_fields = DAO_CustomField::getByContext(CerberusContexts::CONTEXT_TIMETRACKING, false);
 		$tpl->assign('custom_fields', $custom_fields);
+		
+		// Macros
+		
+		$macros = DAO_TriggerEvent::getReadableByActor(
+			$active_worker,
+			'event.macro.timetracking'
+		);
+		$tpl->assign('macros', $macros);
 		
 		$tpl->display('devblocks:cerberusweb.timetracking::timetracking/bulk.tpl');
 	}

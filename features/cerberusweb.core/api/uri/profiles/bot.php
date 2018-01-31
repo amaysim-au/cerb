@@ -17,7 +17,7 @@
 
 class PageSection_ProfilesBot extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$visit = CerberusApplication::getVisit();
 		$translate = DevblocksPlatform::getTranslationService();
 		$active_worker = CerberusApplication::getActiveWorker();
@@ -37,13 +37,6 @@ class PageSection_ProfilesBot extends Extension_PageSection {
 		}
 		$tpl->assign('model', $model);
 	
-		// Dictionary
-		$labels = array();
-		$values = array();
-		CerberusContexts::getContext(CerberusContexts::CONTEXT_BOT, $model, $labels, $values, '', true, false);
-		$dict = DevblocksDictionaryDelegate::instance($values);
-		$tpl->assign('dict', $dict);
-		
 		// Tab persistence
 		
 		$point = 'profiles.bot.tab';
@@ -136,15 +129,18 @@ class PageSection_ProfilesBot extends Extension_PageSection {
 		
 		$tpl->assign('properties', $properties);
 			
+		// Macros
+		
+		$macros = DAO_TriggerEvent::getReadableByActor(
+			$active_worker,
+			'event.macro.bot'
+		);
+		$tpl->assign('macros', $macros);
+
 		// Tabs
 		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_BOT);
 		$tpl->assign('tab_manifests', $tab_manifests);
 		
-		// Interactions
-		$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
-		$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
-		$tpl->assign('interactions_menu', $interactions_menu);
-	
 		// Template
 		$tpl->display('devblocks:cerberusweb.core::profiles/bot.tpl');
 	}
@@ -183,9 +179,12 @@ class PageSection_ProfilesBot extends Extension_PageSection {
 				@$itemized_events = DevblocksPlatform::importGPC($_REQUEST['itemized_events'], 'array', array());
 				@$allowed_actions = DevblocksPlatform::importGPC($_REQUEST['allowed_actions'], 'string', '');
 				@$itemized_actions = DevblocksPlatform::importGPC($_REQUEST['itemized_actions'], 'array', array());
-				@$config_json = DevblocksPlatform::importGPC($_REQUEST['config_json'], 'string', '');
+				@$interactions = DevblocksPlatform::importGPC($_REQUEST['interactions'], 'array', array());
 				
 				$is_disabled = DevblocksPlatform::intClamp($is_disabled, 0, 1);
+				
+				if(empty($name))
+					throw new Exception_DevblocksAjaxValidationError("The 'Name' field is required.", 'name');
 				
 				// Owner
 			
@@ -211,7 +210,6 @@ class PageSection_ProfilesBot extends Extension_PageSection {
 				// Permissions
 				
 				$params = array(
-					'config' => json_decode($config_json, true),
 					'events' => array(
 						'mode' => $allowed_events,
 						'items' => $itemized_events,
@@ -220,6 +218,7 @@ class PageSection_ProfilesBot extends Extension_PageSection {
 						'mode' => $allowed_actions,
 						'items' => $itemized_actions,
 					),
+					'interactions' => $interactions,
 				);
 				
 				// Create or update
@@ -239,23 +238,15 @@ class PageSection_ProfilesBot extends Extension_PageSection {
 						DAO_Bot::PARAMS_JSON => json_encode($params),
 					);
 					
-					if(!DAO_Bot::validate($fields, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
-					if(!DAO_Bot::onBeforeUpdateByActor($active_worker, $fields, null, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
 					if(false == ($id = DAO_Bot::create($fields)))
 						throw new Exception_DevblocksAjaxValidationError("Failed to create a new record.");
-					
-					DAO_Bot::onUpdateByActor($active_worker, $fields, $id);
 					
 					if(!empty($view_id) && !empty($id))
 						C4_AbstractView::setMarqueeContextCreated($view_id, CerberusContexts::CONTEXT_BOT, $id);
 					
 				} else { // Edit
-					if(!$active_worker->is_superuser)
-						throw new Exception_DevblocksAjaxValidationError("You do not have permission to modify this record.");
+ 					if(!$active_worker->is_superuser)
+ 						throw new Exception_DevblocksAjaxValidationError("You do not have permission to modify this record.");
 					
 					$fields = array(
 						DAO_Bot::UPDATED_AT => time(),
@@ -266,15 +257,7 @@ class PageSection_ProfilesBot extends Extension_PageSection {
 						DAO_Bot::OWNER_CONTEXT_ID => $owner_ctx_id,
 						DAO_Bot::PARAMS_JSON => json_encode($params),
 					);
-					
-					if(!DAO_Bot::validate($fields, $error, $id))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
-					if(!DAO_Bot::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
 					DAO_Bot::update($id, $fields);
-					DAO_Bot::onUpdateByActor($active_worker, $fields, $id);
 				}
 	
 				if($id) {
@@ -318,7 +301,7 @@ class PageSection_ProfilesBot extends Extension_PageSection {
 		@$point = DevblocksPlatform::importGPC($_REQUEST['point'],'string','');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 
 		// Admins can see all owners at once
 		if(empty($va_id) && !$active_worker->is_superuser)
@@ -355,7 +338,7 @@ class PageSection_ProfilesBot extends Extension_PageSection {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		// Generate hash
 		$hash = md5($view_id.$active_worker->id.time());

@@ -73,6 +73,7 @@ abstract class AbstractEvent_Record extends Extension_DevblocksEvent {
 		if(empty($context))
 			return false;
 		
+		// Load the VA of the current macro
 		$macros = Extension_DevblocksEvent::getAll();
 		
 		$macros = array_filter($macros, function($event) use ($context) {
@@ -101,27 +102,9 @@ abstract class AbstractEvent_Record extends Extension_DevblocksEvent {
 		return $delegate;
 	}
 	
-	function setEvent(Model_DevblocksEvent $event_model=null, Model_TriggerEvent $trigger=null) {
-		$labels = [];
-		$values = [];
-		
-		/**
-		 * Behavior
-		 */
-		
-		$merge_labels = [];
-		$merge_values = [];
-		CerberusContexts::getContext(CerberusContexts::CONTEXT_BEHAVIOR, $trigger, $merge_labels, $merge_values, null, true);
-
-			// Merge
-			CerberusContexts::merge(
-				'behavior_',
-				'',
-				$merge_labels,
-				$merge_values,
-				$labels,
-				$values
-			);
+	function setEvent(Model_DevblocksEvent $event_model=null, Model_TriggerEvent $trigger) {
+		$labels = array();
+		$values = array();
 		
 		@$context = $trigger->event_params['context'];
 		@$new_model = $event_model->params['new_model'];
@@ -234,16 +217,8 @@ abstract class AbstractEvent_Record extends Extension_DevblocksEvent {
 		// [TODO] This needs to still work with linked vars
 		
 		// [TODO] Actor context
+		/*
 		$vals = array(
-			'behavior_id' => array(
-				'label' => 'Behavior',
-				'context' => CerberusContexts::CONTEXT_BEHAVIOR,
-			),
-			'behavior_bot_id' => array(
-				'label' => 'Bot',
-				'context' => CerberusContexts::CONTEXT_BOT,
-			),
-			/*
 			'actor_id' => array(
 				'label' => 'Record',
 				'context' => @$trigger->event_params['context'],
@@ -252,8 +227,8 @@ abstract class AbstractEvent_Record extends Extension_DevblocksEvent {
 				'label' => 'Bot Watchers',
 				'context' => CerberusContexts::CONTEXT_WORKER,
 			),
-			*/
 		);
+		*/
 		
 		//$vars = parent::getValuesContexts($trigger);
 		
@@ -264,7 +239,7 @@ abstract class AbstractEvent_Record extends Extension_DevblocksEvent {
 	}
 	
 	function renderEventParams(Model_TriggerEvent $trigger=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 
 		// [TODO] Formal watched change fields
 		
@@ -273,7 +248,7 @@ abstract class AbstractEvent_Record extends Extension_DevblocksEvent {
 		$contexts = Extension_DevblocksContext::getAll();
 		$events = Extension_DevblocksEvent::getAll();
 		
-		$macro_contexts = [];
+		$macro_contexts = array();
 		
 		foreach($events as $event) {
 			@$event_context = $event->params['macro_context'];
@@ -299,7 +274,7 @@ abstract class AbstractEvent_Record extends Extension_DevblocksEvent {
 	}
 	
 	function renderConditionExtension($token, $as_token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('params', $params);
 		
 		// 'old_' prefixed tokens should use the standard conditions in the delegate
@@ -380,7 +355,7 @@ abstract class AbstractEvent_Record extends Extension_DevblocksEvent {
 	}
 	
 	function renderActionExtension($token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))

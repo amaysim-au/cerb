@@ -24,9 +24,9 @@
 {$seq = null}
 {if $model && isset($model->params.actions) && is_array($model->params.actions)}
 {foreach from=$model->params.actions item=params key=seq}
-<fieldset id="action{$seq}_{$nonce}">
+<fieldset id="action{$seq}">
 	<legend style="cursor:move;">
-		<a href="javascript:;" onclick="$(this).closest('fieldset').find('#divDecisionActionToolbar{$id}').hide().appendTo($('#frmDecisionAction{$id}Action'));$(this).closest('fieldset').trigger('cerb.remove');"><span class="glyphicons glyphicons-circle-minus" style="color:rgb(200,0,0);"></span></a>
+		<a href="javascript:;" onclick="$(this).closest('fieldset').find('#divDecisionActionToolbar{$id}').hide().appendTo($('#frmDecisionAction{$id}Action'));$(this).closest('fieldset').remove();"><span class="glyphicons glyphicons-circle-minus" style="color:rgb(200,0,0);"></span></a>
 		{if $actions[$params.action]}
 			{$actions[$params.action].label}
 		{else}
@@ -85,9 +85,8 @@
 </form>
 
 <form id="frmDecisionActionAdd{$id}" action="javascript:;" onsubmit="return false;">
-<input type="hidden" name="seq" value="{$model->params.actions|count}">
+<input type="hidden" name="seq" value="{if !is_null($seq)}{$seq+1}{else}0{/if}">
 <input type="hidden" name="action" value="">
-<input type="hidden" name="nonce" value="{$nonce}">
 {if isset($trigger_id)}<input type="hidden" name="trigger_id" value="{$trigger_id}">{/if}
 <input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
 
@@ -154,40 +153,22 @@ $(function() {
 		$popup.dialog('option','title',"{if empty($id)}New {/if}Actions");
 		$popup.find('input:text').first().focus();
 		$popup.css('overflow', 'inherit');
-		
-		var $toolbar = $('#divDecisionActionToolbar{$id}');
-		
-		// Make sure the toolbar is never removed
-		$popup.on('cerb.remove', function(e) {
-			e.stopPropagation();
-			var $target = $(e.target);
-			$toolbar.detach();
-			$target.remove();
-		});
-		
-		// Close confirmation
-		
-		$popup.on('dialogbeforeclose', function(e, ui) {
-			var keycode = e.keyCode || e.which;
-			if(keycode == 27)
-				return confirm('{'warning.core.editor.close'|devblocks_translate}');
-		});
-		
+
 		// Choosers
 		
 		$popup.find('BUTTON.chooser_group.unbound').each(function() {
-			var seq = $(this).closest('fieldset').find('input:hidden[name="actions[]"]').val();
+			seq = $(this).closest('fieldset').find('input:hidden[name="actions[]"]').val();
 			ajax.chooser(this,'cerberusweb.contexts.group','action'+seq+'[group_id]', { autocomplete:true });
 			$(this).removeClass('unbound');
 		});
 		
 		$popup.find('BUTTON.chooser_worker.unbound').each(function() {
-			var seq = $(this).closest('fieldset').find('input:hidden[name="actions[]"]').val();
+			seq = $(this).closest('fieldset').find('input:hidden[name="actions[]"]').val();
 			ajax.chooser(this,'cerberusweb.contexts.worker','action'+seq+'[worker_id]', { autocomplete:true });
 			$(this).removeClass('unbound');
 		});
 		$popup.find('BUTTON.chooser_notify_workers.unbound').each(function() {
-			var seq = $(this).closest('fieldset').find('input:hidden[name="actions[]"]').val();
+			seq = $(this).closest('fieldset').find('input:hidden[name="actions[]"]').val();
 			ajax.chooser(this,'cerberusweb.contexts.worker','action'+seq+'[notify_worker_id]', { autocomplete:true });
 			$(this).removeClass('unbound');
 		});
@@ -198,43 +179,39 @@ $(function() {
 
 		// Placeholders
 		
-		$popup.find('textarea.placeholders, :text.placeholders').cerbCodeEditor();
+		$popup.find(':text.placeholders, textarea.placeholders')
+			.cerbTwigCodeCompletion()
+			;
 		
-		$popup.delegate(':text.placeholders, textarea.placeholders, pre.placeholders', 'focus', function(e) {
-			e.stopPropagation();
+		$popup.delegate(':text.placeholders, textarea.placeholders', 'focus', function(e) {
+			var $toolbar = $('#divDecisionActionToolbar{$id}');
+			var $src = $((null==e.srcElement) ? e.target : e.srcElement);
 			
-			var $target = $(e.target);
-			var $parent = $target.closest('.ace_editor');
-			
-			if(0 != $parent.length) {
+			if(0 == $src.nextAll('#divDecisionActionToolbar{$id}').length) {
 				$toolbar.find('div.tester').html('');
 				$toolbar.find('ul.menu').hide();
-				$toolbar.show().insertAfter($parent);
-				$toolbar.data('src', $parent);
 				
-			} else {
-				if(0 == $target.nextAll('#divDecisionActionToolbar{$id}').length) {
-					$toolbar.find('div.tester').html('');
-					$toolbar.find('ul.menu').hide();
-					$toolbar.show().insertAfter($target);
-					$toolbar.data('src', $target);
+				$toolbar.data('src', $src);
+				
+				// If a markItUp editor, move to parent
+				if($src.is('.markItUpEditor')) {
+					$src = $src.closest('.markItUp').parent();
+					$toolbar.find('button.tester').hide();
 					
-					// If a markItUp editor, move to parent
-					if($target.is('.markItUpEditor')) {
-						$target = $target.closest('.markItUp').parent();
-						$toolbar.find('button.tester').hide();
-						
-					} else {
-						$toolbar.find('button.tester').show();
-					}
+				} else {
+					$toolbar.find('button.tester').show();
 				}
+				
+				$toolbar.show().insertAfter($src);
 			}
 		});
 		
 		// Placeholder menu
 		
-		var $placeholder_menu_trigger = $toolbar.find('button.cerb-popupmenu-trigger');
-		var $placeholder_menu = $toolbar.find('ul.menu').hide();
+		var $divPlaceholderMenu = $('#divDecisionActionToolbar{$id}');
+		
+		var $placeholder_menu_trigger = $divPlaceholderMenu.find('button.cerb-popupmenu-trigger');
+		var $placeholder_menu = $divPlaceholderMenu.find('ul.menu').hide();
 		
 		// Quick insert token menu
 		
@@ -246,6 +223,7 @@ $(function() {
 				if(undefined == token || undefined == label)
 					return;
 				
+				var $toolbar = $('DIV#divDecisionActionToolbar{$id}');
 				var $field = null;
 				
 				if($toolbar.data('src')) {
@@ -258,38 +236,26 @@ $(function() {
 				if(null == $field)
 					return;
 				
-				if(null == $field)
-					return;
-				
-				if($field.is(':text, textarea')) {
-					$field.focus().insertAtCursor('{literal}{{{/literal}' + token + '{literal}}}{/literal}');
-					
-				} else if($field.is('.ace_editor')) {
-					var evt = new jQuery.Event('cerb.insertAtCursor');
-					evt.content = '{literal}{{{/literal}' + token + '{literal}}}{/literal}';
-					$field.trigger(evt);
-				}
+				$field.focus().insertAtCursor('{literal}{{{/literal}' + token + '{literal}}}{/literal}');
 			}
 		});
 		
-		$toolbar.find('button.tester').click(function(e) {
-			var divTester = $toolbar.find('div.tester').first();
+		$divPlaceholderMenu.find('button.tester').click(function(e) {
+			var divTester = $divPlaceholderMenu.find('div.tester').first();
+			
+			var $toolbar = $('DIV#divDecisionActionToolbar{$id}');
 			
 			var $field = null;
 			
-			
 			if($toolbar.data('src')) {
 				$field = $toolbar.data('src');
+			
 			} else {
 				$field = $toolbar.prev(':text, textarea');
 			}
 			
 			if(null == $field)
 				return;
-			
-			if($field.is('.ace_editor')) {
-				var $field = $field.prev('textarea, :text');
-			}
 			
 			var regexpName = /^(.*?)(\[.*?\])$/;
 			var hits = regexpName.exec($field.attr('name'));
@@ -342,13 +308,13 @@ $(function() {
 					var seq = parseInt($frm.find('input[name=seq]').val());
 					if(null == seq)
 						seq = 0;
-					
-					var $container = $('<fieldset/>').attr('id','action' + seq + '_{$nonce}');
-					$container.prepend('<legend style="cursor:move;"><a href="javascript:;" onclick="$(this).closest(\'fieldset\').find(\'#divDecisionActionToolbar{$id}\').hide().appendTo($(\'#frmDecisionAction{$id}Action\'));$(this).closest(\'fieldset\').trigger(\'cerb.remove\');"><span class="glyphicons glyphicons-circle-minus" style="color:rgb(200,0,0);"></span></a> ' + label + '</legend>');
+		
+					var $container = $('<fieldset/>').attr('id','action' + seq);
+					$container.prepend('<legend style="cursor:move;"><a href="javascript:;" onclick="$(this).closest(\'fieldset\').find(\'#divDecisionActionToolbar{$id}\').hide().appendTo($(\'#frmDecisionAction{$id}Action\'));$(this).closest(\'fieldset\').remove();"><span class="glyphicons glyphicons-circle-minus" style="color:rgb(200,0,0);"></span></a> ' + label + '</legend>');
 					$container.append('<input type="hidden" name="actions[]" value="' + seq + '">');
 					$container.append('<input type="hidden" name="action'+seq+'[action]" value="' + token + '">');
 					$ul.append($container);
-					
+		
 					var $html = $('<div/>').html(html);
 					$container.append($html);
 					
@@ -366,8 +332,8 @@ $(function() {
 						$(this).removeClass('unbound');
 					});
 					
-					var $textareas = $html.find('textarea.placeholders, :text.placeholders')
-						.cerbCodeEditor()
+					$html.find(':text.placeholders, textarea.placeholders')
+						.cerbTwigCodeCompletion()
 						;
 					
 					$frm.find('input[name=seq]').val(1+seq);

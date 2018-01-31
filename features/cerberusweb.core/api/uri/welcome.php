@@ -24,7 +24,7 @@ class ChWelcomePage extends CerberusPageExtension {
 	}
 	
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$response = DevblocksPlatform::getHttpResponse();
 		$stack = $response->path;

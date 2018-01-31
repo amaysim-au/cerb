@@ -41,56 +41,16 @@
  */
 
 class DAO_DevblocksSession extends Cerb_ORMHelper {
-	const CREATED = 'created';
-	const SESSION_DATA = 'session_data';
 	const SESSION_KEY = 'session_key';
+	const CREATED = 'created';
 	const UPDATED = 'updated';
-	const USER_AGENT = 'user_agent';
+	const SESSION_DATA = 'session_data';
 	const USER_ID = 'user_id';
 	const USER_IP = 'user_ip';
-	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		$validation
-			->addField(self::CREATED)
-			->timestamp()
-			;
-		$validation
-			->addField(self::SESSION_DATA)
-			->string()
-			->setMaxLength(65535)
-			;
-		$validation
-			->addField(self::SESSION_KEY)
-			->string()
-			->setMaxLength(64)
-			;
-		$validation
-			->addField(self::UPDATED)
-			->timestamp()
-			;
-		$validation
-			->addField(self::USER_AGENT)
-			->string()
-			;
-		$validation
-			->addField(self::USER_ID)
-			->id()
-			;
-		$validation
-			->addField(self::USER_IP)
-			->string()
-			->setMaxLength(32)
-			;
-			
-		return $validation->getFields();
-	}
+	const USER_AGENT = 'user_agent';
 
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "INSERT INTO devblocks_session () VALUES ()";
 		$db->ExecuteMaster($sql);
@@ -129,7 +89,7 @@ class DAO_DevblocksSession extends Cerb_ORMHelper {
 	 * @return Model_DevblocksSession[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -149,7 +109,7 @@ class DAO_DevblocksSession extends Cerb_ORMHelper {
 	 * @param integer $id
 	 * @return Model_DevblocksSession	 */
 	static function get($key) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$objects = self::getWhere(sprintf("%s = %s",
 			self::SESSION_KEY,
@@ -214,7 +174,7 @@ class DAO_DevblocksSession extends Cerb_ORMHelper {
 		if(!is_array($ids))
 			$ids = array($ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -236,7 +196,7 @@ class DAO_DevblocksSession extends Cerb_ORMHelper {
 		if(!is_array($ids))
 			$ids = array($ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -289,6 +249,7 @@ class DAO_DevblocksSession extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -300,7 +261,7 @@ class DAO_DevblocksSession extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -626,7 +587,7 @@ class View_DevblocksSession extends C4_AbstractView implements IAbstractView_Qui
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -638,7 +599,7 @@ class View_DevblocksSession extends C4_AbstractView implements IAbstractView_Qui
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {

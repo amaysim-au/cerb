@@ -80,6 +80,7 @@
 			</td>
 		</tr>
 		
+		{if $active_worker->hasPriv('core.watchers.assign')}
 		<tr>
 			<td width="0%" nowrap="nowrap" align="right" valign="top">Add watchers:</td>
 			<td width="100%">
@@ -89,7 +90,9 @@
 				</div>
 			</td>
 		</tr>
+		{/if}
 		
+		{if $active_worker->hasPriv('core.watchers.unassign')}
 		<tr>
 			<td width="0%" nowrap="nowrap" align="right" valign="top">Remove watchers:</td>
 			<td width="100%">
@@ -99,8 +102,9 @@
 				</div>
 			</td>
 		</tr>
+		{/if}
 		
-		{if $active_worker->hasPriv("contexts.{CerberusContexts::CONTEXT_CONTACT}.delete")}
+		{if $active_worker->is_superuser}
 		<tr>
 			<td width="0%" nowrap="nowrap" valign="top" align="right">{'common.status'|devblocks_translate|capitalize}:</td>
 			<td width="100%"><select name="status">
@@ -126,7 +130,7 @@
 
 {include file="devblocks:cerberusweb.core::internal/macros/behavior/bulk.tpl" macros=$macros}
 
-{if $active_worker->hasPriv('contexts.cerberusweb.contexts.contact.broadcast')}
+{if $active_worker->hasPriv('context.contact.worklist.broadcast')}
 {include file="devblocks:cerberusweb.core::internal/views/bulk_broadcast.tpl" context=CerberusContexts::CONTEXT_CONTACT}
 {/if}
 

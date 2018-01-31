@@ -7,11 +7,11 @@
 	<version>0.0.0</version>
 	<link>https://cerb.ai</link>
 	<!--<image>plugin.png</image>-->
-
+ 
 	<!-- Plugin Dependencies -->
 	
 	<dependencies>
-		<require plugin_id="cerberusweb.core" version="8.1.0" />
+		<require plugin_id="cerberusweb.core" version="5.3.2" />
 	</dependencies>
 
 	<!-- Patches -->
@@ -33,7 +33,7 @@
 	</class_loader>
 
 	<!-- Extensions -->
-
+ 
 	<extensions>
 
 		<!-- Contexts -->
@@ -59,29 +59,13 @@
 				<param key="view_class" value="View_ExampleObject" />
 				<param key="options">
 					<value>
+						<!--<data key="create" />-->
 						<data key="custom_fields" />
 						<data key="links" />
-						<data key="records" />
 						<data key="search" />
 						<data key="snippets" />
-						<data key="watchers" />
 						<data key="workspace" />
 						<data key="va_variable" />
-					</value>
-				</param>
-				<param key="acl">
-					<value>
-						<!--
-						<data key="broadcast" />
-						<data key="comment" />
-						<data key="create" />
-						<data key="delete" />
-						<data key="export" />
-						<data key="import" />
-						<data key="merge" />
-						<data key="update" />
-						<data key="update.bulk" />
-						-->
 					</value>
 				</param>
 			</params>
@@ -89,7 +73,7 @@
 
 		<!-- Page -->
 		
-		<extension point="cerberusweb.page">
+ 		<extension point="cerberusweb.page">
 			<id>example.object.page</id>
 			<name>Example Page</name>
 			<class>
@@ -104,5 +88,5 @@
 			</params>
 		</extension>
 		
-		</extensions> 
+    </extensions> 
 </plugin>

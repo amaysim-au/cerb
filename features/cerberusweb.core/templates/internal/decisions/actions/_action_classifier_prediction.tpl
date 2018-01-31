@@ -20,6 +20,6 @@
 
 {*
 <script type="text/javascript">
-var $action = $('#{$namePrefix}_{$nonce}');
+var $action = $('fieldset#{$namePrefix}');
 </script>
 *}

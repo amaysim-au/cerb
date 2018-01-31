@@ -15,21 +15,17 @@ abstract class Twig_Test_NodeTestCase extends PHPUnit_Framework_TestCase
     /**
      * @dataProvider getTests
      */
-    public function testCompile($node, $source, $environment = null, $isPattern = false)
+    public function testCompile($node, $source, $environment = null)
     {
-        $this->assertNodeCompilation($source, $node, $environment, $isPattern);
+        $this->assertNodeCompilation($source, $node, $environment);
     }
 
-    public function assertNodeCompilation($source, Twig_Node $node, Twig_Environment $environment = null, $isPattern = false)
+    public function assertNodeCompilation($source, Twig_Node $node, Twig_Environment $environment = null)
     {
         $compiler = $this->getCompiler($environment);
         $compiler->compile($node);
 
-        if ($isPattern) {
-            $this->assertStringMatchesFormat($source, trim($compiler->getSource()));
-        } else {
-            $this->assertEquals($source, trim($compiler->getSource()));
-        }
+        $this->assertEquals($source, trim($compiler->getSource()));
     }
 
     protected function getCompiler(Twig_Environment $environment = null)
@@ -39,22 +35,16 @@ abstract class Twig_Test_NodeTestCase extends PHPUnit_Framework_TestCase
 
     protected function getEnvironment()
     {
-        return new Twig_Environment(new Twig_Loader_Array(array()));
+        return new Twig_Environment();
     }
 
-    protected function getVariableGetter($name, $line = false)
+    protected function getVariableGetter($name)
     {
-        $line = $line > 0 ? "// line {$line}\n" : '';
-
-        if (PHP_VERSION_ID >= 70000) {
-            return sprintf('%s($context["%s"] ?? null)', $line, $name, $name);
+        if (version_compare(phpversion(), '5.4.0RC1', '>=')) {
+            return sprintf('(isset($context["%s"]) ? $context["%s"] : null)', $name, $name);
         }
 
-        if (PHP_VERSION_ID >= 50400) {
-            return sprintf('%s(isset($context["%s"]) ? $context["%s"] : null)', $line, $name, $name);
-        }
-
-        return sprintf('%s$this->getContext($context, "%s")', $line, $name);
+        return sprintf('$this->getContext($context, "%s")', $name);
     }
 
     protected function getAttributeGetter()

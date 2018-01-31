@@ -20,8 +20,8 @@ class PageSection_SetupCache extends Extension_PageSection {
 		if(DEVBLOCKS_CACHE_ENGINE_PREVENT_CHANGE)
 			return;
 		
-		$tpl = DevblocksPlatform::services()->template();
-		$cache = DevblocksPlatform::services()->cache();
+		$tpl = DevblocksPlatform::getTemplateService();
+		$cache = DevblocksPlatform::getCacheService();
 		$visit = CerberusApplication::getVisit();
 		
 		$visit->set(ChConfigurationPage::ID, 'cache');
@@ -39,8 +39,8 @@ class PageSection_SetupCache extends Extension_PageSection {
 		
 		@$ext_id = DevblocksPlatform::importGPC($_REQUEST['ext_id'],'string','');
 		
-		$tpl = DevblocksPlatform::services()->template();
-		$cache = DevblocksPlatform::services()->cache();
+		$tpl = DevblocksPlatform::getTemplateService();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		// All engines
 		$engines = Extension_DevblocksCacheEngine::getAll(true);
@@ -75,7 +75,7 @@ class PageSection_SetupCache extends Extension_PageSection {
 			DevblocksPlatform::setPluginSetting('devblocks.core', 'cacher.params_json', $config, true);
 			
 			// Reset the cache on disk and in the target
-			$cache = DevblocksPlatform::services()->cache();
+			$cache = DevblocksPlatform::getCacheService();
 			$cache->setEngine($engine_extension_id, $config);
 			$cache->clean();
 			

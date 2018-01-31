@@ -6,16 +6,16 @@
 
 {include file="devblocks:cerberusweb.core::internal/views/view_marquee.tpl" view=$view}
 
-<table cellpadding="0" cellspacing="0" border="0" class="worklist" width="100%" {if $view->options.header_color}style="background-color:{$view->options.header_color};"{/if}>
+<table cellpadding="0" cellspacing="0" border="0" class="worklist" width="100%">
 	<tr>
 		<td nowrap="nowrap"><span class="title">{$view->name}</span></td>
 		<td nowrap="nowrap" align="right" class="title-toolbar">
-			{if $active_worker->hasPriv("contexts.{$view_context}.create")}<a href="javascript:;" title="{'common.add'|devblocks_translate|capitalize}" class="minimal peek cerb-peek-trigger" data-context="{$view_context}" data-context-id="0"><span class="glyphicons glyphicons-circle-plus"></span></a>{/if}
+			<a href="javascript:;" title="{'common.add'|devblocks_translate|capitalize}" class="minimal peek cerb-peek-trigger" data-context="{$view_context}" data-context-id="0"><span class="glyphicons glyphicons-circle-plus"></span></a>
 			<a href="javascript:;" title="{'common.search'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxPopup('search','c=internal&a=viewShowQuickSearchPopup&view_id={$view->id}',null,false,'400');"><span class="glyphicons glyphicons-search"></span></a>
 			<a href="javascript:;" title="{'common.customize'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxGet('customize{$view->id}','c=internal&a=viewCustomize&id={$view->id}');toggleDiv('customize{$view->id}','block');"><span class="glyphicons glyphicons-cogwheel"></span></a>
 			<a href="javascript:;" title="{'common.subtotals'|devblocks_translate|capitalize}" class="subtotals minimal"><span class="glyphicons glyphicons-signal"></span></a>
-			{if $active_worker->hasPriv("contexts.{$view_context}.import")}<a href="javascript:;" title="{'common.import'|devblocks_translate|capitalize}" onclick="genericAjaxPopup('import','c=internal&a=showImportPopup&context={$view_context}&view_id={$view->id}',null,false,'50%');"><span class="glyphicons glyphicons-file-import"></span></a>{/if}
-			{if $active_worker->hasPriv("contexts.{$view_context}.export")}<a href="javascript:;" title="{'common.export'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxGet('{$view->id}_tips','c=internal&a=viewShowExport&id={$view->id}');toggleDiv('{$view->id}_tips','block');"><span class="glyphicons glyphicons-file-export"></span></a>{/if}
+			<a href="javascript:;" title="{'common.import'|devblocks_translate|capitalize}" onclick="genericAjaxPopup('import','c=internal&a=showImportPopup&context={$view_context}&view_id={$view->id}',null,false,'50%');"><span class="glyphicons glyphicons-file-import"></span></a>
+			<a href="javascript:;" title="{'common.export'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxGet('{$view->id}_tips','c=internal&a=viewShowExport&id={$view->id}');toggleDiv('{$view->id}_tips','block');"><span class="glyphicons glyphicons-file-export"></span></a>
 			<a href="javascript:;" title="{'common.copy'|devblocks_translate|capitalize}" onclick="genericAjaxGet('{$view->id}_tips','c=internal&a=viewShowCopy&view_id={$view->id}');toggleDiv('{$view->id}_tips','block');"><span class="glyphicons glyphicons-duplicate"></span></a>
 			<a href="javascript:;" title="{'common.refresh'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxGet('view{$view->id}','c=internal&a=viewRefresh&id={$view->id}');"><span class="glyphicons glyphicons-refresh"></span></a>
 			<input type="checkbox" class="select-all">
@@ -80,10 +80,8 @@
 			</td>
 			<td data-column="label" colspan="{$smarty.foreach.headers.total}">
 				<input type="checkbox" name="row_id[]" value="{$result.t_id}" style="display:none;">
-				{if 1 == $result.t_status_id}
-					<span class="glyphicons glyphicons-circle-ok" style="font-size:16px;color:rgb(80,80,80);" title="{'status.closed'|devblocks_translate|lower} {$result.t_completed_date|devblocks_date}"></span>
-				{elseif 2 == $result.t_status_id}
-					<span class="glyphicons glyphicons-clock" style="font-size:16px;color:rgb(80,80,80);" title="{'status.waiting.abbr'|devblocks_translate|lower}{if $result.t_reopen_at} until {$result.t_reopen_at|devblocks_date}{/if}"></span>
+				{if $result.t_is_completed}
+					<span class="glyphicons glyphicons-circle-ok" style="font-size:16px;color:rgb(80,80,80);" title="{$result.t_completed_date|devblocks_date}"></span>
 				{/if}
 				<a href="{devblocks_url}c=profiles&type=task&id={$result.t_id}-{$result.t_title|devblocks_permalink}{/devblocks_url}" class="subject">{if !empty($result.t_title)}{$result.t_title}{else}New Task{/if}</a> 
 				
@@ -108,14 +106,10 @@
 					{math assign=overdue equation="(t-x)" t=$timestamp_now x=$result.t_due_date format="%d"}
 				{/if}
 				<td data-column="{$column}" title="{$result.t_due_date|devblocks_date}" style="{if $overdue > 0}color:rgb(220,0,0);font-weight:bold;{/if}">{$result.t_due_date|devblocks_prettytime}</td>
-			{elseif $column=="t_status_id"}
+			{elseif $column=="t_is_completed"}
 				<td data-column="{$column}">
-					{if 1 == $result.t_status_id}
-					{'status.closed'|devblocks_translate|capitalize}
-					{elseif 2 == $result.t_status_id}
-					{'status.waiting.abbr'|devblocks_translate|capitalize}
-					{else}
-					{'status.open'|devblocks_translate|capitalize}
+					{if $result.t_is_completed}
+					<span class="glyphicons glyphicons-circle-ok" style="font-size:16px;color:rgb(80,80,80);"></span>
 					{/if}
 				</td>
 			{elseif $column=="t_importance"}
@@ -167,8 +161,8 @@
 	{if $total}
 	<div style="float:left;" id="{$view->id}_actions">
 		<button type="button" class="action-always-show action-explore"><span class="glyphicons glyphicons-play-button"></span> {'common.explore'|devblocks_translate|lower}</button>
-		{if $active_worker->hasPriv("contexts.{$view_context}.update.bulk")}<button type="button" class="action-always-show action-bulkupdate" onclick="genericAjaxPopup('peek','c=profiles&a=handleSectionAction&section=task&action=showBulkPopup&view_id={$view->id}&ids=' + Devblocks.getFormEnabledCheckboxValues('viewForm{$view->id}','row_id[]'),null,false,'50%');"><span class="glyphicons glyphicons-folder-closed"></span> {'common.bulk_update'|devblocks_translate|lower}</button>{/if}
-		<button type="button" class="action-close" onclick="genericAjaxPost($(this).closest('form'),'view{$view->id}','c=profiles&a=handleSectionAction&section=task&action=viewMarkCompleted');"><span class="glyphicons glyphicons-circle-ok"></span> {'status.closed'|devblocks_translate|lower}</button>
+		{if $active_worker->hasPriv('core.tasks.actions.update_all')}<button type="button" class="action-always-show action-bulkupdate" onclick="genericAjaxPopup('peek','c=profiles&a=handleSectionAction&section=task&action=showBulkPopup&view_id={$view->id}&ids=' + Devblocks.getFormEnabledCheckboxValues('viewForm{$view->id}','row_id[]'),null,false,'50%');"><span class="glyphicons glyphicons-folder-closed"></span> {'common.bulk_update'|devblocks_translate|lower}</button>{/if}
+		<button type="button" class="action-close" onclick="genericAjaxPost($(this).closest('form'),'view{$view->id}','c=profiles&a=handleSectionAction&section=task&action=viewMarkCompleted');"><span class="glyphicons glyphicons-circle-ok"></span> {'task.is_completed'|devblocks_translate|lower}</button>
 	</div>
 	{/if}
 </div>

@@ -112,6 +112,99 @@ var markitupHTMLDefaults = {
 	]
 }
 
+var atwho_twig_commands = [
+	{ name: "{% do 1 + 2 %}", content: "Perform an operation without output" },
+	{ name: "{% if placeholder %}{% else %}{% endif %}", content: "If...else" },
+	{ name: "{% filter upper %}\n{% endfilter %}", content: "Apply filters to a block of text" },
+	{ name: "{% for placeholder in array %}\n{% endfor %}", content: "For loop" },
+	{ name: "{% set var = 'Value' %}", content: "Set temporary variable" },
+	{ name: "{% spaceless %}\n{% endspaceless %}\n", content: "Ignore whitespace" },
+	{ name: "{% set obj = dict_set(obj,keypath,value) %}", content: "Set a nested value on an object" },
+	{ name: "{% verbatim %}\n{% endverbatim %}\n", content: "Ignore scripting code in a text block" },
+	{ name: "{% with %}\n{% endwith %}\n", content: "Define temporary values in an inner scope" },
+];
+
+var atwho_twig_functions = [
+	{ name: "{{array_diff(arr1,arr2)}}", content: "Find the difference of two arrays" },
+	{ name: "{{cerb_avatar_image(context,id,updated)}}", content: "Render avatar image tag" },
+	{ name: "{{cerb_avatar_url(context,id,updated)}}", content: "Generate an avatar URL" },
+	{ name: "{{cerb_file_url(file_id,full,proxy)}}", content: "Generate a file URL" },
+	{ name: "{{cerb_url('c=controller&a=action&p=param')}}", content: "Generate a URL" },
+	{ name: "{{dict_set(obj,keypath,value)}}", content: "Set a nested value on an object" },
+	{ name: "{{json_decode(string)}}", content: "Decode a JSON encoded string" },
+	{ name: "{{jsonpath_set(json,keypath,value)}}", content: "Set a nested key value in a JSON object" },
+	{ name: "{{random_string(length)}}", content: "Generate a random string of the given length" },
+	{ name: "{{regexp_match_all(pattern,text,group)}}", content: "Extract regular expression matches from text" },
+	{ name: "{{validate_email(string)}}", content: "Returns true if input is a valid email address" },
+	{ name: "{{validate_number(string)}}", content: "Returns true if input is a valid number" },
+	{ name: "{{xml_decode(string,namespaces)}}", content: "Convert text to an XML object" },
+	{ name: "{{xml_encode(xml)}}", content: "Convert an XML object to text" },
+	{ name: "{{xml_path(xml,path,element)}}", content: "Extract an element from an XML object by XPath" },
+	{ name: "{{xml_path_ns(xml,prefix,ns)}}", content: "Register an XML namespace using a prefix" },
+
+	{ name: "{{attribute(object,attr)}}", content: "Dynamically retrieve an attribute on an object" },
+	{ name: "{{cycle(position)}}", content: "Cycle through a list of positions on an array" },
+	{ name: "{{date(date,timezone)}}", content: "Create a date object" },
+	//{ name: "{{dump(var)}}", content: "Debug the contents of a variable" },
+	{ name: "{{max(array)}}", content: "Return the largest value in an array" },
+	{ name: "{{min(array)}}", content: "Return the smallest value in an array" },
+	{ name: "{{random(values)}}", content: "Return a random number or array member" },
+	{ name: "{{range(low,high,step)}}", content: "Create a numeric sequence array" },
+];
+
+var atwho_twig_modifiers = [
+	{ name: "capitalize", content: "Capitalize text" },
+	{ name: "date('F d, Y')", content: "Format timestamp as a date" },
+	{ name: "date_pretty", content: "Format text as relative date" },
+	{ name: "default('text')", content: "Set a default value for an empty placeholder" },
+	{ name: "lower", content: "Convert text to lowercase" },
+	{ name: "secs_pretty", content: "Format a number of seconds as a time elapsed" },
+	{ name: "title", content: "Titlecase text by capitalizing each word" },
+	{ name: "upper", content: "Convert text to uppercase" },
+	
+	{ name: "abs", content: "Return the absolute value of a number" },
+	{ name: "alphanum", content: "Return only the alphanumeric characters from text" },
+	{ name: "base64_encode", content: "Encode text in Base64 format" },
+	{ name: "base64_decode", content: "Decode Base64 encoded text" },
+	{ name: "batch(n,fill)", content: "Batch an array into subarrays of equal size" },
+	{ name: "bytes_pretty(2)", content: "Format a number as human-readable bytes" },
+	{ name: "convert_encoding(to_charset,from_charset)", content: "Convert between charset encodings" },
+	{ name: "date_modify('+1 day')", content: "Modify a date or timestamp" },
+	{ name: "escape", content: "Escape text for html, js, css, or url" },
+	{ name: "first", content: "Return the first element of an array or text" },
+	{ name: "format", content: "Replace %s in formatted text with placeholders" },
+	{ name: "hash_hmac(key,algo)", content: "Create an HMAC signature hash from text" },
+	{ name: "join(',')", content: "Join array elements into one string" },
+	{ name: "json_encode", content: "Encode text as JSON" },
+	{ name: "json_pretty", content: "Prettify JSON formatted text" },
+	{ name: "keys", content: "Return the keys of an array" },
+	{ name: "last", content: "Return the last element of an array or text" },
+	{ name: "length", content: "Calculate the length of an array or text" },
+	{ name: "md5", content: "Convert text to an MD5 hash" },
+	{ name: "merge", content: "Merge multiple arrays together" },
+	{ name: "nl2br", content: "Convert newlines to HTML breaks" },
+	{ name: "number_format(2, '.', ',')", content: "Format a number" },
+	{ name: "parse_emails", content: "Parse a delimited list of email addresses in text to an array of objects" },
+	{ name: "quote", content: "Quote and wrap a block of text like an email response" },
+	{ name: "raw", content: "Prevent automatic escaping" },
+	{ name: "regexp", content: "Match a regular expression" },
+	{ name: "replace('this', 'that')", content: "Replace text" },
+	{ name: "reverse", content: "Reverse an array or text" },
+	{ name: "round(0, 'common')", content: "Round a number: common, ceil, floor" },
+	{ name: "sha1", content: "Convert text to a SHA-1 hash" },
+	{ name: "slice", content: "Extract a slice of an array or text" },
+	{ name: "sort", content: "Sort an array" },
+	{ name: "split(',')", content: "Split text into an array by delimiter" },
+	{ name: "split_crlf", content: "Split text into an array by linefeeds" },
+	{ name: "split_csv", content: "Split text into an array by commas" },
+	{ name: "striptags", content: "Strip HTML/XML tags in text" },
+	{ name: "trim", content: "Trim whitespace or given characters from the ends of text" },
+	{ name: "truncate(10)", content: "Truncate text" },
+	{ name: "url_encode", content: "Encode an array or text for use in a URL" },
+	{ name: "url_decode", content: "Decode URL escaped text" },
+	{ name: "url_decode('json')", content: "Decode URL escaped parameters to JSON" },
+];
+
 $.fn.cerbDateInputHelper = function(options) {
 	var options = (typeof options == 'object') ? options : {};
 	
@@ -214,7 +307,6 @@ $.fn.cerbDateInputHelper = function(options) {
 						$input_date.val('');
 					} else {
 						$input_date.val(json.to_string);
-						$this.trigger('cerb-date-changed');
 					}
 					
 					if(e.keydown_event_caller && e.keydown_event_caller.shiftKey && e.keydown_event_caller.ctrlKey && e.keydown_event_caller.which == 13)
@@ -483,6 +575,7 @@ var cAjaxCalls = function() {
 		var $sel = $(sel);
 		
 		$sel.autocomplete(options);
+		$sel.autocomplete('widget').css('max-width', $sel.closest('form').width());
 	}
 
 	this.orgAutoComplete = function(sel, options) {
@@ -502,6 +595,7 @@ var cAjaxCalls = function() {
 		var $sel = $(sel);
 		
 		$sel.autocomplete(options);
+		$sel.autocomplete('widget').css('max-width', $sel.closest('form').width());
 	}
 	
 	this.countryAutoComplete = function(sel, options) {
@@ -521,6 +615,7 @@ var cAjaxCalls = function() {
 		var $sel = $(sel);
 		
 		$sel.autocomplete(options);
+		$sel.autocomplete('widget').css('max-width', $sel.closest('form').width());
 	}
 
 	this.chooser = function(button, context, field_name, options) {
@@ -573,7 +668,7 @@ var cAjaxCalls = function() {
 			$autocomplete.insertBefore($button);
 			
 			$autocomplete.autocomplete({
-				delay: 250,
+				delay: 300,
 				source: DevblocksAppPath+'ajax.php?c=internal&a=autocomplete&context=' + context + '&_csrf_token=' + $('meta[name="_csrf_token"]').attr('content'),
 				minLength: 1,
 				focus:function(event, ui) {
@@ -599,7 +694,56 @@ var cAjaxCalls = function() {
 					return false;
 				}
 			});
+			
+			$autocomplete.autocomplete('widget').css('max-width', $autocomplete.closest('form').width());
 		}
+	}
+	
+	this.chooserSnippet = function(layer, $textarea, contexts) {
+		var ctx = [];
+		for(x in contexts)
+			ctx.push(x + ":" + contexts[x]);
+		
+		$textarea.focus();
+		
+		var $chooser = genericAjaxPopup(layer,'c=internal&a=chooserOpenSnippet&context=cerberusweb.contexts.snippet&contexts=' + ctx.join(','),null,false,'70%');
+		
+		$chooser.on('snippet_select', function(event) {
+			event.stopPropagation();
+			
+			var snippet_id = event.snippet_id;
+			var context = event.context;
+			
+			if(null == snippet_id || null == context)
+				return;
+			
+			// Now we need to read in each snippet as either 'raw' or 'parsed' via Ajax
+			var url = 'c=internal&a=snippetPaste&id=' + encodeURIComponent(snippet_id);
+			
+			// Context-dependent arguments
+			if(null != contexts[context])
+				url += "&context_id=" + encodeURIComponent(contexts[context]);
+			
+			// Ajax the content (synchronously)
+			genericAjaxGet('', url, function(json) {
+				if(json.has_custom_placeholders) {
+					$textarea.focus();
+					
+					var $popup_paste = genericAjaxPopup('snippet_paste', 'c=internal&a=snippetPlaceholders&id=' + encodeURIComponent(json.id) + '&context_id=' + encodeURIComponent(json.context_id),null,false,'50%');
+					
+					$popup_paste.bind('snippet_paste', function(event) {
+						if(null == event.text)
+							return;
+						
+						$textarea.insertAtCursor(event.text);
+					});
+					
+				} else {
+					$textarea.insertAtCursor(json.text);
+				}
+				
+			}, { async: false });
+		});
 	}
 	
 	this.chooserFile = function(button, field_name, options) {
@@ -684,10 +828,10 @@ var cAjaxCalls = function() {
 				
 				if(e.avatar.empty) {
 					$avatar_image.attr('src', e.avatar.imagedata);
-					$avatar_chooser.next('input:hidden').val('data:null');
+					$avatar_chooser.siblings('input:hidden[name=avatar_image]').val('data:null');
 				} else {
 					$avatar_image.attr('src', e.avatar.imagedata);
-					$avatar_chooser.next('input:hidden').val(e.avatar.imagedata);
+					$avatar_chooser.siblings('input:hidden[name=avatar_image]').val(e.avatar.imagedata);
 				}
 				
 			});
@@ -719,404 +863,41 @@ var ajax = new cAjaxCalls();
 		});
 	}
 	
-	$.fn.cerbCodeEditor = function(options) {
-		var langTools = ace.require("ace/ext/language_tools");
-	
-		return this.each(function(iteration) {
-			var $this = $(this);
+	$.fn.cerbTwigCodeCompletion = function(options) {
+		return this.each(function() {
+			var $trigger = $(this);
 			
-			if(!$this.is('textarea, :text'))
-				return;
-			
-			var mode = $this.attr('data-editor-mode');
-			var withTwigAutocompletion = $this.is('.placeholders');
-			
-			if(null == mode)
-				mode = 'ace/mode/twig';
-			
-			$this
-				.removeClass('placeholders')
-				.hide()
-				;
-			
-			var editor_id = Devblocks.uniqueId();
-			
-			var $editor = $('<pre/>')
-				.attr('id', editor_id)
-				.addClass('placeholders')
-				.css('margin', '0')
-				.css('position', 'relative')
-				.css('width', '100%')
-				.insertAfter($this)
+			$trigger
+				.atwho({
+					at: '{%',
+					limit: 20,
+					displayTpl: '<li>${content} <small style="margin-left:10px;">${name}</small></li>',
+					insertTpl: '${name}',
+					data: atwho_twig_commands,
+					suffix: ''
+				})
+				.atwho({
+					at: '{{',
+					limit: 20,
+					displayTpl: '<li>${content} <small style="margin-left:10px;">${name}</small></li>',
+					insertTpl: '${name}',
+					data: atwho_twig_functions,
+					suffix: ''
+				})
+				.atwho({
+					at: '|',
+					limit: 20,
+					startWithSpace: false,
+					searchKey: "content",
+					displayTpl: '<li>${content} <small style="margin-left:10px;">${name}</small></li>',
+					insertTpl: '|${name}',
+					data: atwho_twig_modifiers,
+					suffix: ''
+				})
 			;
-			
-			var editor = ace.edit(editor_id);
-			editor.$blockScrolling = Infinity;
-			editor.setTheme("ace/theme/cerb");
-			editor.session.setMode(mode);
-			editor.session.setValue($this.val());
-			
-			$this
-				.data('$editor', $editor)
-				.data('editor', editor)
-				;
-			
-			langTools.setCompleters([]);
-			
-			$editor.on('cerb.update', function(e) {
-				$this.val(editor.session.getValue());
-			});
-			
-			$editor.on('cerb.insertAtCursor', function(e) {
-				editor.insertSnippet(e.content);
-				editor.focus();
-			});
-			
-			editor.session.on('change', function() {
-				$editor.trigger('cerb.update');
-			});
-			
-			editor.setOptions({
-				showLineNumbers: true,
-				wrap: true,
-				enableBasicAutocompletion: true,
-				enableSnippets: false,
-				enableLiveAutocompletion: true,
-				tabSize: 2,
-				useSoftTabs: false,
-				minLines: 2,
-				maxLines: 20
-			});	
-			
-			if(withTwigAutocompletion) {
-				var twig_snippets = [
-					{ value: "{%", meta: "tag" },
-					{ value: "{{", meta: "variable" },
-					{ value: "do", snippet: "{% do ${1:1 + 2} %}", meta: "snippet" },
-					{ value: "for loop", snippet: "{% for ${1:var} in ${2:array} %}\n${3}\n{% endfor %}", meta: "snippet" },
-					{ value: "if...else", snippet: "{% if ${1:placeholder} %}${2}{% else %}${3}{% endif %}", meta: "snippet" },
-					{ value: "set object value", snippet: "{% set ${1:obj} = dict_set(${1:obj},\"${2:key.path}\",\"${3:value}\") %}", meta: "snippet" },
-					{ value: "set variable", snippet: "{% set var = \"${1}\" %}", meta: "snippet" },
-					{ value: "spaceless block", snippet: "{% spaceless %}\n${1}\n{% endspaceless %}\n", meta: "snippet" },
-					{ value: "verbatim block", snippet: "{% verbatim %}\n${1}\n{% endverbatim %}\n", meta: "snippet" },
-					{ value: "with block", snippet: "{% with %}\n${1}\n{% endwith %}\n", meta: "snippet" },
-				];
-				
-				var twig_tags = [
-					{ value: "do", meta: "command" },
-					{ value: "endif", meta: "command" },
-					{ value: "endfor", meta: "command" },
-					{ value: "endspaceless", meta: "command" },
-					{ value: "endverbatim", meta: "command" },
-					{ value: "endwith", meta: "command" },
-					{ value: "filter", meta: "command" },
-					{ value: "for", meta: "command" },
-					{ value: "if", meta: "command" },
-					{ value: "set", meta: "command" },
-					{ value: "spaceless", meta: "command" },
-					{ value: "verbatim", meta: "command" },
-					{ value: "with", meta: "command" },
-				];
-				
-				var twig_filters = [
-					{ value: "abs", meta: "filter" },
-					{ value: "alphanum", meta: "filter" },
-					{ value: "base64_decode", meta: "filter" },
-					{ value: "base64_encode", meta: "filter" },
-					{ value: "batch(n,fill)", meta: "filter" },
-					{ value: "bytes_pretty()", snippet: "bytes_pretty(${1:2})", meta: "filter" },
-					{ value: "capitalize", meta: "filter" },
-					{ value: "context_name()", snippet: "context_name(\"${1:plural}\")", meta: "filter" },
-					{ value: "convert_encoding()", snippet: "convert_encoding(${1:to_charset},${2:from_charset})", meta: "filter" },
-					{ value: "date('F d, Y')", meta: "filter" },
-					{ value: "date_modify('+1 day')", meta: "filter" },
-					{ value: "date_pretty", meta: "filter" },
-					{ value: "default('text')", meta: "filter" },
-					{ value: "escape", meta: "filter" },
-					{ value: "first", meta: "filter" },
-					{ value: "format", meta: "filter" },
-					{ value: "hash_hmac()", snippet: "hash_hmac(\"${1:secret key}\",\"${2:sha256}\")", meta: "filter" },
-					{ value: "join(',')", meta: "filter" },
-					{ value: "json_encode", meta: "filter" },
-					{ value: "json_pretty", meta: "filter" },
-					{ value: "keys", meta: "filter" },
-					{ value: "last", meta: "filter" },
-					{ value: "length", meta: "filter" },
-					{ value: "lower", meta: "filter" },
-					{ value: "md5", meta: "filter" },
-					{ value: "merge", meta: "filter" },
-					{ value: "nl2br", meta: "filter" },
-					{ value: "number_format(2, '.', ',')", meta: "filter" },
-					{ value: "parse_emails", meta: "filter" },
-					{ value: "quote", meta: "filter" },
-					{ value: "raw", meta: "filter" },
-					{ value: "regexp", meta: "filter" },
-					{ value: "replace('this', 'that')", meta: "filter" },
-					{ value: "reverse", meta: "filter" },
-					{ value: "round(0, 'common')", meta: "filter" },
-					{ value: "secs_pretty", meta: "filter" },
-					{ value: "sha1", meta: "filter" },
-					{ value: "slice", meta: "filter" },
-					{ value: "sort", meta: "filter" },
-					{ value: "split(',')", meta: "filter" },
-					{ value: "split_crlf", meta: "filter" },
-					{ value: "split_csv", meta: "filter" },
-					{ value: "striptags", meta: "filter" },
-					{ value: "title", meta: "filter" },
-					{ value: "trim", meta: "filter" },
-					{ value: "truncate(10)", meta: "filter" },
-					{ value: "upper", meta: "filter" },
-					{ value: "url_decode", meta: "filter" },
-					{ value: "url_decode('json')", meta: "filter" },
-					{ value: "url_encode", meta: "filter" },
-				];
-				
-				var twig_functions = [
-					{ value: "array_diff(arr1,arr2)", meta: "function" },
-					{ value: "attribute(object,attr)", meta: "function" },
-					{ value: "cerb_avatar_image(context,id,updated)", meta: "function" },
-					{ value: "cerb_avatar_url(context,id,updated)", meta: "function" },
-					{ value: "cerb_file_url(file_id,full,proxy)", meta: "function" },
-					{ value: "cerb_url('c=controller&a=action&p=param')", meta: "function" },
-					{ value: "cycle(position)", meta: "function" },
-					{ value: "date(date,timezone)", meta: "function" },
-					{ value: "dict_set(obj,keypath,value)", meta: "function" },
-					{ value: "json_decode(string)", meta: "function" },
-					{ value: "jsonpath_set(json,keypath,value)", meta: "function" },
-					{ value: "max(array)", meta: "function" },
-					{ value: "min(array)", meta: "function" },
-					{ value: "random(values)", meta: "function" },
-					{ value: "random_string(length)", meta: "function" },
-					{ value: "range(low,high,step)", snippet: "range(${1:low},${2:high},${3:step})", meta: "function" },
-					{ value: "regexp_match_all(pattern,text,group)", meta: "function" },
-					{ value: "shuffle(array)", meta: "function" },
-					{ value: "validate_email(string)", meta: "function" },
-					{ value: "validate_number(string)", meta: "function" },
-					{ value: "xml_decode(string,namespaces)", meta: "function" },
-					{ value: "xml_encode(xml)", meta: "function" },
-					{ value: "xml_path(xml,path,element)", meta: "function" },
-					{ value: "xml_path_ns(xml,prefix,ns)", meta: "function" },
-				];
-				
-				var autocompleter = {
-					insertMatch: function(editor, data) {
-						delete data.completer;
-						editor.completer.insertMatch(data);
-					},
-					getCompletions: function(editor, session, pos, prefix, callback) {
-						var token = session.getTokenAt(pos.row, pos.column);
-						
-						if(token == null) {
-							callback(null, twig_snippets.map(function(c) {
-								c.completer = autocompleter;
-								return c;
-							}));
-							return;
-						}
-						
-						if(token.type == 'identifier' || (token.type == 'text' && token.start > 0)) {
-							var prevToken = session.getTokenAt(pos.row, token.start);
-							
-							if(prevToken && prevToken.type == 'meta.tag.twig') {
-								callback(null, twig_tags.map(function(c) {
-									c.completer = autocompleter;
-									return c;
-								}));
-								return;
-							}
-							
-							if(prevToken && prevToken.type == 'keyword.operator.twig') {
-								callback(null, twig_functions.map(function(c) {
-									c.completer = autocompleter;
-									return c;
-								}));
-								return;
-							}
-							
-							if(prevToken && prevToken.type == 'keyword.operator.other' && prevToken.value == '|') {
-								callback(null, twig_filters.map(function(c) {
-									c.completer = autocompleter;
-									return c;
-								}));
-								return;
-							}
-						}
-						
-						if(token.type == 'meta.tag.twig') {
-							var results = [].concat(twig_tags).concat(twig_functions);
-							callback(null, results.map(function(c) {
-								c.completer = autocompleter;
-								return c;
-							}));
-							return;
-						}
-						
-						if(token.type == 'keyword.operator.other' && token.value == '|') {
-							callback(null, twig_filters.map(function(c) {
-								c.completer = autocompleter;
-								return c;
-							}));
-							return;
-						}
-						
-						if(token.type == 'variable.other.readwrite.local.twig') {
-							callback(null, twig_functions.map(function(c) {
-								c.completer = autocompleter;
-								return c;
-							}));
-							return;
-						}
-						
-						callback(false);
-					}
-				};
-				
-				langTools.addCompleter(autocompleter);
-			}
 		});
 	};
 	
-	// Abstract bot interaction trigger
-	
-	$.fn.cerbBotTrigger = function(options) {
-		return this.each(function() {
-			var $trigger = $(this);
-			
-			// Context
-			
-			$trigger.on('click', function(e) {
-				e.stopPropagation();
-				
-				var interaction = $trigger.attr('data-interaction');
-				var behavior_id = $trigger.attr('data-behavior-id');
-				
-				var data = {
-					"interaction": interaction,
-					"browser": {
-						"url": window.location.href,
-					},
-					"params": interaction_params
-				};
-				
-				if(null != behavior_id) {
-					data.behavior_id = behavior_id;
-				}
-				
-				var interaction_params = {};
-				
-				$.each(this.attributes, function() {
-					if('data-interaction-param-' == this.name.substring(0,23)) {
-						interaction_params[this.name.substring(23)] = this.value;
-					}
-				});
-				
-				data.params = interaction_params;
-				
-				var layer = Devblocks.uniqueId();
-				genericAjaxPopup(layer,'c=internal&a=startBotInteraction&' + $.param(data), null, false, '300');
-			});
-		});
-	}
-	
-	// Abstract query builder
-	
-	$.fn.cerbQueryTrigger = function(options) {
-		return this.each(function() {
-			var $trigger = $(this);
-			
-			if(!($trigger.is('input[type=text]')))
-				return;
-			
-			$trigger
-				.css('color', 'rgb(100,100,100)')
-				.css('cursor', 'text')
-				.attr('readonly', 'readonly')
-				.attr('placeholder', '(click to edit)')
-			;
-			
-			// Context
-			
-			$trigger.on('click keypress', function(e) {
-				e.stopPropagation();
-				
-				var width = $(window).width()-100;
-				var q = $trigger.val();
-				var context = $trigger.attr('data-context');
-				
-				if(!(typeof context == "string") || 0 == context.length)
-					return;
-				
-				var $chooser = genericAjaxPopup("chooser" + Devblocks.uniqueId(),'c=internal&a=chooserOpenParams&context=' + encodeURIComponent(context) + '&q=' + encodeURIComponent(q),null,true,width);
-				
-				$chooser.on('chooser_save',function(event) {
-					$trigger.val(event.worklist_quicksearch);
-					
-					event.type = 'cerb-query-saved';
-					$trigger.trigger(event);
-				});
-			});
-		});
-	}
-	
-	// Abstract template builder
-	
-	$.fn.cerbTemplateTrigger = function(options) {
-		return this.each(function() {
-			var $trigger = $(this)
-				.css('color', 'rgb(100,100,100)')
-				.css('cursor', 'text')
-				.attr('readonly', 'readonly')
-			;
-			
-			if(!($trigger.is('textarea')))
-				return;
-			
-			$trigger.on('click', function() {
-				var context = $trigger.attr('data-context');
-				var label_prefix = $trigger.attr('data-label-prefix');
-				var key_prefix = $trigger.attr('data-key-prefix');
-				var placeholders_json = $trigger.attr('data-placeholders-json');
-				var template = $trigger.val();
-				var width = $(window).width()-100;
-				
-				// Context
-				if(!(typeof context == "string") || 0 == context.length)
-					return;
-				
-				var url = 'c=internal&a=editorOpenTemplate&context=' 
-					+ encodeURIComponent(context) 
-					+ '&template=' + encodeURIComponent(template)
-					+ '&label_prefix=' + (label_prefix ? encodeURIComponent(label_prefix) : '')
-					+ '&key_prefix=' + (key_prefix ? encodeURIComponent(key_prefix) : '')
-					;
-				
-				
-				if(typeof placeholders_json == 'string') {
-					var placeholders = JSON.parse(placeholders_json);
-					
-					if(typeof placeholders == 'object')
-					for(key in placeholders) {
-						url += "&placeholders[" + encodeURIComponent(key) + ']=' + encodeURIComponent(placeholders[key]);
-					}
-				}
-				
-				var $chooser = genericAjaxPopup(
-					"template" + Devblocks.uniqueId(),
-					url,
-					null,
-					true,
-					width
-				);
-				
-				$chooser.on('template_save',function(event) {
-					$trigger.val(event.template);
-					event.type = 'cerb-template-saved';
-					$trigger.trigger(event);
-				});
-			});
-		});
-	}
-
 	// Abstract peeks
 	
 	$.fn.cerbPeekTrigger = function(options) {
@@ -1209,9 +990,8 @@ var ajax = new cAjaxCalls();
 			
 			$trigger.click(function() {
 				var query = $trigger.attr('data-query');
-				var query_req = $trigger.attr('data-query-required');
 				
-				var search_url = 'c=search&a=openSearchPopup&context=' + encodeURIComponent(context) + '&q=' + encodeURIComponent(query) + '&qr=' + encodeURIComponent(query_req) + '&id=' + layer;
+				var search_url = 'c=search&a=openSearchPopup&context=' + encodeURIComponent(context) + '&q=' + encodeURIComponent(query);
 				
 				// Open search
 				var $peek = genericAjaxPopup(layer,search_url,null,false,'90%');
@@ -1284,13 +1064,7 @@ var ajax = new cAjaxCalls();
 							if(0 == $ul.find('input:hidden[value="' + json[i].id + '"]').length) {
 								var $hidden = $('<input type="hidden" name="file_ids[]"/>').val(json[i].id);
 								var $remove = $('<a href="javascript:;" onclick="$(this).parent().remove();"><span class="glyphicons glyphicons-circle-remove"></span></a>');
-								var $a = $('<a href="javascript:;"/>')
-									.attr('data-context', 'attachment')
-									.attr('data-context-id', json[i].id)
-									.text(json[i].name + ' (' + json[i].size + ' bytes)')
-									.cerbPeekTrigger()
-									;
-								var $li = $('<li/>').append($a).append($hidden).append($remove);
+								var $li = $('<li/>').text(json[i].name + ' (' + json[i].size + ' bytes)').append($hidden).append($remove);
 								$ul.append($li);
 							}
 						}
@@ -1323,7 +1097,6 @@ var ajax = new cAjaxCalls();
 			
 			$trigger.click(function() {
 				var query = $trigger.attr('data-query');
-				var query_req = $trigger.attr('data-query-required');
 				var chooser_url = 'c=internal&a=chooserOpen&context=' + encodeURIComponent(context);
 				
 				if($trigger.attr('data-single'))
@@ -1331,10 +1104,6 @@ var ajax = new cAjaxCalls();
 				
 				if(typeof query == 'string' && query.length > 0) {
 					chooser_url += '&q=' + encodeURIComponent(query);
-				}
-				
-				if(typeof query_req == 'string' && query_req.length > 0) {
-					chooser_url += '&qr=' + encodeURIComponent(query_req);
 				}
 				
 				var $chooser = genericAjaxPopup(Devblocks.uniqueId(), chooser_url, null, true, '90%');
@@ -1358,8 +1127,6 @@ var ajax = new cAjaxCalls();
 							evt.value = event.values[i];
 							$ul.trigger(evt);
 						}
-						
-						$trigger.trigger('cerb-chooser-saved');
 					}
 				});
 			});
@@ -1397,6 +1164,8 @@ var ajax = new cAjaxCalls();
 						var $hidden = $('<input type="hidden">').attr('name', field_name).attr('title', $label).attr('value', $value).appendTo($li);
 						var $a = $('<span class="glyphicons glyphicons-circle-remove"></span>').appendTo($li);
 						$ul.append($li);
+						
+						$trigger.trigger('cerb-chooser-saved');
 					}
 				}
 			});
@@ -1432,8 +1201,6 @@ var ajax = new cAjaxCalls();
 					evt.label = e.label;
 					evt.value = e.id;
 					$ul.trigger(evt);
-					
-					$trigger.trigger('cerb-chooser-saved');
 				});
 				
 				if(is_create_ifnull) {
@@ -1454,16 +1221,10 @@ var ajax = new cAjaxCalls();
 			// Autocomplete
 			if(undefined != $trigger.attr('data-autocomplete')) {
 				var is_single = $trigger.attr('data-single');
-				var placeholder = $trigger.attr('data-placeholder');
 				var is_autocomplete_ifnull = $trigger.attr('data-autocomplete-if-empty');
 				var autocomplete_placeholders = $trigger.attr('data-autocomplete-placeholders');
-				var shortcuts = null == $trigger.attr('data-shortcuts') || 'false' != $trigger.attr('data-shortcuts');
 				
 				var $autocomplete = $('<input type="search" size="32">');
-				
-				if(placeholder)
-					$autocomplete.attr('placeholder', placeholder);
-				
 				$autocomplete.insertAfter($trigger);
 				
 				$autocomplete.autocomplete({
@@ -1511,8 +1272,6 @@ var ajax = new cAjaxCalls();
 						
 						$ul.trigger(evt);
 						
-						$trigger.trigger('cerb-chooser-saved');
-						
 						$this.val('');
 						return false;
 					}
@@ -1538,6 +1297,8 @@ var ajax = new cAjaxCalls();
 					return $li;
 				};
 				
+				$autocomplete.autocomplete('widget').css('max-width', $autocomplete.closest('form').width());
+				
 				if(is_autocomplete_ifnull || is_single) {
 					if($ul.find('>li').length > 0) {
 						$autocomplete.hide();
@@ -1555,11 +1316,11 @@ var ajax = new cAjaxCalls();
 			}
 			
 			// Show a 'me' shortcut on worker choosers
-			if(shortcuts && context == 'cerberusweb.contexts.worker') {
+			if(context == 'cerberusweb.contexts.worker') {
 				var $account = $('#lnkSignedIn');
 				
 				var $button = $('<button type="button"/>')
-					.addClass('chooser-shortcut')
+					.addClass('.chooser-shortcut')
 					.text('me')
 					.click(function() {
 						var evt = jQuery.Event('bubble-create');
@@ -1567,7 +1328,6 @@ var ajax = new cAjaxCalls();
 						evt.value = $account.attr('data-worker-id');
 						evt.icon = $account.closest('td').find('img:first').attr('src');
 						$ul.trigger(evt);
-						$trigger.trigger('cerb-chooser-saved');
 					})
 					.insertAfter($trigger)
 					;

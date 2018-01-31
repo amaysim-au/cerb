@@ -39,24 +39,6 @@ abstract class AbstractEvent_Worker extends Extension_DevblocksEvent {
 	function setEvent(Model_DevblocksEvent $event_model=null, Model_TriggerEvent $trigger=null) {
 		$labels = array();
 		$values = array();
-		
-		/**
-		 * Behavior
-		 */
-		
-		$merge_labels = array();
-		$merge_values = array();
-		CerberusContexts::getContext(CerberusContexts::CONTEXT_BEHAVIOR, $trigger, $merge_labels, $merge_values, null, true);
-
-			// Merge
-			CerberusContexts::merge(
-				'behavior_',
-				'',
-				$merge_labels,
-				$merge_values,
-				$labels,
-				$values
-			);
 
 		// We can accept a model object or a context_id
 		@$model = $event_model->params['context_model'] ?: $event_model->params['context_id'];
@@ -96,14 +78,6 @@ abstract class AbstractEvent_Worker extends Extension_DevblocksEvent {
 	
 	function getValuesContexts($trigger) {
 		$vals = array(
-			'behavior_id' => array(
-				'label' => 'Behavior',
-				'context' => CerberusContexts::CONTEXT_BEHAVIOR,
-			),
-			'behavior_bot_id' => array(
-				'label' => 'Bot',
-				'context' => CerberusContexts::CONTEXT_BOT,
-			),
 			'worker_id' => array(
 				'label' => 'Worker',
 				'context' => CerberusContexts::CONTEXT_WORKER,
@@ -140,7 +114,7 @@ abstract class AbstractEvent_Worker extends Extension_DevblocksEvent {
 	}
 	
 	function renderConditionExtension($token, $as_token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -162,7 +136,7 @@ abstract class AbstractEvent_Worker extends Extension_DevblocksEvent {
 		switch($as_token) {
 			case 'worker_calendar':
 				@$worker_id = $dict->worker_id;
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 
 				if(empty($worker_id)) {
 					$pass = false;
@@ -221,7 +195,7 @@ abstract class AbstractEvent_Worker extends Extension_DevblocksEvent {
 	}
 	
 	function renderActionExtension($token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -260,7 +234,7 @@ abstract class AbstractEvent_Worker extends Extension_DevblocksEvent {
 				break;
 
 			default:
-				if(preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token, $matches)) {
+				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token, $matches)) {
 					$field_id = $matches[2];
 					$custom_field = DAO_CustomField::get($field_id);
 					DevblocksEventHelper::renderActionSetCustomField($custom_field, $trigger);
@@ -302,7 +276,7 @@ abstract class AbstractEvent_Worker extends Extension_DevblocksEvent {
 				return DevblocksEventHelper::simulateActionSetLinks($trigger, $params, $dict);
 				break;
 			default:
-				if(preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token))
+				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token))
 					return DevblocksEventHelper::simulateActionSetCustomField($token, $params, $dict);
 				break;
 		}
@@ -344,7 +318,7 @@ abstract class AbstractEvent_Worker extends Extension_DevblocksEvent {
 				break;
 				
 			default:
-				if(preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token))
+				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token))
 					return DevblocksEventHelper::runActionSetCustomField($token, $params, $dict);
 				break;
 		}

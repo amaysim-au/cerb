@@ -56,7 +56,7 @@ XML;
 
 		$xml = new SimpleXMLElement($xmlstr);
 		$translate = DevblocksPlatform::getTranslationService();
-		$url = DevblocksPlatform::services()->url();
+		$url = DevblocksPlatform::getUrlService();
 
 		// Portal details
 		$portal_name = DAO_CommunityToolProperty::get($portal, UmScApp::PARAM_PAGE_TITLE, '');
@@ -134,7 +134,7 @@ XML;
 
 		$xml = new SimpleXMLElement($xmlstr);
 		$translate = DevblocksPlatform::getTranslationService();
-		$url = DevblocksPlatform::services()->url();
+		$url = DevblocksPlatform::getUrlService();
 
 		// Portal details
 		$portal_name = DAO_CommunityToolProperty::get($portal, UmScApp::PARAM_PAGE_TITLE, '');
@@ -217,7 +217,7 @@ XML;
 
 		$xml = new SimpleXMLElement($xmlstr);
 		$translate = DevblocksPlatform::getTranslationService();
-		$url = DevblocksPlatform::services()->url();
+		$url = DevblocksPlatform::getUrlService();
 
 		// Portal details
 		$portal_name = DAO_CommunityToolProperty::get($portal, UmScApp::PARAM_PAGE_TITLE, '');

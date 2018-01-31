@@ -62,7 +62,7 @@ class DefaultLoginModule extends Extension_LoginAuthenticator {
 	}
 	
 	function renderWorkerPrefs($worker) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('worker', $worker);
 		$tpl->display('devblocks:cerberusweb.core::login/auth/prefs.tpl');
 	}
@@ -70,7 +70,7 @@ class DefaultLoginModule extends Extension_LoginAuthenticator {
 	function saveWorkerPrefs($worker) {
 		@$reset_login = DevblocksPlatform::importGPC($_REQUEST['reset_login'], 'integer', 0);
 		
-		$session = DevblocksPlatform::services()->session();
+		$session = DevblocksPlatform::getSessionService();
 		$visit = CerberusApplication::getVisit();
 		$worker = CerberusApplication::getActiveWorker();
 		
@@ -89,7 +89,7 @@ class DefaultLoginModule extends Extension_LoginAuthenticator {
 	}
 	
 	private function _renderLoginForm($worker) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		@$error = DevblocksPlatform::importGPC($_REQUEST['error'], 'string', '');
 		$tpl->assign('error', $error);
@@ -106,7 +106,7 @@ class DefaultLoginModule extends Extension_LoginAuthenticator {
 	}
 	
 	private function _renderLoginSetupForm($worker) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('worker', $worker);
 		
@@ -118,16 +118,11 @@ class DefaultLoginModule extends Extension_LoginAuthenticator {
 		
 		if(!isset($_SESSION['recovery_code'])) {
 			$recovery_code = CerberusApplication::generatePassword(8);
+			
 			$_SESSION['recovery_code'] = $worker->getEmailString() . ':' . $recovery_code;
 			
-			$labels = $values = [];
-			CerberusContexts::getContext(CerberusContexts::CONTEXT_WORKER, $worker, $worker_labels, $worker_values, '', true, true);
-			CerberusContexts::merge('worker_', null, $worker_labels, $worker_values, $labels, $values);
-			
-			$values['code'] = $recovery_code;
-			$values['ip'] = DevblocksPlatform::getClientIp();
-			
-			CerberusApplication::sendEmailTemplate($worker->getEmailString(), 'worker_recover', $values);
+			// [TODO] Email or SMS it through the new recovery platform service
+			CerberusMail::quickSend($worker->getEmailString(), 'Your confirmation code', $recovery_code);
 		}
 		$tpl->display('devblocks:cerberusweb.core::login/auth/setup.tpl');
 	}

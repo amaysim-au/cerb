@@ -31,8 +31,8 @@ if(!class_exists('C4_AbstractViewModel', true)) {
 	};
 }
 
-$db = DevblocksPlatform::services()->database();
-$logger = DevblocksPlatform::services()->log();
+$db = DevblocksPlatform::getDatabaseService();
+$logger = DevblocksPlatform::getConsoleLog();
 $tables = $db->metaTables();
 
 // ===========================================================================

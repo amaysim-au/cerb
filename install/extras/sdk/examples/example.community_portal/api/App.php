@@ -1,13 +1,14 @@
 <?php
-if (class_exists('Extension_CommunityPortal',true)):
-class ExCommunityPortal extends Extension_CommunityPortal {
+if (class_exists('Extension_UsermeetTool',true)):
+class ExCommunityPortal extends Extension_UsermeetTool {
 	function writeResponse(DevblocksHttpResponse $response) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$umsession = ChPortalHelper::getSession();
 		
 		// Here are the most useful objects for implementing a portal:
 		//var_dump(ChPortalHelper::getCode());
 		//var_dump(ChPortalHelper::getSession());
+		//var_dump(ChPortalHelper::getFingerprint());
 
 		// This demonstrates how to load and save session variables
 		$counter = $umsession->getProperty('counter', 1);
@@ -20,7 +21,7 @@ class ExCommunityPortal extends Extension_CommunityPortal {
 	}
 	
 	public function configure(Model_CommunityTool $instance) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$portal_id = ChPortalHelper::getCode();
 		
 		// This demonstrates how to load portal settings

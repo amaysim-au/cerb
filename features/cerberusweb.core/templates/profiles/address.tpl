@@ -1,50 +1,54 @@
 {$page_context = CerberusContexts::CONTEXT_ADDRESS}
 {$page_context_id = $address->id}
-{$is_writeable = Context_Address::isWriteableByActor($address, $active_worker)}
 
 <div style="float:left;margin-right:10px;">
 	<img src="{devblocks_url}c=avatars&context=address&context_id={$address->id}{/devblocks_url}?v={$address->updated}" style="height:75px;width:75px;border-radius:5px;">
 </div>
 
-<h1>
-{$addy_name = $address->getName()} 
-{if !empty($addy_name)}
-	{$addy_name} &lt;{$address->email}&gt;
-{else}
-	{$address->email}
-{/if}
-</h1>
-
-<div class="cerb-profile-toolbar" style="margin-top:5px;">
-	<form class="toolbar" action="{devblocks_url}{/devblocks_url}" method="post" style="margin-bottom:5px;">
-		<input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
-		
-		<span id="spanInteractions" style="position:relative;">
-		{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.tpl"}
-		</span>
-		
-		<!-- Card -->
-		<button type="button" id="btnProfileCard" title="{'common.card'|devblocks_translate|capitalize}" data-context="{$page_context}" data-context-id="{$page_context_id}"><span class="glyphicons glyphicons-nameplate"></span></button>
-		
-		<!-- Toolbar -->
-		{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
-		<button type="button" id="btnDisplayAddyEdit" data-context="{$page_context}" data-context-id="{$page_context_id}" data-edit="true" title="{'common.edit'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-cogwheel"></span></button>
-		{/if}
-		
-		<span>
-		{$object_watchers = DAO_ContextLink::getContextLinks($page_context, array($page_context_id), CerberusContexts::CONTEXT_WORKER)}
-		{include file="devblocks:cerberusweb.core::internal/watchers/context_follow_button.tpl" context=$page_context context_id=$page_context_id full=true}
-		</span>
-	</form>
-	
-	{if $pref_keyboard_shortcuts}
-	<small>
-		{'common.keyboard'|devblocks_translate|lower}:
-		(<b>e</b>) {'common.edit'|devblocks_translate|lower}
-		(<b>1-9</b>) change tab
-	</small> 
+<div style="float:left;">
+	<h1>
+	{$addy_name = $address->getName()} 
+	{if !empty($addy_name)}
+		{$addy_name} &lt;{$address->email}&gt;
+	{else}
+		{$address->email}
 	{/if}
+	</h1>
+	
+	<div class="cerb-profile-toolbar" style="margin-top:5px;">
+		<form class="toolbar" action="{devblocks_url}{/devblocks_url}" method="post" style="margin-bottom:5px;">
+			<input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
+			
+			<span>
+			{$object_watchers = DAO_ContextLink::getContextLinks($page_context, array($page_context_id), CerberusContexts::CONTEXT_WORKER)}
+			{include file="devblocks:cerberusweb.core::internal/watchers/context_follow_button.tpl" context=$page_context context_id=$page_context_id full=true}
+			</span>
+		
+			<!-- Macros -->
+			{devblocks_url assign=return_url full=true}c=profiles&type=address&id={$page_context_id}-{$address->email|devblocks_permalink}{/devblocks_url}
+			{include file="devblocks:cerberusweb.core::internal/macros/display/button.tpl" context=$page_context context_id=$page_context_id macros=$macros return_url=$return_url}		
+		
+			<!-- Toolbar -->
+			<button type="button" id="btnDisplayAddyEdit" title="{'common.edit'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-cogwheel"></span></button>
+		</form>
+		
+		{if $pref_keyboard_shortcuts}
+		<small>
+			{'common.keyboard'|devblocks_translate|lower}:
+			(<b>e</b>) {'common.edit'|devblocks_translate|lower}
+			{if !empty($macros)}(<b>m</b>) {'common.macros'|devblocks_translate|lower} {/if}
+			(<b>1-9</b>) change tab
+		</small> 
+		{/if}
+	</div>
 </div>
+
+<div style="float:right;">
+	{$ctx = Extension_DevblocksContext::get($page_context)}
+	{include file="devblocks:cerberusweb.core::search/quick_search.tpl" view=$ctx->getSearchView() return_url="{devblocks_url}c=search&context={$ctx->manifest->params.alias}{/devblocks_url}"}
+</div>
+
+<br clear="all">
 
 <fieldset class="properties" style="margin-top:5px;">
 	<legend>{'common.email_address'|devblocks_translate|capitalize}</legend>
@@ -102,27 +106,15 @@ $(function() {
 	
 	var tabs = $("#profileAddressTabs").tabs(tabOptions);
 
-	$('#btnProfileCard').cerbPeekTrigger();
+	$('#btnDisplayAddyEdit').bind('click', function() {
+		$popup = genericAjaxPopup('peek','c=internal&a=showPeekPopup&context={CerberusContexts::CONTEXT_ADDRESS}&context_id={$page_context_id}',null,false,'50%');
+		$popup.one('address_save', function(event) {
+			event.stopPropagation();
+			document.location.href = '{devblocks_url}c=profiles&type=address&id={$page_context_id}-{$address->email|devblocks_permalink}{/devblocks_url}';
+		});
+	});
 	
-	// Interactions
-	var $interaction_container = $('#spanInteractions');
-	{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.js.tpl"}
-	
-	$('#btnDisplayAddyEdit')
-		.cerbPeekTrigger()
-		.on('cerb-peek-opened', function(e) {
-		})
-		.on('cerb-peek-saved', function(e) {
-			e.stopPropagation();
-			document.location.reload();
-		})
-		.on('cerb-peek-deleted', function(e) {
-			document.location.href = '{devblocks_url}{/devblocks_url}';
-			
-		})
-		.on('cerb-peek-closed', function(e) {
-		})
-	;
+	{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_button=null selector_menu=null}
 });
 </script>
 

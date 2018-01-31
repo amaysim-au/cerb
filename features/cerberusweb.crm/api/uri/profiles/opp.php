@@ -17,11 +17,10 @@
 
 class PageSection_ProfilesOpportunity extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$request = DevblocksPlatform::getHttpRequest();
 		$translate = DevblocksPlatform::getTranslationService();
 		
-		$context = CerberusContexts::CONTEXT_OPPORTUNITY;
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		$stack = $request->path;
@@ -33,13 +32,6 @@ class PageSection_ProfilesOpportunity extends Extension_PageSection {
 			return;
 		}
 		$tpl->assign('opp', $opp);	/* @var $opp Model_CrmOpportunity */
-		
-		// Dictionary
-		$labels = array();
-		$values = array();
-		CerberusContexts::getContext($context, $opp, $labels, $values, '', true, false);
-		$dict = DevblocksDictionaryDelegate::instance($values);
-		$tpl->assign('dict', $dict);
 		
 		$point = 'cerberusweb.profiles.opportunity';
 		$tpl->assign('point', $point);
@@ -108,26 +100,26 @@ class PageSection_ProfilesOpportunity extends Extension_PageSection {
 		
 		// Custom Fields
 
-		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds($context, $opp->id)) or array();
+		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_OPPORTUNITY, $opp->id)) or array();
 		$tpl->assign('custom_field_values', $values);
 		
-		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields($context, $values);
+		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields(CerberusContexts::CONTEXT_OPPORTUNITY, $values);
 		
 		if(!empty($properties_cfields))
 			$properties = array_merge($properties, $properties_cfields);
 		
 		// Custom Fieldsets
 
-		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets($context, $opp->id, $values);
+		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets(CerberusContexts::CONTEXT_OPPORTUNITY, $opp->id, $values);
 		$tpl->assign('properties_custom_fieldsets', $properties_custom_fieldsets);
 		
 		// Link counts
 		
 		$properties_links = array(
-			$context => array(
+			CerberusContexts::CONTEXT_OPPORTUNITY => array(
 				$opp->id => 
 					DAO_ContextLink::getContextLinkCounts(
-						$context,
+						CerberusContexts::CONTEXT_OPPORTUNITY,
 						$opp->id,
 						array(CerberusContexts::CONTEXT_CUSTOM_FIELDSET)
 					),
@@ -155,14 +147,17 @@ class PageSection_ProfilesOpportunity extends Extension_PageSection {
 		$workers = DAO_Worker::getAll();
 		$tpl->assign('workers', $workers);
 		
-		// Tabs
-		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, $context);
-		$tpl->assign('tab_manifests', $tab_manifests);
+		// Macros
 		
-		// Interactions
-		$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
-		$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
-		$tpl->assign('interactions_menu', $interactions_menu);
+		$macros = DAO_TriggerEvent::getReadableByActor(
+			$active_worker,
+			'event.macro.crm.opportunity'
+		);
+		$tpl->assign('macros', $macros);
+		
+		// Tabs
+		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_OPPORTUNITY);
+		$tpl->assign('tab_manifests', $tab_manifests);
 		
 		// Template
 		$tpl->display('devblocks:cerberusweb.crm::crm/opps/profile.tpl');
@@ -200,8 +195,9 @@ class PageSection_ProfilesOpportunity extends Extension_PageSection {
 
 		try {
 			if(!empty($id) && !empty($do_delete)) { // delete
-				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_OPPORTUNITY)))
-					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
+				// [TODO] Delete ACL
+				if(!$active_worker->hasPriv('crm.opp.actions.create'))
+					throw new Exception_DevblocksAjaxValidationError("You don't have permission to delete this record.");
 				
 				if(false == ($opp = DAO_CrmOpportunity::get($id)))
 					throw new Exception_DevblocksAjaxValidationError("Failed to delete the record.");
@@ -221,10 +217,16 @@ class PageSection_ProfilesOpportunity extends Extension_PageSection {
 				if($id && false == ($opp = DAO_CrmOpportunity::get($id)))
 					throw new Exception_DevblocksAjaxValidationError("There was an unexpected error when loading this record.");
 				
+				if(empty($name))
+					throw new Exception_DevblocksAjaxValidationError("'Title' is required", 'name');
+				
+				if(false == ($address = DAO_Address::get($email_id)))
+					throw new Exception_DevblocksAjaxValidationError("Invalid email address.");
+			
 				$fields = array(
 					DAO_CrmOpportunity::NAME => $name,
 					DAO_CrmOpportunity::AMOUNT => $amount,
-					DAO_CrmOpportunity::PRIMARY_EMAIL_ID => $email_id,
+					DAO_CrmOpportunity::PRIMARY_EMAIL_ID => $address->id,
 					DAO_CrmOpportunity::UPDATED_DATE => time(),
 					DAO_CrmOpportunity::CLOSED_DATE => intval($closed_date),
 					DAO_CrmOpportunity::IS_CLOSED => $is_closed,
@@ -233,16 +235,12 @@ class PageSection_ProfilesOpportunity extends Extension_PageSection {
 				
 				// Create
 				if(empty($id)) {
+					if(empty($id) && !$active_worker->hasPriv('crm.opp.actions.create'))
+						throw new Exception_DevblocksAjaxValidationError("You don't have permission to create this record.");
+					
 					$fields[DAO_CrmOpportunity::CREATED_DATE] = time();
 					
-					if(!DAO_CrmOpportunity::validate($fields, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
-					if(!DAO_CrmOpportunity::onBeforeUpdateByActor($active_worker, $fields, null, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
 					$id = DAO_CrmOpportunity::create($fields);
-					DAO_CrmOpportunity::onUpdateByActor($active_worker, $fields, $id);
 					
 					// View marquee
 					if(!empty($id) && !empty($view_id)) {
@@ -251,14 +249,10 @@ class PageSection_ProfilesOpportunity extends Extension_PageSection {
 					
 				// Update
 				} else {
-					if(!DAO_CrmOpportunity::validate($fields, $error, $id))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
-					if(!DAO_CrmOpportunity::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
+					if(empty($id) && !$active_worker->hasPriv('crm.opp.actions.update_all'))
+						throw new Exception_DevblocksAjaxValidationError("You don't have permission to modify this record.");
 					
 					DAO_CrmOpportunity::update($id, $fields);
-					DAO_CrmOpportunity::onUpdateByActor($active_worker, $fields, $id);
 				}
 				
 				if($id) {
@@ -313,7 +307,7 @@ class PageSection_ProfilesOpportunity extends Extension_PageSection {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		// Generate hash
 		$hash = md5($view_id.$active_worker->id.time());
@@ -386,7 +380,7 @@ class PageSection_ProfilesOpportunity extends Extension_PageSection {
 
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('view_id', $view_id);
 
 		if(!empty($ids)) {
@@ -405,6 +399,14 @@ class PageSection_ProfilesOpportunity extends Extension_PageSection {
 		// Groups
 		$groups = DAO_Group::getAll();
 		$tpl->assign('groups', $groups);
+		
+		// Macros
+		
+		$macros = DAO_TriggerEvent::getReadableByActor(
+			$active_worker,
+			'event.macro.crm.opportunity'
+		);
+		$tpl->assign('macros', $macros);
 		
 		// HTML templates
 		$html_templates = DAO_MailHtmlTemplate::getAll();
@@ -446,7 +448,7 @@ class PageSection_ProfilesOpportunity extends Extension_PageSection {
 		
 		// Do: Status
 		if(0 != strlen($status)) {
-			if('deleted' == $status && !($active_worker && $active_worker->hasPriv('contexts.cerberusweb.contexts.opportunity.delete'))) {
+			if('deleted' == $status && !($active_worker && $active_worker->hasPriv('crm.opp.actions.delete'))) {
 				// Do nothing if we don't have delete permission
 			} else {
 				$do['status'] = $status;
@@ -485,7 +487,7 @@ class PageSection_ProfilesOpportunity extends Extension_PageSection {
 			$do['watchers'] = $watcher_params;
 			
 		// Broadcast: Mass Reply
-		if($active_worker->hasPriv('contexts.cerberusweb.contexts.opportunity.broadcast')) {
+		if($active_worker->hasPriv('crm.opp.view.actions.broadcast')) {
 			@$do_broadcast = DevblocksPlatform::importGPC($_REQUEST['do_broadcast'],'string',null);
 			@$broadcast_group_id = DevblocksPlatform::importGPC($_REQUEST['broadcast_group_id'],'integer',0);
 			@$broadcast_subject = DevblocksPlatform::importGPC($_REQUEST['broadcast_subject'],'string',null);

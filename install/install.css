@@ -26,10 +26,6 @@ FORM INPUT, TEXTAREA, SELECT {
 	font-size: 120%;
 }
 
-BUTTON[type=submit] {
-	font-size: 150%;
-}
-
 UL {
 	margin: 5px 0px;
 	padding: 0px 0px 0px 20px;

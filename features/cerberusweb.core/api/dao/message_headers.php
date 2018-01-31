@@ -1,32 +1,10 @@
 <?php
 class DAO_MessageHeaders extends Cerb_ORMHelper {
-	const HEADERS = 'headers';
 	const MESSAGE_ID = 'message_id';
+	const HEADERS = 'headers';
 
-	private function __construct() {}
-
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// text
-		$validation
-			->addField(self::HEADERS)
-			->string()
-			->setMaxLength(65535)
-			->setRequired(true)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::MESSAGE_ID)
-			->id()
-			->setRequired(true)
-			;
-
-		return $validation->getFields();
-	}
-	
 	static function upsert($message_id, $raw_headers) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($message_id) || !is_string($raw_headers))
 			return false;
@@ -63,7 +41,7 @@ class DAO_MessageHeaders extends Cerb_ORMHelper {
 	}
 
 	static function getRaw($message_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		$sql = sprintf("SELECT headers ".
 			"FROM message_headers ".
@@ -95,7 +73,7 @@ class DAO_MessageHeaders extends Cerb_ORMHelper {
 		if(empty($ids))
 			return;
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		 
 		$sql = sprintf("DELETE FROM message_headers WHERE message_id IN (%s)",
 			implode(',', $ids)

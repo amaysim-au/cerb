@@ -37,17 +37,17 @@
 	<fieldset>
 		<legend>
 			If <a href="javascript:;">{if !empty($group_data.any)}any{else}all{/if}&#x25be;</a> of these conditions are satisfied
-			<a href="javascript:;" onclick="$(this).closest('fieldset').trigger('cerb.remove');"><span class="glyphicons glyphicons-circle-minus" style="color:rgb(200,0,0);"></span></a>
+			<a href="javascript:;" onclick="$(this).closest('fieldset').remove();"><span class="glyphicons glyphicons-circle-minus" style="color:rgb(200,0,0);"></span></a>
 		</legend>
 		<input type="hidden" name="nodes[]" value="{if !empty($group_data.any)}any{else}all{/if}">
 		
 		<ul class="rules" style="margin:0px;list-style:none;padding:0px 0px 2px 0px;">
 			{if isset($group_data.conditions) && is_array($group_data.conditions)}
 			{foreach from=$group_data.conditions item=params}
-				<li style="padding-bottom:5px;" id="condition{$seq}_{$nonce}">
+				<li style="padding-bottom:5px;" id="condition{$seq}">
 					<input type="hidden" name="nodes[]" value="{$seq}">
 					<input type="hidden" name="condition{$seq}[condition]" value="{$params.condition}">
-					<a href="javascript:;" onclick="$(this).closest('li').trigger('cerb.remove');"><span class="glyphicons glyphicons-circle-minus" style="color:rgb(200,0,0);"></span></a>
+					<a href="javascript:;" onclick="$(this).closest('li').remove();"><span class="glyphicons glyphicons-circle-minus" style="color:rgb(200,0,0);"></span></a>
 					<b style="cursor:move;">{$conditions.{$params.condition}.label}</b>&nbsp;
 					<div style="margin-left:20px;">
 						{$event->renderCondition({$params.condition},$trigger,$params,$seq)}
@@ -99,7 +99,6 @@
 <form id="frmDecisionOutcomeAdd{$id}" action="javascript:;" onsubmit="return false;">
 <input type="hidden" name="seq" value="{$seq}">
 <input type="hidden" name="condition" value="">
-<input type="hidden" name="nonce" value="{$nonce}">
 {if isset($trigger_id)}<input type="hidden" name="trigger_id" value="{$trigger_id}">{/if}
 <input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
 
@@ -168,26 +167,9 @@ $(function() {
 		$popup.find('input:text').first().focus();
 		$popup.css('overflow', 'inherit');
 
-		// Make sure the toolbar is never removed
-		$popup.on('cerb.remove', function(e) {
-			e.stopPropagation();
-			var $target = $(e.target);
-			$toolbar.detach();
-			$target.remove();
-		});
-		
-		// Close confirmation
-		
-		$popup.on('dialogbeforeclose', function(e, ui) {
-			var keycode = e.keyCode || e.which;
-			if(keycode == 27)
-				return confirm('{'warning.core.editor.close'|devblocks_translate}');
-		});
-		
 		var $frm = $popup.find('form#frmDecisionOutcome{$id}');
 		var $legend = $popup.find('fieldset legend');
-		var $menu = $popup.find('fieldset ul.cerb-popupmenu:first');
-		var $toolbar = $('DIV#divDecisionOutcomeToolbar{$id}');
+		var $menu = $popup.find('fieldset ul.cerb-popupmenu:first'); 
 
 		$frm.find('fieldset UL.rules')
 			.sortable({ 'items':'li', 'placeholder':'ui-state-highlight', 'handle':'> b', 'connectWith':'#frmDecisionOutcome{$id} fieldset ul.rules' })
@@ -218,7 +200,7 @@ $(function() {
 		$frmAdd.find('button.group')
 			.click(function(e) {
 				var $group = $('<fieldset></fieldset>');
-				$group.append('<legend>If <a href="javascript:;">all&#x25be;</a> of these conditions are satisfied <a href="javascript:;" onclick="$(this).closest(\'fieldset\').trigger(\'cerb.remove\');"><span class="glyphicons glyphicons-circle-minus" style="color:rgb(200,0,0);"></span></a></legend>');
+				$group.append('<legend>If <a href="javascript:;">all&#x25be;</a> of these conditions are satisfied <a href="javascript:;" onclick="$(this).closest(\'fieldset\').remove();"><span class="glyphicons glyphicons-circle-minus" style="color:rgb(200,0,0);"></span></a></legend>');
 				$group.append('<input type="hidden" name="nodes[]" value="all">');
 				$group.append('<ul class="rules" style="margin:0px;list-style:none;padding:0px;padding-bottom:5px;"></ul>');
 				$group.find('legend > a').click($funcGroupAnyToggle);
@@ -232,34 +214,22 @@ $(function() {
 		
 		// Placeholders
 		
-		$popup.find('textarea.placeholders, :text.placeholders').cerbCodeEditor();
-		
-		$popup.delegate(':text.placeholders, textarea.placeholders, pre.placeholders', 'focus', function(e) {
-			e.stopPropagation();
-			
-			var $target = $(e.target);
-			var $parent = $target.closest('.ace_editor');
-			
-			if(0 != $parent.length) {
+		$popup.delegate(':text.placeholders, textarea.placeholders', 'focus', function(e) {
+			var $toolbar = $('#divDecisionOutcomeToolbar{$id}');
+			var src = (null==e.srcElement) ? e.target : e.srcElement;
+			if(0 == $(src).nextAll('#divDecisionOutcomeToolbar{$id}').length) {
 				$toolbar.find('div.tester').html('');
 				$toolbar.find('ul.menu').hide();
-				$toolbar.show().insertAfter($parent);
-				$toolbar.data('src', $parent);
-				
-			} else {
-				if(0 == $target.nextAll('#divDecisionOutcomeToolbar{$id}').length) {
-					$toolbar.find('div.tester').html('');
-					$toolbar.find('ul.menu').hide();
-					$toolbar.show().insertAfter($target);
-					$toolbar.data('src', $target);
-				}
+				$toolbar.show().insertAfter(src);
 			}
 		});
 		
 		// Placeholder menu
 		
-		var $placeholder_menu_trigger = $toolbar.find('button.cerb-popupmenu-trigger');
-		var $placeholder_menu = $toolbar.find('ul.menu').hide();
+		var $divPlaceholderMenu = $('#divDecisionOutcomeToolbar{$id}');
+		
+		var $placeholder_menu_trigger = $divPlaceholderMenu.find('button.cerb-popupmenu-trigger');
+		var $placeholder_menu = $divPlaceholderMenu.find('ul.menu').hide();
 		
 		// Quick insert token menu
 		
@@ -271,10 +241,12 @@ $(function() {
 				if(undefined == token || undefined == label)
 					return;
 				
+				var $toolbar = $('DIV#divDecisionOutcomeToolbar{$id}');
 				var $field = null;
 				
 				if($toolbar.data('src')) {
 					$field = $toolbar.data('src');
+				
 				} else {
 					$field = $toolbar.prev(':text, textarea');
 				}
@@ -282,47 +254,29 @@ $(function() {
 				if(null == $field)
 					return;
 				
-				if($field.is(':text, textarea')) {
-					$field.focus().insertAtCursor('{literal}{{{/literal}' + token + '{literal}}}{/literal}');
-					
-				} else if($field.is('.ace_editor')) {
-					var evt = new jQuery.Event('cerb.insertAtCursor');
-					evt.content = '{literal}{{{/literal}' + token + '{literal}}}{/literal}';
-					$field.trigger(evt);
-				}
+				$field.focus().insertAtCursor('{literal}{{{/literal}' + token + '{literal}}}{/literal}');
 			}
 		});
 		
-		$toolbar.find('button.tester').click(function(e) {
-			var divTester = $toolbar.find('div.tester').first();
+		$divPlaceholderMenu.find('button.tester').click(function(e) {
+			var divTester = $divPlaceholderMenu.find('div.tester').first();
 			
-			var $field = null;
-			
-			if($toolbar.data('src')) {
-				$field = $toolbar.data('src');
-			} else {
-				$field = $toolbar.prev(':text, textarea');
-			}
+			var $toolbar = $('DIV#divDecisionOutcomeToolbar{$id}');
+			var $field = $toolbar.prev(':text, textarea');
 			
 			if(null == $field)
 				return;
 			
-			if($field.is('.ace_editor')) {
-				var $field = $field.prev('textarea, :text');
-			}
+			var regexpName = /^(.*?)(\[.*?\])$/;
+			var hits = regexpName.exec($field.attr('name'));
 			
-			if($field.is(':text, textarea')) {
-				var regexpName = /^(.*?)(\[.*?\])$/;
-				var hits = regexpName.exec($field.attr('name'));
-				
-				if(null == hits || hits.length < 3)
-					return;
-				
-				var strNamespace = hits[1];
-				var strName = hits[2];
-				
-				genericAjaxPost($(this).closest('form'), divTester, 'c=internal&a=testDecisionEventSnippets&prefix=' + strNamespace + '&field=' + strName);
-			}
+			if(null == hits || hits.length < 3)
+				return;
+			
+			var strNamespace = hits[1];
+			var strName = hits[2];
+			
+			genericAjaxPost($(this).closest('form').attr('id'), divTester, 'c=internal&a=testDecisionEventSnippets&prefix=' + strNamespace + '&field=' + strName);
 		});
 		
 		$placeholder_menu_trigger
@@ -364,23 +318,21 @@ $(function() {
 					var seq = parseInt($frmDecAdd.find('input[name=seq]').val());
 					if(null == seq)
 						seq = 0;
-					
+	
 					var $html = $('<div style="margin-left:20px;"/>').html(html);
 					
-					var $container = $('<li style="padding-bottom:5px;"/>').attr('id','condition' + seq + '_{$nonce}');
+					var $container = $('<li style="padding-bottom:5px;"/>').attr('id','condition'+seq);
 					$container.append($('<input type="hidden" name="nodes[]">').attr('value', seq));
 					$container.append($('<input type="hidden">').attr('name', 'condition'+seq+'[condition]').attr('value',token));
-					$container.append($('<a href="javascript:;" onclick="$(this).closest(\'li\').trigger(\'cerb.remove\');"><span class="glyphicons glyphicons-circle-minus" style="color:rgb(200,0,0);"></span></a>'));
+					$container.append($('<a href="javascript:;" onclick="$(this).closest(\'li\').remove();"><span class="glyphicons glyphicons-circle-minus" style="color:rgb(200,0,0);"></span></a>'));
 					$container.append('&nbsp;');
 					$container.append($('<b style="cursor:move;"/>').text(label));
 					$container.append('&nbsp;');
 					$container.hide();
-					
+	
 					$ul.append($container);
 					$container.append($html).fadeIn();
-					
-					$html.find('textarea.placeholders, :text.placeholders').cerbCodeEditor();
-					
+	
 					$html.find('BUTTON.chooser_worker.unbound').each(function() {
 						ajax.chooser(this,'cerberusweb.contexts.worker','condition'+seq+'[worker_id]', { autocomplete:true });
 						$(this).removeClass('unbound');

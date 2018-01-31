@@ -17,7 +17,7 @@
 
 class PageSection_ProfilesWorkerRole extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$visit = CerberusApplication::getVisit();
 		$translate = DevblocksPlatform::getTranslationService();
 		$active_worker = CerberusApplication::getActiveWorker();
@@ -47,19 +47,13 @@ class PageSection_ProfilesWorkerRole extends Extension_PageSection {
 	
 		// Properties
 			
-		$properties = [];
+		$properties = array();
 		
-		$properties['id'] = [
+		$properties['id'] = array(
 			'label' => DevblocksPlatform::translate('common.id'),
 			'type' => Model_CustomField::TYPE_NUMBER,
 			'value' => $worker_role->id,
-		];
-		
-		$properties['updated_at'] = [
-			'label' => DevblocksPlatform::translate('common.updated'),
-			'type' => Model_CustomField::TYPE_DATE,
-			'value' => $worker_role->updated_at,
-		];
+		);
 		
 		// Custom Fields
 
@@ -95,6 +89,14 @@ class PageSection_ProfilesWorkerRole extends Extension_PageSection {
 		
 		$tpl->assign('properties', $properties);
 			
+		// Macros
+		
+		$macros = DAO_TriggerEvent::getReadableByActor(
+			$active_worker,
+			'event.macro.worker_role'
+		);
+		$tpl->assign('macros', $macros);
+
 		// Tabs
 		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_ROLE);
 		$tpl->assign('tab_manifests', $tab_manifests);
@@ -115,9 +117,6 @@ class PageSection_ProfilesWorkerRole extends Extension_PageSection {
 		
 		try {
 			if(!empty($id) && !empty($do_delete)) { // Delete
-				if(!$active_worker->is_superuser || !$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_ROLE)))
-					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
-				
 				DAO_WorkerRole::delete($id);
 				
 				echo json_encode(array(
@@ -131,9 +130,12 @@ class PageSection_ProfilesWorkerRole extends Extension_PageSection {
 				@$name = DevblocksPlatform::importGPC($_REQUEST['name'], 'string', '');
 				@$who = DevblocksPlatform::importGPC($_REQUEST['who'],'string','');
 				@$what = DevblocksPlatform::importGPC($_REQUEST['what'],'string','');
-				@$acl_privs = DevblocksPlatform::importGPC($_REQUEST['acl_privs'],'array', []);
+				@$acl_privs = DevblocksPlatform::importGPC($_REQUEST['acl_privs'],'array',array());
 				
-				$params = [];
+				if(empty($name))
+					throw new Exception_DevblocksAjaxValidationError("The 'Name' field is required.", 'name');
+				
+				$params = array();
 				
 				// Apply to
 				switch($who) {
@@ -143,13 +145,13 @@ class PageSection_ProfilesWorkerRole extends Extension_PageSection {
 						
 					case 'groups':
 						$params['who'] = $who;
-						@$who_ids = DevblocksPlatform::importGPC($_REQUEST['group_ids'],'array', []);
+						@$who_ids = DevblocksPlatform::importGPC($_REQUEST['group_ids'],'array',array());
 						$params['who_list'] = DevblocksPlatform::sanitizeArray($who_ids, 'integer');
 						break;
 						
 					case 'workers':
 						$params['who'] = $who;
-						@$who_ids = DevblocksPlatform::importGPC($_REQUEST['worker_ids'],'array', []);
+						@$who_ids = DevblocksPlatform::importGPC($_REQUEST['worker_ids'],'array',array());
 						$params['who_list'] = DevblocksPlatform::sanitizeArray($who_ids, 'integer');
 						break;
 						
@@ -162,12 +164,12 @@ class PageSection_ProfilesWorkerRole extends Extension_PageSection {
 				switch($what) {
 					case 'all': // all
 						$params['what'] = $what;
-						$acl_privs = [];
+						$acl_privs = array();
 						break;
 						
 					case 'none': // none
 						$params['what'] = $what;
-						$acl_privs = [];
+						$acl_privs = array();
 						break;
 						
 					case 'itemized': // itemized
@@ -190,18 +192,9 @@ class PageSection_ProfilesWorkerRole extends Extension_PageSection {
 					$fields = array(
 						DAO_WorkerRole::NAME => $name,
 						DAO_WorkerRole::PARAMS_JSON => json_encode($params),
-						DAO_WorkerRole::PRIVS_JSON => json_encode($acl_privs),
-						DAO_WorkerRole::UPDATED_AT => time(),
+						//DAO_WorkerRole::UPDATED_AT => time(),
 					);
-					
-					if(!DAO_WorkerRole::validate($fields, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
-					if(!DAO_WorkerRole::onBeforeUpdateByActor($active_worker, $fields, null, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
 					$id = DAO_WorkerRole::create($fields);
-					DAO_WorkerRole::onUpdateByActor($active_worker, $fields, $id);
 					
 					if(!empty($view_id) && !empty($id))
 						C4_AbstractView::setMarqueeContextCreated($view_id, CerberusContexts::CONTEXT_ROLE, $id);
@@ -210,19 +203,14 @@ class PageSection_ProfilesWorkerRole extends Extension_PageSection {
 					$fields = array(
 						DAO_WorkerRole::NAME => $name,
 						DAO_WorkerRole::PARAMS_JSON => json_encode($params),
-						DAO_WorkerRole::PRIVS_JSON => json_encode($acl_privs),
-						DAO_WorkerRole::UPDATED_AT => time(),
+						//DAO_WorkerRole::UPDATED_AT => time(),
 					);
-					
-					if(!DAO_WorkerRole::validate($fields, $error, $id))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
-					if(!DAO_WorkerRole::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
 					DAO_WorkerRole::update($id, $fields);
-					DAO_WorkerRole::onUpdateByActor($active_worker, $fields, $id);
+					
 				}
+	
+				// Update role privs
+				DAO_WorkerRole::setRolePrivileges($id, $acl_privs, true);
 				
 				// Custom fields
 				@$field_ids = DevblocksPlatform::importGPC($_REQUEST['field_ids'], 'array', array());
@@ -263,7 +251,7 @@ class PageSection_ProfilesWorkerRole extends Extension_PageSection {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		// Generate hash
 		$hash = md5($view_id.$active_worker->id.time());

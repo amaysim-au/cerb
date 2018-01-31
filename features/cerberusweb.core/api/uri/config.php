@@ -29,7 +29,7 @@ class ChConfigurationPage extends CerberusPageExtension  {
 	
 	function render() {
 		$translate = DevblocksPlatform::getTranslationService();
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$worker = CerberusApplication::getActiveWorker();
 		$visit = CerberusApplication::getVisit();
 		

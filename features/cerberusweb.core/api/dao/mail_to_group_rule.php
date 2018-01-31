@@ -16,72 +16,19 @@
  ***********************************************************************/
 
 class DAO_MailToGroupRule extends Cerb_ORMHelper {
-	const ACTIONS_SER = 'actions_ser';
-	const CREATED = 'created';
-	const CRITERIA_SER = 'criteria_ser';
-	const ID = 'id';
-	const IS_STICKY = 'is_sticky';
-	const NAME = 'name';
-	const POS = 'pos';
-	const STICKY_ORDER = 'sticky_order';
-	
 	const _CACHE_ALL = 'cerb:dao:mail_to_group_rule:all';
 	
-	private function __construct() {}
+	const ID = 'id';
+	const POS = 'pos';
+	const CREATED = 'created';
+	const NAME = 'name';
+	const CRITERIA_SER = 'criteria_ser';
+	const ACTIONS_SER = 'actions_ser';
+	const IS_STICKY = 'is_sticky';
+	const STICKY_ORDER = 'sticky_order';
 
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// mediumtext
-		$validation
-			->addField(self::ACTIONS_SER)
-			->string()
-			->setMaxLength(16777215)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::CREATED)
-			->timestamp()
-			;
-		// mediumtext
-		$validation
-			->addField(self::CRITERIA_SER)
-			->string()
-			->setMaxLength(16777215)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		// tinyint(1) unsigned
-		$validation
-			->addField(self::IS_STICKY)
-			->bit()
-			;
-		// varchar(128)
-		$validation
-			->addField(self::NAME)
-			->string()
-			->setMaxLength(128)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::POS)
-			->uint(4)
-			;
-		// tinyint(1) unsigned
-		$validation
-			->addField(self::STICKY_ORDER)
-			->uint(1)
-			;
-
-		return $validation->getFields();
-	}
-	
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("INSERT INTO mail_to_group_rule (created) ".
 			"VALUES (%d)",
@@ -102,7 +49,7 @@ class DAO_MailToGroupRule extends Cerb_ORMHelper {
 	}
 	
 	static function getAll($nocache=false) {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		if($nocache || null === ($results = $cache->load(self::_CACHE_ALL))) {
 			$results = self::getWhere(
@@ -127,7 +74,7 @@ class DAO_MailToGroupRule extends Cerb_ORMHelper {
 	 * @return Model_MailToGroupRule[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null, $options=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -202,7 +149,7 @@ class DAO_MailToGroupRule extends Cerb_ORMHelper {
 		if(empty($ids))
 			return;
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$ids_list = implode(',', $ids);
 		
@@ -219,7 +166,7 @@ class DAO_MailToGroupRule extends Cerb_ORMHelper {
 	 * @param integer $id
 	 */
 	static function increment($id, $by=1) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$db->ExecuteMaster(sprintf("UPDATE mail_to_group_rule SET pos = pos + %d WHERE id = %d",
 			$by,
 			$id
@@ -227,7 +174,7 @@ class DAO_MailToGroupRule extends Cerb_ORMHelper {
 	}
 	
 	static function clearCache() {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache->remove(self::_CACHE_ALL);
 	}
 };
@@ -420,18 +367,13 @@ class Model_MailToGroupRule {
 							$field_values = array();
 							switch($field->context) {
 								case CerberusContexts::CONTEXT_ADDRESS:
-									if(null == $address_field_values) {
-										$custom_field_values = DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_ADDRESS, $fromAddress->id);
-										$address_field_values = is_array($custom_field_values) ? array_shift($custom_field_values) : [];
-									}
+									if(null == $address_field_values)
+										$address_field_values = array_shift(DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_ADDRESS, $fromAddress->id));
 									$field_values =& $address_field_values;
 									break;
-								
 								case CerberusContexts::CONTEXT_ORG:
-									if(null == $org_field_values) {
-										$custom_field_values = DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_ORG, $fromAddress->contact_org_id);
-										$org_field_values = is_array($custom_field_values) ? array_shift($custom_field_values) : [];
-									}
+									if(null == $org_field_values)
+										$org_field_values = array_shift(DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_ORG, $fromAddress->contact_org_id));
 									$field_values =& $org_field_values;
 									break;
 							}

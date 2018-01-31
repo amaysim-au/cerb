@@ -164,9 +164,9 @@ class ChRest_Comments extends Extension_RestController implements IExtensionRest
 			$objects = array();
 			
 			$models = CerberusContexts::getModels(CerberusContexts::CONTEXT_COMMENT, array_keys($results));
+			
 			unset($results);
 			
-			if(is_array($models))
 			foreach($models as $id => $model) {
 				$values = $this->getContext($model);
 				$objects[$id] = $values;
@@ -274,7 +274,7 @@ class ChRest_Comments extends Extension_RestController implements IExtensionRest
 		if(false != ($id = DAO_Comment::create($fields))) {
 			// Attachments
 			if(is_array($file_ids) && !empty($file_ids))
-				DAO_Attachment::addLinks(CerberusContexts::CONTEXT_COMMENT, $id, $file_ids);
+				DAO_Attachment::setLinks(CerberusContexts::CONTEXT_COMMENT, $id, $file_ids);
 			
 			// Retrieve record
 			$this->getId($id);

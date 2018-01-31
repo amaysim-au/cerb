@@ -1,5 +1,7 @@
-{if $snippet->custom_placeholders}
 <div style="border:dotted 1px rgb(200,200,200);padding:5px;">
+	<div style="margin-bottom:10px;font-weight:bold;font-size:120%;">{$snippet->title}</div>
+	<input type="hidden" name="{$namePrefix}[snippet_id]" value="{$snippet->id}">
+
 	<div class="snippet-placeholders">
 	{foreach from=$snippet->custom_placeholders item=placeholder key=placeholder_key}
 		<b>{$placeholder.label}</b>
@@ -18,4 +20,3 @@
 	{/foreach}
 	</div>
 </div>
-{/if}

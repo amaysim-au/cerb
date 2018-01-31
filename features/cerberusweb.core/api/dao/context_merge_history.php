@@ -21,36 +21,8 @@ class DAO_ContextMergeHistory extends Cerb_ORMHelper {
 	const TO_CONTEXT_ID = 'to_context_id';
 	const UPDATED = 'updated';
 	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		$validation
-			->addField(self::CONTEXT)
-			->context()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::FROM_CONTEXT_ID)
-			->id()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::TO_CONTEXT_ID)
-			->id()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::UPDATED)
-			->timestamp()
-			;
-			
-		return $validation->getFields();
-	}
-	
 	public static function logMerge($context, $from_id, $to_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($context) || empty($from_id) || empty($to_id))
 			return false;
@@ -79,7 +51,7 @@ class DAO_ContextMergeHistory extends Cerb_ORMHelper {
 	}
 	
 	public static function findNewId($context, $from_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		// [TODO]
 	}
 }

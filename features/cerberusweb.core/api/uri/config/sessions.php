@@ -17,7 +17,7 @@
 
 class PageSection_SetupSessions extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$visit = CerberusApplication::getVisit();
 		
 		$visit->set(ChConfigurationPage::ID, 'sessions');
@@ -36,7 +36,7 @@ class PageSection_SetupSessions extends Extension_PageSection {
 	function viewDeleteAction() {
 		@$session_ids = DevblocksPlatform::importGPC($_REQUEST['row_id'],' array', array());
 		
-		$session = DevblocksPlatform::services()->session();
+		$session = DevblocksPlatform::getSessionService();
 		
 		if(is_array($session_ids))
 		foreach($session_ids as $session_id)

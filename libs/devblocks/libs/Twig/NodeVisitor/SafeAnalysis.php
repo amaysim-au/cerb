@@ -1,18 +1,6 @@
 <?php
 
-/*
- * This file is part of Twig.
- *
- * (c) Fabien Potencier
- *
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
- */
-
-/**
- * @final
- */
-class Twig_NodeVisitor_SafeAnalysis extends Twig_BaseNodeVisitor
+class Twig_NodeVisitor_SafeAnalysis implements Twig_NodeVisitorInterface
 {
     protected $data = array();
     protected $safeVars = array();
@@ -60,12 +48,12 @@ class Twig_NodeVisitor_SafeAnalysis extends Twig_BaseNodeVisitor
         );
     }
 
-    protected function doEnterNode(Twig_Node $node, Twig_Environment $env)
+    public function enterNode(Twig_NodeInterface $node, Twig_Environment $env)
     {
         return $node;
     }
 
-    protected function doLeaveNode(Twig_Node $node, Twig_Environment $env)
+    public function leaveNode(Twig_NodeInterface $node, Twig_Environment $env)
     {
         if ($node instanceof Twig_Node_Expression_Constant) {
             // constants are marked safe for all
@@ -141,6 +129,9 @@ class Twig_NodeVisitor_SafeAnalysis extends Twig_BaseNodeVisitor
         return array_intersect($a, $b);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function getPriority()
     {
         return 0;

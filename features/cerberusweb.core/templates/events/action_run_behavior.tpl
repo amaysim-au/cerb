@@ -50,7 +50,7 @@
 
 <script type="text/javascript">
 $(function() {
-	var $action = $('#{$namePrefix}_{$nonce}');
+	var $action = $('fieldset#{$namePrefix}');
 	var $behavior_params = $action.find('div.parameters');
 	var $bubbles = $action.find('ul.chooser-container');
 	

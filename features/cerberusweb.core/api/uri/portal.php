@@ -25,7 +25,8 @@ class Controller_Portal extends DevblocksControllerExtension {
 	function handleRequest(DevblocksHttpRequest $request) {
 		$stack = $request->path;
 
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
+		$umsession = ChPortalHelper::getSession();
 
 		// Globals for Community Tool template scope
 		$translate = DevblocksPlatform::getTranslationService();
@@ -33,9 +34,8 @@ class Controller_Portal extends DevblocksControllerExtension {
 		
 		array_shift($stack); // portal
 		$code = array_shift($stack); // xxxxxxxx
+
 		ChPortalHelper::setCode($code);
-		
-		$umsession = ChPortalHelper::getSession();
 		
 		// Routing
 
@@ -49,7 +49,7 @@ class Controller_Portal extends DevblocksControllerExtension {
 				@$tool = $manifest->createInstance();
 			}
 			
-			if(!is_null($tool)) { /* @var $app Extension_CommunityPortal */
+			if(!is_null($tool)) { /* @var $app Extension_UsermeetTool */
 				$delegate_request = new DevblocksHttpRequest($stack);
 				$delegate_request->csrf_token = $request->csrf_token;
 				return $tool->handleRequest($delegate_request);
@@ -65,7 +65,7 @@ class Controller_Portal extends DevblocksControllerExtension {
 	function writeResponse(DevblocksHttpResponse $response) {
 		$stack = $response->path;
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 
 		// Globals for Community Tool template scope
 		$translate = DevblocksPlatform::getTranslationService();
@@ -77,7 +77,7 @@ class Controller_Portal extends DevblocksControllerExtension {
 		if(null != ($tool = DAO_CommunityTool::getByCode($code))) {
 			// [TODO] Don't double instance any apps (add instance registry to ::getExtension?)
 			$manifest = DevblocksPlatform::getExtension($tool->extension_id,false,true);
-			if(null != ($tool = $manifest->createInstance())) { /* @var $app Extension_CommunityPortal */
+			if(null != ($tool = $manifest->createInstance())) { /* @var $app Extension_UsermeetTool */
 				$tool->writeResponse(new DevblocksHttpResponse($stack));
 			}
 		} else {
@@ -88,7 +88,7 @@ class Controller_Portal extends DevblocksControllerExtension {
 
 class ChPortalHelper {
 	static private $_code = null;
-	static private $_session_id = null;
+	static private $_fingerprint = null;
 	static private $_sessions_cache = array();
 	
 	public static function getCode() {
@@ -103,26 +103,8 @@ class ChPortalHelper {
 	 * @return Model_CommunitySession
 	 */
 	public static function getSession() {
-		$session_id = self::$_session_id;
-		$url_writer = DevblocksPlatform::services()->url();
-		
-		if(empty(self::$_code))
-			return false;
-		
-		if(empty($session_id)) {
-			$cookie_name = 'CerbPortal' . self::$_code;
-			@$session_id = DevblocksPlatform::importGPC($_COOKIE[$cookie_name],'string','');
-			
-			if(empty($session_id)) {
-				$session_id = sha1(DevblocksPlatform::getClientIp() . self::getCode() . uniqid());
-				setcookie($cookie_name, $session_id, 0, '/', null, $url_writer->isSSL(), true);
-			}
-			
-			if(empty($session_id))
-				return false;
-			
-			self::$_session_id = $session_id;
-		}
+		$fingerprint = self::getFingerprint();
+		$session_id = md5($fingerprint['ip'] . self::getCode() . $fingerprint['local_sessid']);
 		
 		// Did we cache the lookup?
 		if(!isset(self::$_sessions_cache[$session_id])) {
@@ -133,5 +115,37 @@ class ChPortalHelper {
 		}
 			
 		return self::$_sessions_cache[$session_id];
+	}
+	
+	public static function getFingerprint() {
+		if(empty(self::$_fingerprint)) {
+			@$sFingerPrint = DevblocksPlatform::importGPC($_COOKIE['GroupLoginPassport'],'string','');
+			
+			if(!empty($sFingerPrint))
+				self::$_fingerprint = unserialize($sFingerPrint);
+			
+			if(empty(self::$_fingerprint)) {
+				
+				// [TODO] We don't need to be storing this in the cookie
+				self::$_fingerprint = array(
+					'browser' => @$_SERVER['HTTP_USER_AGENT'],
+					'ip' => DevblocksPlatform::getClientIp(),
+					'local_sessid' => session_id(),
+					'started' => time(),
+				);
+				
+				setcookie(
+					'GroupLoginPassport',
+					serialize(self::$_fingerprint),
+					0,
+					'/',
+					null,
+					null,
+					true
+				);
+			}
+		}
+
+		return self::$_fingerprint;
 	}
 };

@@ -20,39 +20,10 @@ class DAO_ContextLink extends Cerb_ORMHelper {
 	const FROM_CONTEXT_ID = 'from_context_id';
 	const TO_CONTEXT = 'to_context';
 	const TO_CONTEXT_ID = 'to_context_id';
-	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		$validation
-			->addField(self::FROM_CONTEXT)
-			->context()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::FROM_CONTEXT_ID)
-			->id()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::TO_CONTEXT)
-			->context()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::TO_CONTEXT_ID)
-			->id()
-			->setRequired(true)
-			;
-		
-		return $validation->getFields();
-	}
 
 	static public function setLink($src_context, $src_context_id, $dst_context, $dst_context_id, $src_context_meta=null, $dst_context_meta=null) {
-		$db = DevblocksPlatform::services()->database();
-		$event = DevblocksPlatform::services()->event();
+		$db = DevblocksPlatform::getDatabaseService();
+		$event = DevblocksPlatform::getEventService();
 		$active_worker = CerberusApplication::getActiveWorker();
 
 		// Don't link something to itself.
@@ -60,8 +31,8 @@ class DAO_ContextLink extends Cerb_ORMHelper {
 			&& intval($src_context_id) == intval($dst_context_id))
 				return false;
 		
-		$ext_src_context = Extension_DevblocksContext::get($src_context);
-		$ext_dst_context = Extension_DevblocksContext::get($dst_context);
+		$ext_src_context = DevblocksPlatform::getExtension($src_context, true); /* @var $context Extension_DevblocksContext */
+		$ext_dst_context = DevblocksPlatform::getExtension($dst_context, true); /* @var $context Extension_DevblocksContext */
 		
 		if(false == $src_context_meta)
 			@$src_context_meta = $ext_src_context->getMeta($src_context_id);
@@ -200,7 +171,7 @@ class DAO_ContextLink extends Cerb_ORMHelper {
 	}
 	
 	static public function getDistinctContexts($context, $context_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$rows = array();
 		
@@ -222,7 +193,7 @@ class DAO_ContextLink extends Cerb_ORMHelper {
 	}
 	
 	static public function getContextLinkCounts($context, $context_id, $ignore_contexts=array()) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$rs = $db->ExecuteSlave(sprintf("SELECT count(to_context_id) AS hits, to_context as context ".
 			"FROM context_link ".
@@ -273,7 +244,7 @@ class DAO_ContextLink extends Cerb_ORMHelper {
 	}
 	
 	static public function getAllContextLinks($from_context, $from_context_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("SELECT to_context, to_context_id ".
 			"FROM context_link ".
@@ -306,7 +277,7 @@ class DAO_ContextLink extends Cerb_ORMHelper {
 		if(!is_array($from_context_ids))
 			$from_context_ids = array($from_context_ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$from_context_ids = DevblocksPlatform::sanitizeArray($from_context_ids, 'integer', array('nonzero','unique'));
 		
@@ -348,7 +319,7 @@ class DAO_ContextLink extends Cerb_ORMHelper {
 	}
 	
 	static public function count($from_context, $from_context_id, $ignore_internal=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		return $db->GetOneSlave(sprintf("SELECT count(*) FROM context_link ".
 			"WHERE from_context = %s AND from_context_id = %d ".
 			"%s",
@@ -359,7 +330,7 @@ class DAO_ContextLink extends Cerb_ORMHelper {
 	}
 	
 	static public function intersect($from_context, $from_context_id, $context_strings) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$wheres = array();
 		
 		if(!is_array($context_strings) || empty($context_strings))
@@ -451,7 +422,7 @@ class DAO_ContextLink extends Cerb_ORMHelper {
 	}
 	
 	static public function delete($context, $context_ids) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(!is_array($context_ids))
 			$context_ids = array($context_ids);
@@ -471,11 +442,11 @@ class DAO_ContextLink extends Cerb_ORMHelper {
 	}
 	
 	static public function deleteLink($src_context, $src_context_id, $dst_context, $dst_context_id, $src_context_meta=null, $dst_context_meta=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$ext_src_context = Extension_DevblocksContext::get($src_context);
-		$ext_dst_context = Extension_DevblocksContext::get($dst_context);
+		$ext_src_context = DevblocksPlatform::getExtension($src_context, true); /* @var $context Extension_DevblocksContext */
+		$ext_dst_context = DevblocksPlatform::getExtension($dst_context, true); /* @var $context Extension_DevblocksContext */
 		
 		if(false == $src_context_meta)
 			@$src_context_meta = $ext_src_context->getMeta($src_context_id);

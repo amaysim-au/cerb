@@ -35,7 +35,7 @@
 </div>
 
 <script type="text/javascript">
-var $action = $('#{$namePrefix}_{$nonce}');
+$action = $('fieldset#{$namePrefix}');
 $action.find('select.on').change(function(e) {
 	var $on = $(this).find('option:selected');
 	var ctx = $on.attr('context');

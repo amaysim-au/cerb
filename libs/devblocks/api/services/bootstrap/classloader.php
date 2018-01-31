@@ -40,72 +40,17 @@ class _DevblocksClassLoadManager {
 	}
 	
 	public function loadClass($className) {
-		if(class_exists($className, false))
+		if(class_exists($className))
 			return;
 		
 		@$file = $this->classMap[$className];
 		
 		if(!is_null($file) && file_exists($file)) {
 			require_once($file);
-			
-			if(class_exists($className, false))
-				return true;
-		}
-		
-		if (false != ($file = $this->_loadDynamicClass($className))) {
-			require_once($file);
 			return true;
-		}
-		
-		// Not found
-		return false;
-	}
-	
-	private function _loadDynamicClass($class_name) {
-		if(
-			DevblocksPlatform::strStartsWith($class_name, 'Context_AbstractCustomRecord_')
-			|| DevblocksPlatform::strStartsWith($class_name, 'DAO_AbstractCustomRecord_')
-			|| DevblocksPlatform::strStartsWith($class_name, 'Event_AbstractCustomRecord_')
-			|| DevblocksPlatform::strStartsWith($class_name, 'Model_AbstractCustomRecord_')
-			|| DevblocksPlatform::strStartsWith($class_name, 'Profile_AbstractCustomRecord_')
-			|| DevblocksPlatform::strStartsWith($class_name, 'SearchFields_AbstractCustomRecord_')
-			|| DevblocksPlatform::strStartsWith($class_name, 'View_AbstractCustomRecord_')
-			) {
 			
-			$class_id = intval(substr($class_name, strrpos($class_name, '_')+1));
-			
-			if(!$class_id)
-				return false;
-			
-			$class_path = sprintf("%s/classes", APP_STORAGE_PATH);
-			$class_file = sprintf("%s/abstract_record_%d.php", $class_path, $class_id);
-			
-			if(file_exists($class_file))
-				return $class_file;
-			
-			if(!file_exists($class_path))
-			if(!mkdir($class_path, 0770))
-				return false;
-			
-			$class_code = sprintf(
-				'<?php'. PHP_EOL .  
-				'class Context_AbstractCustomRecord_%1$d extends Context_AbstractCustomRecord { const ID = "contexts.custom_record.%1$s"; const _ID = %1$d; }'. PHP_EOL .
-				'class DAO_AbstractCustomRecord_%1$d extends DAO_AbstractCustomRecord { const _ID = %1$d; }'. PHP_EOL .
-				'class Event_AbstractCustomRecord_%1$d extends Event_AbstractCustomRecordMacro { const ID = "event.macro.custom_record.%1$d"; const _ID = %1$d; }' . PHP_EOL .
-				'class Model_AbstractCustomRecord_%1$d extends Model_AbstractCustomRecord { const _ID = %1$d; }'. PHP_EOL .
-				'class Profile_AbstractCustomRecord_%1$d extends PageSection_ProfilesAbstractCustomRecord { const ID = "profile.custom_record.%1$d"; const _ID = %1$d; }' . PHP_EOL .
-				'class SearchFields_AbstractCustomRecord_%1$d extends SearchFields_AbstractCustomRecord { const _ID = %1$d; }'. PHP_EOL .
-				'class View_AbstractCustomRecord_%1$d extends View_AbstractCustomRecord { const _ID = %1$d; }'. PHP_EOL .
-				'',
-				$class_id
-			);
-			
-			if(!file_put_contents($class_file, $class_code))
-				return false;
-			
-			chmod($class_file, 0660);
-			
-			return $class_file;
+		} else {
+			// Not found
 		}
 	}
 	
@@ -140,6 +85,9 @@ class _DevblocksClassLoadManager {
 			"TijsVerkoyen\\CssToInlineStyles\\"
 		);
 		
+		$this->registerClasses(DEVBLOCKS_PATH . 'libs/finediff/FineDiff.php', array(
+			'FineDiff'
+		));
 		$this->registerClasses(DEVBLOCKS_PATH . 'libs/parsedown/Parsedown.php', array(
 			'Parsedown'
 		));
@@ -151,6 +99,18 @@ class _DevblocksClassLoadManager {
 		));
 		$this->registerClasses(DEVBLOCKS_PATH . 'libs/s3/S3.php', array(
 			'S3'
+		));
+		$this->registerClasses(DEVBLOCKS_PATH . 'libs/swift/swift_required.php', array(
+			'Swift',
+			'Swift_Attachment',
+			'Swift_Events_TransportExceptionListener',
+			'Swift_InputByteStream',
+			'Swift_Mailer',
+			'Swift_Message',
+			'Swift_OutputByteStream',
+			'Swift_Plugins_AntiFloodPlugin',
+			'Swift_SmtpTransport',
+			'Swift_Transport',
 		));
 		$this->registerClasses(DEVBLOCKS_PATH . 'libs/Twig/Autoloader.php', array(
 			'Twig_Autoloader',
@@ -181,9 +141,6 @@ class _DevblocksClassLoadManager {
 		));
 		$this->registerClasses(DEVBLOCKS_PATH . 'api/services/event/event_helper.php', array(
 			'DevblocksEventHelper',
-		));
-		$this->registerClasses(DEVBLOCKS_PATH . 'api/services/gpg.php', array(
-			'_DevblocksGPGService',
 		));
 		$this->registerClasses(DEVBLOCKS_PATH . 'api/services/nlp.php', array(
 			'_DevblocksNaturalLanguageManager',
@@ -238,10 +195,6 @@ class _DevblocksClassLoadManager {
 		));
 		$this->registerClasses(DEVBLOCKS_PATH . 'api/services/url.php', array(
 			'_DevblocksUrlManager',
-		));
-		$this->registerClasses(DEVBLOCKS_PATH . 'api/services/validation.php', array(
-			'Exception_DevblocksValidationError',
-			'_DevblocksValidationService',
 		));
 		
 		return true;

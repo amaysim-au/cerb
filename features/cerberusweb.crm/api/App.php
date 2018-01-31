@@ -28,9 +28,10 @@ class CrmEventListener extends DevblocksEventListenerExtension {
 	}
 };
 
+if(class_exists('Extension_DevblocksEventAction')):
 class VaAction_CreateOpportunity extends Extension_DevblocksEventAction {
 	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('params', $params);
 		
 		if(!is_null($seq))
@@ -48,7 +49,7 @@ class VaAction_CreateOpportunity extends Extension_DevblocksEventAction {
 	}
 	
 	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 
 		$out = null;
 		
@@ -123,7 +124,7 @@ class VaAction_CreateOpportunity extends Extension_DevblocksEventAction {
 	}
 	
 	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
-		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 		
 		@$name = $tpl_builder->build($params['name'], $dict);
 		@$email = $tpl_builder->build($params['email'], $dict);
@@ -198,3 +199,4 @@ class VaAction_CreateOpportunity extends Extension_DevblocksEventAction {
 	}
 	
 };
+endif;

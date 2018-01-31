@@ -17,10 +17,9 @@
 
 class PageSection_ProfilesGroup extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$request = DevblocksPlatform::getHttpRequest();
 		
-		$context = CerberusContexts::CONTEXT_GROUP;
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		$stack = $request->path;
@@ -40,13 +39,6 @@ class PageSection_ProfilesGroup extends Extension_PageSection {
 			return;
 		
 		$tpl->assign('group', $group);
-		
-		// Dictionary
-		$labels = array();
-		$values = array();
-		CerberusContexts::getContext($context, $group, $labels, $values, '', true, false);
-		$dict = DevblocksDictionaryDelegate::instance($values);
-		$tpl->assign('dict', $dict);
 		
 		// Properties
 		
@@ -108,14 +100,29 @@ class PageSection_ProfilesGroup extends Extension_PageSection {
 		
 		$tpl->assign('properties', $properties);
 		
+		// Macros
+		
+		$macros = DAO_TriggerEvent::getReadableByActor(
+			$active_worker,
+			'event.macro.group'
+		);
+
+		// Filter macros to only those owned by the current group
+		
+		$macros = array_filter($macros, function($macro) use ($group) { /* @var $macro Model_TriggerEvent */
+			$va = $macro->getBot(); /* @var $va Model_Bot */
+			
+			if($va->owner_context == CerberusContexts::CONTEXT_GROUP && $va->owner_context_id != $group->id)
+				return false;
+			
+			return true;
+		});
+		
+		$tpl->assign('macros', $macros);
+
 		// Tabs
 		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_GROUP);
 		$tpl->assign('tab_manifests', $tab_manifests);
-		
-		// Interactions
-		$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
-		$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
-		$tpl->assign('interactions_menu', $interactions_menu);
 		
 		// Template
 		$tpl->display('devblocks:cerberusweb.core::profiles/group.tpl');
@@ -135,9 +142,6 @@ class PageSection_ProfilesGroup extends Extension_PageSection {
 				throw new Exception_DevblocksAjaxValidationError("You do not have access to modify this group.");
 		
 			if($do_delete) {
-				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_GROUP)))
-					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
-				
 				@$move_deleted_buckets = DevblocksPlatform::importGPC($_REQUEST['move_deleted_buckets'],'array',array());
 				$buckets = DAO_Bucket::getAll();
 				
@@ -166,37 +170,17 @@ class PageSection_ProfilesGroup extends Extension_PageSection {
 			} else {
 				@$name = DevblocksPlatform::importGPC($_REQUEST['name'],'string','');
 				@$is_private = DevblocksPlatform::importGPC($_REQUEST['is_private'],'bit',0);
-				@$reply_address_id = DevblocksPlatform::importGPC($_REQUEST['reply_address_id'],'integer',0);
-				@$reply_html_template_id = DevblocksPlatform::importGPC($_REQUEST['reply_html_template_id'],'integer',0);
-				@$reply_personal = DevblocksPlatform::importGPC($_REQUEST['reply_personal'],'string','');
-				@$reply_signature_id = DevblocksPlatform::importGPC($_REQUEST['reply_signature_id'],'integer',0);
 			
+				if(empty($name))
+					throw new Exception_DevblocksAjaxValidationError("The 'Name' field is required.");
+				
 				$fields = array(
 					DAO_Group::NAME => $name,
 					DAO_Group::IS_PRIVATE => $is_private,
-					DAO_Group::REPLY_ADDRESS_ID => $reply_address_id,
-					DAO_Group::REPLY_HTML_TEMPLATE_ID => $reply_html_template_id,
-					DAO_Group::REPLY_PERSONAL => $reply_personal,
-					DAO_Group::REPLY_SIGNATURE_ID => $reply_signature_id,
 				);
 				
 				if(empty($group_id)) { // new
-					if(!DAO_Group::validate($fields, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
-					if(!DAO_Group::onBeforeUpdateByActor($active_worker, $fields, null, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
 					$group_id = DAO_Group::create($fields);
-					DAO_Group::onUpdateByActor($active_worker, $fields, $group_id);
-					
-					$bucket_fields = array(
-						DAO_Bucket::NAME => 'Inbox',
-						DAO_Bucket::GROUP_ID => $group_id,
-						DAO_Bucket::IS_DEFAULT => 1,
-						DAO_Bucket::UPDATED_AT => time(),
-					);
-					$bucket_id = DAO_Bucket::create($bucket_fields);
 					
 					// View marquee
 					if(!empty($group_id) && !empty($view_id)) {
@@ -204,26 +188,24 @@ class PageSection_ProfilesGroup extends Extension_PageSection {
 					}
 					
 				} else { // update
-					if(!DAO_Group::validate($fields, $error, $group_id))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
-					if(!DAO_Group::onBeforeUpdateByActor($active_worker, $fields, $group_id, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
 					DAO_Group::update($group_id, $fields);
-					DAO_Group::onUpdateByActor($active_worker, $fields, $group_id);
 				}
 				
 				// Members
 				
-				@$group_memberships = DevblocksPlatform::sanitizeArray(DevblocksPlatform::importGPC($_REQUEST['group_memberships'], 'array', []), 'int');
+				@$member_ids = DevblocksPlatform::sanitizeArray(DevblocksPlatform::importGPC($_REQUEST['member_ids'], 'array', array()), 'int');
+				@$member_levels = DevblocksPlatform::sanitizeArray(DevblocksPlatform::importGPC($_REQUEST['member_levels'], 'array', array()), 'int');
+	
+				// Load the current group members
 				$group_members = DAO_Group::getGroupMembers($group_id);
 				
-				// Update group memberships
-				if(is_array($group_memberships))
-				foreach($group_memberships as $member_id => $membership) {
-					$is_member = 0 != $membership;
-					$is_manager = 2 == $membership;
+				if(is_array($member_ids))
+				foreach($member_ids as $idx => $member_id) {
+					if(!isset($member_levels[$idx]))
+						continue;
+					
+					$is_member = 0 != $member_levels[$idx];
+					$is_manager = 2 == $member_levels[$idx];
 					
 					// If this worker shouldn't be a member
 					if(!$is_member) {
@@ -242,7 +224,7 @@ class PageSection_ProfilesGroup extends Extension_PageSection {
 						}
 					}
 				}
-				
+		
 				if($group_id) {
 					// Settings
 					
@@ -298,7 +280,7 @@ class PageSection_ProfilesGroup extends Extension_PageSection {
 		if(!$id || false == ($group = DAO_Group::get($id)))
 			return;
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 
 		$defaults = C4_AbstractViewModel::loadFromClass('View_Worker');
 		$defaults->id = 'group_members';
@@ -322,7 +304,7 @@ class PageSection_ProfilesGroup extends Extension_PageSection {
 		if(!$id || false == ($group = DAO_Group::get($id)))
 			return;
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 
 		$defaults = C4_AbstractViewModel::loadFromClass('View_Bucket');
 		$defaults->id = 'group_buckets';
@@ -351,7 +333,7 @@ class PageSection_ProfilesGroup extends Extension_PageSection {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		// Generate hash
 		$hash = md5($view_id.$active_worker->id.time());

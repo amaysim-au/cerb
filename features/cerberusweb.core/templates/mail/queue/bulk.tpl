@@ -1,4 +1,3 @@
-{$peek_context = CerberusContexts::CONTEXT_DRAFT}
 <form action="{devblocks_url}{/devblocks_url}" method="POST" id="formBatchUpdate" onsubmit="return false;">
 <input type="hidden" name="c" value="profiles">
 <input type="hidden" name="a" value="handleSectionAction">
@@ -28,12 +27,12 @@
 					<option value="">&nbsp;</option>
 					<option value="queue">Queue</option>
 					<option value="draft">Draft</option>
-					{if $active_worker->hasPriv("contexts.{$peek_context}.delete")}<option value="delete">{'common.delete'|devblocks_translate|capitalize}</option>{/if}
+					<option value="delete">{'common.delete'|devblocks_translate|capitalize}</option>
 				</select>
 				
 				<button type="button" onclick="this.form.status.selectedIndex=1;">send</button>
 				<button type="button" onclick="this.form.status.selectedIndex=2;">draft</button>
-				{if $active_worker->hasPriv("contexts.{$peek_context}.delete")}<button type="button" onclick="this.form.status.selectedIndex=3;">{'common.delete'|devblocks_translate|lower}</button>{/if}
+				<button type="button" onclick="this.form.status.selectedIndex=3;">{'common.delete'|devblocks_translate|lower}</button>
 			</td>
 		</tr>
 	</table>

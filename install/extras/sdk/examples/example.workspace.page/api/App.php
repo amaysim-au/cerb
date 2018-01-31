@@ -2,7 +2,7 @@
 if(class_exists('Extension_WorkspacePage')):
 class ExWorkspacePage extends Extension_WorkspacePage {
 	function renderPage(Model_WorkspacePage $page) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('page', $page);
 		

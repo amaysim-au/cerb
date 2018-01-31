@@ -3,7 +3,7 @@
 /*
  * This file is part of Twig.
  *
- * (c) Fabien Potencier
+ * (c) 2010 Fabien Potencier
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -17,14 +17,18 @@
 interface Twig_TokenParserInterface
 {
     /**
-     * Sets the parser associated with this token parser.
+     * Sets the parser associated with this token parser
+     *
+     * @param $parser A Twig_Parser instance
      */
     public function setParser(Twig_Parser $parser);
 
     /**
      * Parses a token and returns a node.
      *
-     * @return Twig_NodeInterface
+     * @param Twig_Token $token A Twig_Token instance
+     *
+     * @return Twig_NodeInterface A Twig_NodeInterface instance
      *
      * @throws Twig_Error_Syntax
      */

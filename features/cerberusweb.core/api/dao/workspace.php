@@ -16,70 +16,16 @@
 ***********************************************************************/
 
 class DAO_WorkspacePage extends Cerb_ORMHelper {
-	const EXTENSION_ID = 'extension_id';
+	const _CACHE_ALL = 'ch_workspace_pages';
+	
 	const ID = 'id';
 	const NAME = 'name';
 	const OWNER_CONTEXT = 'owner_context';
 	const OWNER_CONTEXT_ID = 'owner_context_id';
-	
-	const _CACHE_ALL = 'ch_workspace_pages';
-	
-	private function __construct() {}
+	const EXTENSION_ID = 'extension_id';
 
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// varchar(255)
-		$validation
-			->addField(self::EXTENSION_ID)
-			->string()
-			->setMaxLength(255)
-			->setRequired(true)
-			->addValidator(function($value, &$error=null) {
-				if(false == Extension_WorkspacePage::get($value)) {
-					$error = sprintf("is not a valid workspace page extension (%s).", $value);
-					return false;
-				}
-				
-				return true;
-			})
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		// varchar(255)
-		$validation
-			->addField(self::NAME)
-			->string()
-			->setMaxLength(255)
-			->setRequired(true)
-			;
-		// varchar(255)
-		$validation
-			->addField(self::OWNER_CONTEXT)
-			->context()
-			->setRequired(true)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::OWNER_CONTEXT_ID)
-			->id()
-			->setRequired(true)
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
-	
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		$sql = "INSERT INTO workspace_page () VALUES ()";
 		$db->ExecuteMaster($sql);
@@ -91,9 +37,6 @@ class DAO_WorkspacePage extends Cerb_ORMHelper {
 	}
 
 	static function update($ids, $fields) {
-		$context = CerberusContexts::CONTEXT_WORKSPACE_PAGE;
-		self::_updateAbstract($context, $ids, $fields);
-		
 		parent::_update($ids, 'workspace_page', $fields);
 		self::clearCache();
 	}
@@ -102,29 +45,9 @@ class DAO_WorkspacePage extends Cerb_ORMHelper {
 		parent::_updateWhere('workspace_page', $fields, $where);
 		self::clearCache();
 	}
-	
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		$context = CerberusContexts::CONTEXT_WORKSPACE_PAGE;
-		
-		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
-			return false;
-		
-		@$owner_context = $fields[self::OWNER_CONTEXT];
-		@$owner_context_id = intval($fields[self::OWNER_CONTEXT_ID]);
-		
-		// Verify that the actor can use this new owner
-		if($owner_context) {
-			if(!CerberusContexts::isOwnableBy($owner_context, $owner_context_id, $actor)) {
-				$error = DevblocksPlatform::translate('error.core.no_acl.owner');
-				return false;
-			}
-		}
-		
-		return true;
-	}
 
 	static function getAll($nocache=false) {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		if($nocache || null === ($pages = $cache->load(self::_CACHE_ALL))) {
 			$pages = self::getWhere(
@@ -152,7 +75,7 @@ class DAO_WorkspacePage extends Cerb_ORMHelper {
 	 * @return Model_WorkspacePage[]
 	 */
 	static function getWhere($where=null, $sortBy=DAO_WorkspacePage::NAME, $sortAsc=true, $limit=null, $options=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 
@@ -295,7 +218,7 @@ class DAO_WorkspacePage extends Cerb_ORMHelper {
 
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		if(empty($ids))
 			return;
@@ -348,6 +271,7 @@ class DAO_WorkspacePage extends Cerb_ORMHelper {
 	}
 
 	/**
+	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -359,7 +283,7 @@ class DAO_WorkspacePage extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -421,91 +345,31 @@ class DAO_WorkspacePage extends Cerb_ORMHelper {
 	}
 
 	public static function maint() {
-		$db = DevblocksPlatform::services()->database();
-		$logger = DevblocksPlatform::services()->log();
+		$db = DevblocksPlatform::getDatabaseService();
+		$logger = DevblocksPlatform::getConsoleLog();
 
 		$db->ExecuteMaster("DELETE FROM workspace_tab WHERE workspace_page_id NOT IN (SELECT id FROM workspace_page)");
 		$logger->info('[Maint] Purged ' . $db->Affected_Rows() . ' workspace_tab records.');
 	}
 
 	static function clearCache() {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache->remove(self::_CACHE_ALL);
 	}
 };
 
 class DAO_WorkspaceTab extends Cerb_ORMHelper {
-	const EXTENSION_ID = 'extension_id';
-	const ID = 'id';
-	const NAME = 'name';
-	const PARAMS_JSON = 'params_json';
-	const POS = 'pos';
-	const WORKSPACE_PAGE_ID = 'workspace_page_id';
-	
 	const _CACHE_ALL = 'ch_workspace_tabs';
 	
-	private function __construct() {}
+	const ID = 'id';
+	const NAME = 'name';
+	const WORKSPACE_PAGE_ID = 'workspace_page_id';
+	const POS = 'pos';
+	const EXTENSION_ID = 'extension_id';
+	const PARAMS_JSON = 'params_json';
 
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// varchar(255)
-		$validation
-			->addField(self::EXTENSION_ID)
-			->string()
-			->setMaxLength(255)
-			->setRequired(true)
-			->addValidator(function($value, &$error=null) {
-				if(false == Extension_WorkspaceTab::get($value)) {
-					$error = sprintf("is not a valid workspace tab extension (%s).", $value);
-					return false;
-				}
-				
-				return true;
-			})
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		// varchar(128)
-		$validation
-			->addField(self::NAME)
-			->string()
-			->setMaxLength(128)
-			->setRequired(true)
-			;
-		// text
-		$validation
-			->addField(self::PARAMS_JSON)
-			->string()
-			->setMaxLength(65535)
-			;
-		// tinyint(3) unsigned
-		$validation
-			->addField(self::POS)
-			->uint(1)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::WORKSPACE_PAGE_ID)
-			->id()
-			->setRequired(true)
-			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_WORKSPACE_PAGE))
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
-	
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "INSERT INTO workspace_tab () VALUES ()";
 		$db->ExecuteMaster($sql);
@@ -517,9 +381,6 @@ class DAO_WorkspaceTab extends Cerb_ORMHelper {
 	}
 	
 	static function update($ids, $fields) {
-		$context = CerberusContexts::CONTEXT_WORKSPACE_TAB;
-		self::_updateAbstract($context, $ids, $fields);
-		
 		parent::_update($ids, 'workspace_tab', $fields);
 		self::clearCache();
 	}
@@ -529,36 +390,8 @@ class DAO_WorkspaceTab extends Cerb_ORMHelper {
 		self::clearCache();
 	}
 	
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		$context = CerberusContexts::CONTEXT_WORKSPACE_TAB;
-		
-		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
-			return false;
-		
-		if(!$id && !isset($fields[self::WORKSPACE_PAGE_ID])) {
-			$error = "A 'page_id' is required.";
-			return false;
-		}
-		
-		if(isset($fields[self::WORKSPACE_PAGE_ID])) {
-			@$page_id = $fields[self::WORKSPACE_PAGE_ID];
-			
-			if(!$page_id) {
-				$error = "Invalid 'page_id' value.";
-				return false;
-			}
-			
-			if(!Context_WorkspacePage::isWriteableByActor($page_id, $actor)) {
-				$error = "You do not have permission to create tabs on this workspace page.";
-				return false;
-			}
-		}
-		
-		return true;
-	}
-	
 	static function getAll($nocache=false) {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		if($nocache || null === ($tabs = $cache->load(self::_CACHE_ALL))) {
 			$tabs = self::getWhere(
@@ -586,7 +419,7 @@ class DAO_WorkspaceTab extends Cerb_ORMHelper {
 	 * @return Model_WorkspaceTab[]
 	 */
 	static function getWhere($where=null, $sortBy=DAO_WorkspaceTab::POS, $sortAsc=true, $limit=null, $options=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -672,7 +505,7 @@ class DAO_WorkspaceTab extends Cerb_ORMHelper {
 		if(!is_array($ids))
 			$ids = array($ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -694,7 +527,7 @@ class DAO_WorkspaceTab extends Cerb_ORMHelper {
 		if(!is_array($ids))
 			$ids = array($ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -747,6 +580,7 @@ class DAO_WorkspaceTab extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -758,7 +592,7 @@ class DAO_WorkspaceTab extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -812,15 +646,15 @@ class DAO_WorkspaceTab extends Cerb_ORMHelper {
 	}
 	
 	public static function maint() {
-		$db = DevblocksPlatform::services()->database();
-		$logger = DevblocksPlatform::services()->log();
+		$db = DevblocksPlatform::getDatabaseService();
+		$logger = DevblocksPlatform::getConsoleLog();
 		
 		$db->ExecuteMaster("DELETE FROM workspace_list WHERE workspace_tab_id NOT IN (SELECT id FROM workspace_tab)");
 		$logger->info('[Maint] Purged ' . $db->Affected_Rows() . ' workspace_list records.');
 	}
 
 	static function clearCache() {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache->remove(self::_CACHE_ALL);
 	}
 	
@@ -1045,62 +879,23 @@ class Model_WorkspaceTab {
 };
 
 class DAO_WorkspaceList extends Cerb_ORMHelper {
-	const CONTEXT = 'context';
 	const ID = 'id';
-	const LIST_POS = 'list_pos';
-	const LIST_VIEW = 'list_view';
 	const WORKSPACE_TAB_ID = 'workspace_tab_id';
-	
-	private function __construct() {}
-
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// varchar(255)
-		$validation
-			->addField(self::CONTEXT)
-			->context()
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		// smallint(5) unsigned
-		$validation
-			->addField(self::LIST_POS)
-			->uint(2)
-			;
-		// mediumtext
-		$validation
-			->addField(self::LIST_VIEW)
-			->string()
-			->setMaxLength(16777215)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::WORKSPACE_TAB_ID)
-			->id()
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
+	const CONTEXT = 'context';
+	const LIST_VIEW = 'list_view';
+	const LIST_POS = 'list_pos';
 	
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
+		
+		if(empty($fields))
+			return NULL;
 		
 		$sql = sprintf("INSERT INTO workspace_list () ".
 			"VALUES ()"
 		);
 		if(false == ($db->ExecuteMaster($sql)))
 			return false;
-		
 		$id = $db->LastInsertId();
 
 		self::update($id, $fields);
@@ -1109,6 +904,7 @@ class DAO_WorkspaceList extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param integer $id
 	 * @return Model_WorkspaceList
@@ -1129,12 +925,13 @@ class DAO_WorkspaceList extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param string $where
 	 * @return Model_WorkspaceList[]
 	 */
 	static function getWhere($where) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "SELECT id, workspace_tab_id, context, list_view, list_pos ".
 			"FROM workspace_list ".
@@ -1178,42 +975,11 @@ class DAO_WorkspaceList extends Cerb_ORMHelper {
 	}
 	
 	static function update($ids, $fields) {
-		$context = CerberusContexts::CONTEXT_WORKSPACE_WORKLIST;
-		self::_updateAbstract($context, $ids, $fields);
-		
 		parent::_update($ids, 'workspace_list', $fields);
 	}
 	
 	static function updateWhere($fields, $where) {
 		parent::_updateWhere('workspace_list', $fields, $where);
-	}
-	
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		$context = CerberusContexts::CONTEXT_WORKSPACE_WORKLIST;
-		
-		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
-			return false;
-		
-		if(!$id && !isset($fields[self::WORKSPACE_TAB_ID])) {
-			$error = "A 'workspace_tab_id' is required.";
-			return false;
-		}
-		
-		if(isset($fields[self::WORKSPACE_TAB_ID])) {
-			@$tab_id = $fields[self::WORKSPACE_TAB_ID];
-			
-			if(!$tab_id) {
-				$error = "Invalid 'workspace_tab_id' value.";
-				return false;
-			}
-			
-			if(!Context_WorkspaceTab::isWriteableByActor($tab_id, $actor)) {
-				$error = "You do not have permission to create worklists on this workspace tab.";
-				return false;
-			}
-		}
-		
-		return true;
 	}
 	
 	static function random() {
@@ -1226,7 +992,7 @@ class DAO_WorkspaceList extends Cerb_ORMHelper {
 		if(empty($ids))
 			return;
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$ids_list = implode(',', $ids);
 		
 		if(false == ($db->ExecuteMaster(sprintf("DELETE FROM workspace_list WHERE id IN (%s)", $ids_list))))
@@ -1371,7 +1137,7 @@ class View_WorkspacePage extends C4_AbstractView implements IAbstractView_QuickS
 	function render() {
 		$this->_sanitize();
 
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1379,7 +1145,7 @@ class View_WorkspacePage extends C4_AbstractView implements IAbstractView_QuickS
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {
@@ -1487,12 +1253,12 @@ class Context_WorkspacePage extends Extension_DevblocksContext {
 	}
 	
 	function getMeta($context_id) {
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 
 		if(null == ($workspace_page = DAO_WorkspacePage::get($context_id)))
-			return [];
+			return array();
 		
-		$url = $url_writer->write(sprintf("c=pages&id=%d",
+		$url = $url_writer(sprintf("c=pages&id=%d",
 			$workspace_page->id
 		));
 		
@@ -1502,12 +1268,12 @@ class Context_WorkspacePage extends Extension_DevblocksContext {
 		if(!empty($friendly))
 			$url .= '-' . $friendly;
 		
-		return [
+		return array(
 			'id' => $workspace_page->id,
 			'name' => $workspace_page->name,
 			'permalink' => $url,
 			'updated' => 0, // [TODO]
-		];
+		);
 	}
 	
 	function getContext($page, &$token_labels, &$token_values, $prefix=null) {
@@ -1574,32 +1340,11 @@ class Context_WorkspacePage extends Extension_DevblocksContext {
 			$token_values = $this->_importModelCustomFieldsAsValues($page, $token_values);
 			
 			// URL
-			$url_writer = DevblocksPlatform::services()->url();
+			$url_writer = DevblocksPlatform::getUrlService();
 			$token_values['record_url'] = $url_writer->writeNoProxy(sprintf("c=pages&id=%d-%s",$page->id, DevblocksPlatform::strToPermalink($page->name)), true);
 			
 			$token_values['owner__context'] = $page->owner_context;
 			$token_values['owner_id'] = $page->owner_context_id;
-		}
-		
-		return true;
-	}
-	
-	function getKeyToDaoFieldMap() {
-		return [
-			'extension_id' => DAO_WorkspacePage::EXTENSION_ID,
-			'id' => DAO_WorkspacePage::ID,
-			'links' => '_links',
-			'name' => DAO_WorkspacePage::NAME,
-			'owner__context' => DAO_WorkspacePage::OWNER_CONTEXT,
-			'owner_id' => DAO_WorkspacePage::OWNER_CONTEXT_ID,
-		];
-	}
-	
-	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
-		switch(DevblocksPlatform::strLower($key)) {
-			case 'links':
-				$this->_getDaoFieldsLinks($value, $out_fields, $error);
-				break;
 		}
 		
 		return true;
@@ -1772,7 +1517,7 @@ class Context_WorkspaceTab extends Extension_DevblocksContext {
 	}
 	
 	function getMeta($context_id) {
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 
 		if(null == ($workspace_tab = DAO_WorkspaceTab::get($context_id)))
 			return array();
@@ -1859,42 +1604,6 @@ class Context_WorkspaceTab extends Extension_DevblocksContext {
 			$token_labels,
 			$token_values
 		);
-		
-		return true;
-	}
-	
-	function getKeyToDaoFieldMap() {
-		return [
-			'extension_id' => DAO_WorkspaceTab::EXTENSION_ID,
-			'id' => DAO_WorkspaceTab::ID,
-			'links' => '_links',
-			'name' => DAO_WorkspaceTab::NAME,
-			'page_id' => DAO_WorkspaceTab::WORKSPACE_PAGE_ID,
-			'pos' => DAO_WorkspaceTab::POS,
-		];
-	}
-	
-	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
-		$dict_key = DevblocksPlatform::strLower($key);
-		switch($dict_key) {
-			case 'links':
-				$this->_getDaoFieldsLinks($value, $out_fields, $error);
-				break;
-			
-			case 'params':
-				if(!is_array($value)) {
-					$error = 'must be an object.';
-					return false;
-				}
-				
-				if(false == ($json = json_encode($value))) {
-					$error = 'could not be JSON encoded.';
-					return false;
-				}
-				
-				$out_fields[DAO_WorkspaceTab::PARAMS_JSON] = $json;
-				break;
-		}
 		
 		return true;
 	}
@@ -2012,14 +1721,11 @@ class Context_WorkspaceTab extends Extension_DevblocksContext {
 			$view_id = 'chooser_'.str_replace('.','_',$this->id).time().mt_rand(0,9999);
 		
 		// View
-		if(false != ($defaults = C4_AbstractViewModel::loadFromClass($this->getViewClass()))) {
-			$defaults->id = $view_id;
-			$defaults->is_ephemeral = true;
-		}
+		$defaults = C4_AbstractViewModel::loadFromClass($this->getViewClass());
+		$defaults->id = $view_id;
+		$defaults->is_ephemeral = true;
 		
-		if(false == ($view = C4_AbstractViewLoader::getView($view_id, $defaults ?: null)))
-			return false;
-		
+		$view = C4_AbstractViewLoader::getView($view_id, $defaults);
 		$view->name = 'Tabs';
 		
 		$view->renderSortBy = SearchFields_WorkspaceTab::ID;
@@ -2047,277 +1753,6 @@ class Context_WorkspaceTab extends Extension_DevblocksContext {
 			$params_req = array(
 				new DevblocksSearchCriteria(SearchFields_WorkspacePage::CONTEXT_LINK,'=',$context),
 				new DevblocksSearchCriteria(SearchFields_WorkspacePage::CONTEXT_LINK_ID,'=',$context_id),
-			);
-		}
-		
-		$view->addParamsRequired($params_req, true);
-		*/
-		
-		$view->renderTemplate = 'context';
-		return $view;
-	}
-};
-
-class Context_WorkspaceWorklist extends Extension_DevblocksContext {
-	static function isReadableByActor($models, $actor) {
-		return CerberusContexts::isReadableByDelegateOwner($actor, CerberusContexts::CONTEXT_WORKSPACE_WORKLIST, $models, 'tab_page_owner_');
-	}
-	
-	static function isWriteableByActor($models, $actor) {
-		return CerberusContexts::isWriteableByDelegateOwner($actor, CerberusContexts::CONTEXT_WORKSPACE_WORKLIST, $models, 'tab_page_owner_');
-	}
-	
-	function getRandom() {
-		return DAO_WorkspaceList::random();
-	}
-	
-	function getDaoClass() {
-		return 'DAO_WorkspaceList';
-	}
-	
-	function getMeta($context_id) {
-		$url_writer = DevblocksPlatform::services()->url();
-
-		if(null == ($workspace_list = DAO_WorkspaceList::get($context_id)))
-			return array();
-		
-		return array(
-			'id' => $workspace_list->id,
-			'name' => 'Worklist', //$workspace_list->label, // [TODO]
-			'permalink' => null,
-			'updated' => 0, //$workspace_list->updated, // [TODO]
-		);
-	}
-	
-	function getContext($worklist, &$token_labels, &$token_values, $prefix=null) {
-		if(is_null($prefix))
-			$prefix = 'Workspace Worklist:';
-		
-		$translate = DevblocksPlatform::getTranslationService();
-		$fields = DAO_CustomField::getByContext(CerberusContexts::CONTEXT_WORKSPACE_WORKLIST);
-		
-		// Polymorph
-		if(is_numeric($worklist)) {
-			$worklist = DAO_WorkspaceList::get($worklist);
-		} elseif($worklist instanceof Model_WorkspaceList) {
-			// It's what we want already.
-		} elseif(is_array($worklist)) {
-			$worklist = Cerb_ORMHelper::recastArrayToModel($worklist, 'Model_WorkspaceWorklist');
-		} else {
-			$worklist = null;
-		}
-		
-		// Token labels
-		$token_labels = array(
-			'_label' => $prefix,
-			'context' => $prefix.$translate->_('common.context'),
-			'id' => $prefix.$translate->_('common.id'),
-			'pos' => $prefix.$translate->_('common.pos'),
-		);
-		
-		// Token types
-		$token_types = array(
-			'_label' => 'context_url',
-			'context' => Model_CustomField::TYPE_SINGLE_LINE,
-			'id' => Model_CustomField::TYPE_NUMBER,
-			'pos' => Model_CustomField::TYPE_NUMBER,
-		);
-		
-		// Custom field/fieldset token labels
-		if(false !== ($custom_field_labels = $this->_getTokenLabelsFromCustomFields($fields, $prefix)) && is_array($custom_field_labels))
-			$token_labels = array_merge($token_labels, $custom_field_labels);
-		
-		// Token values
-		$token_values = [];
-		
-		$token_values['_context'] = CerberusContexts::CONTEXT_WORKSPACE_WORKLIST;
-		$token_values['_types'] = $token_types;
-		
-		// Token values
-		if(null != $worklist) {
-			$token_values['_loaded'] = true;
-			$token_values['_label'] = 'Worklist'; //$worklist->name;
-			$token_values['context'] = $worklist->context;
-			$token_values['id'] = $worklist->id;
-			$token_values['pos'] = $worklist->list_pos;
-			$token_values['tab_id'] = $worklist->workspace_tab_id;
-			
-			// Custom fields
-			$token_values = $this->_importModelCustomFieldsAsValues($worklist, $token_values);
-		}
-		
-		// Tab
-		$merge_token_labels = [];
-		$merge_token_values = [];
-		CerberusContexts::getContext(CerberusContexts::CONTEXT_WORKSPACE_TAB, null, $merge_token_labels, $merge_token_values, '', true);
-
-		CerberusContexts::merge(
-			'tab_',
-			$prefix.'Tab:',
-			$merge_token_labels,
-			$merge_token_values,
-			$token_labels,
-			$token_values
-		);
-		
-		return true;
-	}
-	
-	function getKeyToDaoFieldMap() {
-		return [
-			'context' => DAO_WorkspaceList::CONTEXT,
-			'id' => DAO_WorkspaceList::ID,
-			'links' => '_links',
-			'pos' => DAO_WorkspaceList::LIST_POS,
-			'tab_id' => DAO_WorkspaceList::WORKSPACE_TAB_ID,
-		];
-	}
-	
-	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
-		$dict_key = DevblocksPlatform::strLower($key);
-		switch($dict_key) {
-			case 'links':
-				$this->_getDaoFieldsLinks($value, $out_fields, $error);
-				break;
-			
-			case 'view':
-				if(!is_array($value)) {
-					$error = 'must be an object.';
-					return false;
-				}
-				
-				if(!isset($value['title'])) {
-					$error = "is missing the 'title' key.";
-					return false;
-				}
-				
-				if(!isset($value['model'])) {
-					$error = "is missing the 'model' key.";
-					return false;
-				}
-				
-				if(false == (@$view = C4_AbstractViewLoader::unserializeViewFromAbstractJson($value['model'], ''))) {
-					$error = 'is not a valid worklist.';
-					return false;
-				}
-				
-				// Build the list model
-				$list = new Model_WorkspaceListView();
-				$list->title = $value['title'];
-				$list->options = $view->options;
-				$list->columns = $view->view_columns;
-				$list->params = $view->getEditableParams();
-				$list->params_required = $view->getParamsRequired();
-				$list->num_rows = $view->renderLimit;
-				$list->sort_by = $view->renderSortBy;
-				$list->sort_asc = $view->renderSortAsc;
-				$list->subtotals = $view->renderSubtotals;
-
-				// [TODO] Nasty serialization
-				$out_fields[DAO_WorkspaceList::LIST_VIEW] = serialize($list);
-				break;
-		}
-		
-		return true;
-	}
-	
-	function lazyLoadContextValues($token, $dictionary) {
-		if(!isset($dictionary['id']))
-			return;
-		
-		$context = CerberusContexts::CONTEXT_WORKSPACE_WORKLIST;
-		$context_id = $dictionary['id'];
-		
-		@$is_loaded = $dictionary['_loaded'];
-		$values = array();
-		
-		if(!$is_loaded) {
-			$labels = array();
-			CerberusContexts::getContext($context, $context_id, $labels, $values, null, true, false);
-		}
-		
-		switch($token) {
-			/*
-			case 'data':
-				$values = $dictionary;
-				
-				if(null == ($widget = DAO_WorkspaceWidget::get($context_id)))
-					break;
-				
-				$widget_ext = Extension_WorkspaceWidget::get($dictionary['extension_id']);
-
-				$values['data'] = false;
-				
-				if(!($widget_ext instanceof ICerbWorkspaceWidget_ExportData))
-					break;
-
-				$json = json_decode($widget_ext->exportData($widget, 'json'), true);
-
-				if(!is_array($json))
-					break;
-				
-				// Remove redundant data
-				if(isset($json['widget'])) {
-					unset($json['widget']['label']);
-					unset($json['widget']['version']);
-				}
-				
-				$values['data'] = isset($json['widget']) ? $json['widget'] : $json;
-				break;
-			*/
-				
-			case 'links':
-				$links = $this->_lazyLoadLinks($context, $context_id);
-				$values = array_merge($values, $links);
-				break;
-			
-			default:
-				if(DevblocksPlatform::strStartsWith($token, 'custom_')) {
-					$fields = $this->_lazyLoadCustomFields($token, $context, $context_id);
-					$values = array_merge($values, $fields);
-				}
-				break;
-		}
-		
-		return $values;
-	}
-
-	function getChooserView($view_id=null) {
-		if(empty($view_id))
-			$view_id = 'chooser_'.str_replace('.','_',$this->id).time().mt_rand(0,9999);
-		
-		// View
-		$defaults = C4_AbstractViewModel::loadFromClass($this->getViewClass());
-		$defaults->id = $view_id;
-		$defaults->is_ephemeral = true;
-		
-		$view = C4_AbstractViewLoader::getView($view_id, $defaults);
-		$view->name = 'Worklists';
-		//$view->renderSortBy = SearchFields_WorkspaceList::ID; // [TODO]
-		$view->renderSortAsc = true;
-		$view->renderLimit = 10;
-		$view->renderFilters = false;
-		$view->renderTemplate = 'contextlinks_chooser';
-		
-		return $view;
-	}
-	
-	function getView($context=null, $context_id=null, $options=array(), $view_id=null) {
-		$view_id = !empty($view_id) ? $view_id : str_replace('.','_',$this->id);
-		
-		$defaults = C4_AbstractViewModel::loadFromClass($this->getViewClass());
-		$defaults->id = $view_id;
-
-		$view = C4_AbstractViewLoader::getView($view_id, $defaults);
-		$view->name = 'Worklists';
-		
-		$params_req = array();
-		
-		/*
-		if(!empty($context) && !empty($context_id)) {
-			$params_req = array(
-				new DevblocksSearchCriteria(SearchFields_WorkspaceList::CONTEXT_LINK,'=',$context),
-				new DevblocksSearchCriteria(SearchFields_WorkspaceList::CONTEXT_LINK_ID,'=',$context_id),
 			);
 		}
 		

@@ -8,7 +8,7 @@ class ExamplePage extends CerberusPageExtension {
 	}
 	
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$translate = DevblocksPlatform::getTranslationService();
 		
 		$response = DevblocksPlatform::getHttpResponse();

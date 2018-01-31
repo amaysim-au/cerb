@@ -26,7 +26,7 @@ class PageSection_InternalWatchers extends Extension_PageSection {
 		@$bucket_id = DevblocksPlatform::importGPC($_REQUEST['bucket_id'], 'integer', 0);
 		@$full = DevblocksPlatform::importGPC($_REQUEST['full'], 'integer', 0);
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('context', $context);
 		$tpl->assign('context_id', $context_id);

@@ -17,10 +17,9 @@
 
 class PageSection_ProfilesCalendarEvent extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$request = DevblocksPlatform::getHttpRequest();
 		
-		$context = CerberusContexts::CONTEXT_CALENDAR_EVENT;
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		$stack = $request->path;
@@ -32,13 +31,6 @@ class PageSection_ProfilesCalendarEvent extends Extension_PageSection {
 			return;
 		
 		$tpl->assign('event', $event);
-		
-		// Dictionary
-		$labels = array();
-		$values = array();
-		CerberusContexts::getContext($context, $event, $labels, $values, '', true, false);
-		$dict = DevblocksDictionaryDelegate::instance($values);
-		$tpl->assign('dict', $dict);
 
 		// Remember the last tab/URL
 		
@@ -78,26 +70,26 @@ class PageSection_ProfilesCalendarEvent extends Extension_PageSection {
 
 		// Custom Fields
 
-		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds($context, $event->id)) or array();
+		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_CALENDAR_EVENT, $event->id)) or array();
 		$tpl->assign('custom_field_values', $values);
 		
-		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields($context, $values);
+		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields(CerberusContexts::CONTEXT_CALENDAR_EVENT, $values);
 		
 		if(!empty($properties_cfields))
 			$properties = array_merge($properties, $properties_cfields);
 		
 		// Custom Fieldsets
 
-		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets($context, $event->id, $values);
+		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets(CerberusContexts::CONTEXT_CALENDAR_EVENT, $event->id, $values);
 		$tpl->assign('properties_custom_fieldsets', $properties_custom_fieldsets);
 		
 		// Link counts
 		
 		$properties_links = array(
-			$context => array(
+			CerberusContexts::CONTEXT_CALENDAR_EVENT => array(
 				$event->id => 
 					DAO_ContextLink::getContextLinkCounts(
-						$context,
+						CerberusContexts::CONTEXT_CALENDAR_EVENT,
 						$event->id,
 						array(CerberusContexts::CONTEXT_CUSTOM_FIELDSET)
 					),
@@ -121,14 +113,17 @@ class PageSection_ProfilesCalendarEvent extends Extension_PageSection {
 		
 		$tpl->assign('properties', $properties);
 		
-		// Tabs
-		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, $context);
-		$tpl->assign('tab_manifests', $tab_manifests);
+		// Macros
 		
-		// Interactions
-		$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
-		$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
-		$tpl->assign('interactions_menu', $interactions_menu);
+		$macros = DAO_TriggerEvent::getReadableByActor(
+			$active_worker,
+			'event.macro.calendar_event'
+		);
+		$tpl->assign('macros', $macros);
+
+		// Tabs
+		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_CALENDAR_EVENT);
+		$tpl->assign('tab_manifests', $tab_manifests);
 		
 		// Template
 		$tpl->display('devblocks:cerberusweb.core::profiles/calendar_event.tpl');
@@ -153,9 +148,7 @@ class PageSection_ProfilesCalendarEvent extends Extension_PageSection {
 		try {
 			// Delete
 			if(!empty($do_delete) && !empty($event_id)) {
-				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_CALENDAR_EVENT)))
-					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
-				
+				// [TODO] Check ACL
 				DAO_CalendarEvent::delete($event_id);
 				
 				echo json_encode(array(
@@ -186,23 +179,25 @@ class PageSection_ProfilesCalendarEvent extends Extension_PageSection {
 			
 			// Fields
 			
+			if(empty($name))
+				throw new Exception_DevblocksAjaxValidationError("The 'Name:' is required.", 'name');
+			
+			if(empty($date_start))
+				throw new Exception_DevblocksAjaxValidationError("The 'Start Time:' is required.", 'date_start');
+			
 			$fields = array(
 				DAO_CalendarEvent::NAME => $name,
 				DAO_CalendarEvent::DATE_START => $timestamp_start,
 				DAO_CalendarEvent::DATE_END => $timestamp_end,
 				DAO_CalendarEvent::IS_AVAILABLE => (!empty($is_available)) ? 1 : 0,
-				DAO_CalendarEvent::CALENDAR_ID => $calendar_id,
 			);
 			
 			if(empty($event_id)) {
-				if(!DAO_CalendarEvent::validate($fields, $error))
-					throw new Exception_DevblocksAjaxValidationError($error);
+				if(empty($calendar_id))
+					throw new Exception_DevblocksAjaxValidationError("The 'Calendar:' is required.", 'calendar_id');
 				
-				if(!DAO_CalendarEvent::onBeforeUpdateByActor($active_worker, $fields, null, $error))
-					throw new Exception_DevblocksAjaxValidationError($error);
-				
+				$fields[DAO_CalendarEvent::CALENDAR_ID] = $calendar_id;
 				$event_id = DAO_CalendarEvent::create($fields);
-				DAO_CalendarEvent::onUpdateByActor($active_worker, $fields, $event_id);
 				
 				// View marquee
 				if(!empty($event_id) && !empty($view_id)) {
@@ -215,16 +210,8 @@ class PageSection_ProfilesCalendarEvent extends Extension_PageSection {
 				
 				$changed_fields = Cerb_ORMHelper::uniqueFields($fields, $calendar_event);
 				
-				if(!DAO_CalendarEvent::validate($changed_fields, $error, $event_id))
-					throw new Exception_DevblocksAjaxValidationError($error);
-				
-				if(!DAO_CalendarEvent::onBeforeUpdateByActor($active_worker, $fields, $event_id, $error))
-					throw new Exception_DevblocksAjaxValidationError($error);
-				
-				if(!empty($changed_fields)) {
+				if(!empty($changed_fields))
 					DAO_CalendarEvent::update($event_id, $changed_fields);
-					DAO_CalendarEvent::onUpdateByActor($active_worker, $fields, $event_id);
-				}
 			}
 			
 			// Custom fields

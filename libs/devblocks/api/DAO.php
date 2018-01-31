@@ -7,249 +7,6 @@ abstract class DevblocksORMHelper {
 	const OPT_UPDATE_NO_EVENTS = 2;
 	const OPT_UPDATE_NO_READ_AFTER_WRITE = 4;
 	
-	/**
-	 * @abstract
-	 * @param mixed $actor
-	 * @param array $fields
-	 * @param integer $id
-	 * @param string $error
-	 * @return boolean
-	 */
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		return true;
-	}
-	
-	static protected function _onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, &$error) {
-		if(!($actor instanceof DevblocksDictionaryDelegate))
-			if(false == ($actor = CerberusContexts::polymorphActorToDictionary($actor, true))) // false=undelegate
-				return false;
-		
-		switch($actor->_context) {
-			case CerberusContexts::CONTEXT_APPLICATION:
-				return true;
-				break;
-				
-			case CerberusContexts::CONTEXT_BOT:
-				return true;
-				break;
-				
-			case CerberusContexts::CONTEXT_ROLE:
-				return true;
-				break;
-				
-			case CerberusContexts::CONTEXT_GROUP:
-				return false;
-				break;
-				
-			case CerberusContexts::CONTEXT_WORKER:
-				if(false == ($worker = DAO_Worker::get($actor->id)))
-					return false;
-				
-				// Create
-				if($id) {
-					if(!$worker->hasPriv(sprintf("contexts.%s.update", $context))) {
-						$error = DevblocksPlatform::translate('error.core.no_acl.edit');
-						return false;
-					}
-					
-				// Update
-				} else {
-					if(!$worker->hasPriv(sprintf("contexts.%s.create", $context))) {
-						$error = DevblocksPlatform::translate('error.core.no_acl.create');
-						return false;
-					}
-				}
-				
-				return true;
-				break;
-		}
-		
-		return false;
-	}
-	
-	/**
-	 * @abstract
-	 * @param array $fields
-	 * @param integer $id
-	 */
-	static public function onUpdateByActor($actor, $fields, $id) {
-		return;
-	}
-	
-	static public function validate(array &$fields, &$error=null, $id=null, array $excludes=[]) {
-		if(!method_exists(get_called_class(), 'getFields'))
-			return false;
-		
-		$validation = DevblocksPlatform::services()->validation();
-		$valid_fields = get_called_class()::getFields();
-		
-		// Check required fields on creation
-		if(is_array($valid_fields) && !$id)
-		foreach($valid_fields as $field_key => $field) {
-			if($field->_type->isRequired()) {
-				if(!isset($fields[$field_key]) || 0 == strlen($fields[$field_key])) {
-					$error = sprintf("'%s' is required.", $field_key);
-					return false;
-				}
-			}
-		}
-		
-		if(is_array($fields))
-		foreach($fields as $field_key => &$value) {
-			// Bypass
-			if(in_array($field_key, $excludes))
-				continue;
-			
-			if(false == (@$field = $valid_fields[$field_key])) { /* @var $field _DevblocksValidationField */
-				$error = sprintf("'%s' is not a valid field.", $field_key);
-				return false;
-			}
-			
-			try {
-				$validation->validate($field, $value, ['id' => $id]);
-				
-			} catch (Exception_DevblocksValidationError $e) {
-				$error = $e->getMessage();
-				return false;
-			}
-		}
-		
-		return true;
-	}
-	
-	static function validateCustomFields(array &$fields, $context, &$error=null, $id=null) {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		$custom_fields = DAO_CustomField::getByContext($context);
-		
-		if(is_array($custom_fields))
-		foreach($custom_fields as $field_id => $custom_field) {
-			switch($custom_field->type) {
-				case Model_CustomField::TYPE_CHECKBOX:
-					$validation
-						->addField($field_id)
-						->number()
-						->setMin(0)
-						->setMax(1)
-						;
-					break;
-				case Model_CustomField::TYPE_DATE:
-					$validation
-						->addField($field_id)
-						->timestamp()
-						->setMin(0)
-						->setMax('32 bits')
-						;
-					break;
-				case Model_CustomField::TYPE_DROPDOWN:
-					$options = $custom_field->params['options'];
-					$validation
-						->addField($field_id)
-						->string()
-						->setMaxLength(255)
-						->setPossibleValues(is_array($options) ? $options : [])
-						;
-					break;
-				case Model_CustomField::TYPE_FILE:
-					$validation
-						->addField($field_id)
-						->number()
-						->setMin(0)
-						->setMax('32 bits')
-					;
-					break;
-				case Model_CustomField::TYPE_FILES:
-					$validation
-						->addField($field_id)
-						->idArray()
-						->addFormatter($validation->validators()->contextIds(CerberusContexts::CONTEXT_ATTACHMENT, true))
-					;
-					break;
-				case Model_CustomField::TYPE_LINK:
-					@$link_context = $custom_field->params['context'];
-					
-					$validation
-						->addField($field_id)
-						->id()
-						->addFormatter($validation->validators()->contextId($link_context, true))
-					;
-					break;
-				case Model_CustomField::TYPE_LIST:
-					$validation
-						->addField($field_id)
-						->stringOrArray()
-						->setMaxLength(255)
-						;
-					break;
-				case Model_CustomField::TYPE_MULTI_CHECKBOX:
-					$options = $custom_field->params['options'];
-					$validation
-						->addField($field_id)
-						->stringOrArray()
-						->setPossibleValues(is_array($options) ? $options : [])
-						;
-					break;
-				case Model_CustomField::TYPE_MULTI_LINE:
-					$validation
-						->addField($field_id)
-						->string()
-						->setMaxLength(16777215)
-					;
-					break;
-				case Model_CustomField::TYPE_NUMBER:
-					$validation
-						->addField($field_id)
-						->number()
-						->setMin(0)
-						->setMax('32 bits')
-					;
-					break;
-				case Model_CustomField::TYPE_SINGLE_LINE:
-					$validation
-						->addField($field_id)
-						->string()
-						->setMaxLength(255)
-					;
-					break;
-				case Model_CustomField::TYPE_URL:
-					$validation
-						->addField($field_id)
-						->string()
-						->setMaxLength(255)
-					;
-					break;
-				case Model_CustomField::TYPE_WORKER:
-					$validation
-						->addField($field_id)
-						->number()
-						->setMin(0)
-						->setMax('32 bits') // [TODO] Check ref against 0|worker.id
-					;
-					break;
-			}
-		}
-		
-		$valid_fields = $validation->getFields();
-		
-		if(is_array($fields))
-		foreach($fields as $field_key => $value) {
-			if(false == (@$field = $valid_fields[$field_key])) { /* @var $field _DevblocksValidationField */
-				$error = sprintf("'%s' is not a valid custom field.", $field_key);
-				return false;
-			}
-			
-			try {
-				$validation->validate($field, $value, ['id' => $id]);
-				
-			} catch (Exception_DevblocksValidationError $e) {
-				$error = $e->getMessage();
-				return false;
-			}
-		}
-		
-		return true;
-	}
-	
 	static protected function _buildSortClause($sortBy, $sortAsc, $fields, &$select_sql, $search_class=null) {
 		$sort_sql = null;
 		
@@ -353,7 +110,7 @@ abstract class DevblocksORMHelper {
 	 * @param array $fields
 	 */
 	static protected function _insert($table, $fields, $idcol='id') {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(!is_array($fields) || empty($fields))
 			return;
@@ -383,7 +140,7 @@ abstract class DevblocksORMHelper {
 		if(!is_array($ids))
 			$ids = array($ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$sets = array();
 		
 		if(!is_array($fields) || empty($fields) || empty($ids))
@@ -413,7 +170,7 @@ abstract class DevblocksORMHelper {
 	}
 	
 	static protected function _updateWhere($table, $fields, $where) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$sets = array();
 		
 		if(!is_array($fields) || empty($fields) || empty($where))
@@ -430,7 +187,7 @@ abstract class DevblocksORMHelper {
 				$value
 			);
 		}
-		
+			
 		$sql = sprintf("UPDATE %s SET %s WHERE %s",
 			$table,
 			implode(', ', $sets),
@@ -439,40 +196,8 @@ abstract class DevblocksORMHelper {
 		$db->ExecuteMaster($sql);
 	}
 	
-	static protected function _updateAbstract($context, $ids, array &$fields) {
-		if(!is_array($ids))
-			$ids = [$ids];
-		
-		if(!isset($fields['_links']))
-			return;
-		
-		$links_json = $fields['_links'];
-		unset($fields['_links']);
-		
-		if(false == (@$links = json_decode($links_json)))
-			return;
-		
-		if(is_array($links))
-		foreach($links as $link) {
-			$link_context = $link_id = null;
-			
-			if(!is_string($link))
-				continue;
-			
-			@list($link_context, $link_id) = explode(':', $link, 2);
-			
-			if(false == ($link_context_ext = Extension_DevblocksContext::getByAlias($link_context, false)))
-				continue;
-			
-			if(is_array($ids)) {
-				foreach($ids as $id)
-					DAO_ContextLink::setLink($link_context_ext->id, $link_id, $context, $id);
-			}
-		}
-	}
-	
 	static protected function _parseSearchParams($params, $columns=array(), $search_class, $sortBy='') {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(!class_exists($search_class) || !class_implements($search_class, 'DevblocksSearchFields'))
 			return false;
@@ -480,9 +205,9 @@ abstract class DevblocksORMHelper {
 		$pkey = $search_class::getPrimaryKey();
 		$fields = $search_class::getFields();
 		
-		$tables = [];
-		$selects = [];
-		$wheres = [];
+		$tables = array();
+		$selects = array();
+		$wheres = array();
 		
 		// Sort By
 		if(!empty($sortBy)) {
@@ -597,10 +322,8 @@ abstract class DevblocksORMHelper {
 };
 
 class DAO_Platform extends DevblocksORMHelper {
-	private function __construct() {}
-	
 	static function cleanupPluginTables() {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$prefix = (APP_DB_PREFIX != '') ? APP_DB_PREFIX.'_' : ''; // [TODO] Cleanup
 
 		/*
@@ -628,8 +351,8 @@ class DAO_Platform extends DevblocksORMHelper {
 	}
 	
 	static function maint() {
-		$db = DevblocksPlatform::services()->database();
-		$logger = DevblocksPlatform::services()->log();
+		$db = DevblocksPlatform::getDatabaseService();
+		$logger = DevblocksPlatform::getConsoleLog();
 		
 		$prefix = (APP_DB_PREFIX != '') ? APP_DB_PREFIX.'_' : ''; // [TODO] Cleanup
 		
@@ -641,7 +364,7 @@ class DAO_Platform extends DevblocksORMHelper {
 	}
 	
 	static function updatePlugin($id, $fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$prefix = (APP_DB_PREFIX != '') ? APP_DB_PREFIX.'_' : ''; // [TODO] Cleanup
 		$sets = array();
 		
@@ -664,7 +387,7 @@ class DAO_Platform extends DevblocksORMHelper {
 	}
 	
 	static function deleteExtension($extension_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$prefix = (APP_DB_PREFIX != '') ? APP_DB_PREFIX.'_' : ''; // [TODO] Cleanup
 		
 		// Nuke cached extension manifest
@@ -692,7 +415,7 @@ class DAO_Platform extends DevblocksORMHelper {
 		if(empty($tables))
 			return false;
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$prefix = (APP_DB_PREFIX != '') ? APP_DB_PREFIX.'_' : ''; // [TODO] Cleanup
 		
 		// [JAS]: [TODO] Does the GTE below do what we need with the primary key mucking up redundant patches?
@@ -703,8 +426,8 @@ class DAO_Platform extends DevblocksORMHelper {
 		);
 		
 		if($db->GetOneMaster($sql))
-			return true;
-			
+			 return true;
+			 
 		return false;
 	}
 	
@@ -713,7 +436,7 @@ class DAO_Platform extends DevblocksORMHelper {
 	 * @param integer $revision
 	 */
 	static function setPatchRan($plugin_id,$revision) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$prefix = (APP_DB_PREFIX != '') ? APP_DB_PREFIX.'_' : ''; // [TODO] Cleanup
 		
 		$sql = sprintf("REPLACE INTO ${prefix}patch_history (plugin_id, revision, run_date) ".
@@ -726,7 +449,7 @@ class DAO_Platform extends DevblocksORMHelper {
 	}
 	
 	static function getClassLoaderMap() {
-		if(null == ($db = DevblocksPlatform::services()->database()))
+		if(null == ($db = DevblocksPlatform::getDatabaseService()))
 			return array();
 
 		if(DevblocksPlatform::isDatabaseEmpty())
@@ -764,39 +487,8 @@ class DAO_Platform extends DevblocksORMHelper {
 };
 
 class DAO_DevblocksSetting extends DevblocksORMHelper {
-	const PLUGIN_ID = 'plugin_id';
-	const SETTING = 'setting';
-	const VALUE = 'value';
-	
-	private function __construct() {}
-
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// varchar(128)
-		$validation
-			->addField(self::PLUGIN_ID)
-			->string()
-			->setMaxLength(128)
-			;
-		// varchar(128)
-		$validation
-			->addField(self::SETTING)
-			->string()
-			->setMaxLength(128)
-			;
-		// text
-		$validation
-			->addField(self::VALUE)
-			->string()
-			->setMaxLength(65535)
-			;
-		
-		return $validation->getFields();
-	}
-	
 	static function set($plugin_id, $key, $value) {
-		if(false == ($db = DevblocksPlatform::services()->database()))
+		if(false == ($db = DevblocksPlatform::getDatabaseService()))
 			return;
 		
 		$db->ExecuteMaster(sprintf(
@@ -812,7 +504,7 @@ class DAO_DevblocksSetting extends DevblocksORMHelper {
 	static function getSettings($plugin_id) {
 		$tables = DevblocksPlatform::getDatabaseTables();
 		
-		if(false == ($db = DevblocksPlatform::services()->database()))
+		if(false == ($db = DevblocksPlatform::getDatabaseService()))
 			return;
 		
 		$settings = array();
@@ -833,7 +525,7 @@ class DAO_DevblocksSetting extends DevblocksORMHelper {
 	}
 	
 	static function delete($plugin_id, array $keys=[]) {
-		if(false == ($db = DevblocksPlatform::services()->database()))
+		if(false == ($db = DevblocksPlatform::getDatabaseService()))
 			return;
 		
 		return $db->ExecuteMaster(sprintf("DELETE FROM devblocks_setting WHERE plugin_id = %s AND setting IN (%s)",
@@ -848,33 +540,6 @@ class DAO_DevblocksExtensionPropertyStore extends DevblocksORMHelper {
 	const PROPERTY = 'property';
 	const VALUE = 'value';
 	
-	private function __construct() {}
-
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// varchar(128)
-		$validation
-			->addField(self::EXTENSION_ID)
-			->string()
-			->setMaxLength(128)
-			;
-		// varchar(128)
-		$validation
-			->addField(self::PROPERTY)
-			->string()
-			->setMaxLength(128)
-			;
-		// text
-		$validation
-			->addField(self::VALUE)
-			->string()
-			->setMaxLength(65535)
-			;
-
-		return $validation->getFields();
-	}
-	
 	static private function _getCacheKey($extension_id) {
 		return sprintf("devblocks:ext:%s:params",
 			DevblocksPlatform::strAlphaNum($extension_id, '_.')
@@ -883,10 +548,10 @@ class DAO_DevblocksExtensionPropertyStore extends DevblocksORMHelper {
 	
 	static function getAll() {
 		$extensions = DevblocksPlatform::getExtensionRegistry();
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		if(null == ($params = $cache->load(self::_CACHE_ALL))) {
-			$db = DevblocksPlatform::services()->database();
+			$db = DevblocksPlatform::getDatabaseService();
 			$prefix = (APP_DB_PREFIX != '') ? APP_DB_PREFIX.'_' : ''; // [TODO] Cleanup
 			$params = array();
 			
@@ -917,11 +582,11 @@ class DAO_DevblocksExtensionPropertyStore extends DevblocksORMHelper {
 	}
 	
 	static function getByExtension($extension_id) {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache_key = self::_getCacheKey($extension_id);
 		
 		if(null === ($params = $cache->load($cache_key))) {
-			$db = DevblocksPlatform::services()->database();
+			$db = DevblocksPlatform::getDatabaseService();
 			$prefix = (APP_DB_PREFIX != '') ? APP_DB_PREFIX.'_' : ''; // [TODO] Cleanup
 			$params = array();
 			
@@ -955,7 +620,7 @@ class DAO_DevblocksExtensionPropertyStore extends DevblocksORMHelper {
 	}
 	
 	static function put($extension_id, $key, $value) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$prefix = (APP_DB_PREFIX != '') ? APP_DB_PREFIX.'_' : ''; // [TODO] Cleanup
 		$cache_key = self::_getCacheKey($extension_id);
 
@@ -967,7 +632,7 @@ class DAO_DevblocksExtensionPropertyStore extends DevblocksORMHelper {
 			$db->qstr($value)
 		));
 
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache->remove($cache_key);
 		return true;
 	}
@@ -975,52 +640,13 @@ class DAO_DevblocksExtensionPropertyStore extends DevblocksORMHelper {
 
 class DAO_Translation extends DevblocksORMHelper {
 	const ID = 'id';
+	const STRING_ID = 'string_id';
 	const LANG_CODE = 'lang_code';
 	const STRING_DEFAULT = 'string_default';
-	const STRING_ID = 'string_id';
 	const STRING_OVERRIDE = 'string_override';
-	
-	private function __construct() {}
 
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// int(10) unsigned
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		// varchar(16)
-		$validation
-			->addField(self::LANG_CODE)
-			->string()
-			->setMaxLength(16)
-			;
-		// text
-		$validation
-			->addField(self::STRING_DEFAULT)
-			->string()
-			->setMaxLength(65535)
-			;
-		// varchar(255)
-		$validation
-			->addField(self::STRING_ID)
-			->string()
-			->setMaxLength(255)
-			;
-		// text
-		$validation
-			->addField(self::STRING_OVERRIDE)
-			->string()
-			->setMaxLength(65535)
-			;
-
-		return $validation->getFields();
-	}
-	
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("INSERT INTO translation () ".
 			"VALUES ()"
@@ -1039,10 +665,10 @@ class DAO_Translation extends DevblocksORMHelper {
 	
 	/**
 	 * @param string $where
-	 * @return Model_Translation[]
+	 * @return Model_TranslationDefault[]
 	 */
 	static function getWhere($where=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "SELECT id, string_id, lang_code, string_default, string_override ".
 			"FROM translation ".
@@ -1055,8 +681,7 @@ class DAO_Translation extends DevblocksORMHelper {
 
 	/**
 	 * @param integer $id
-	 * @return Model_Translation
-	 */
+	 * @return Model_TranslationDefault	 */
 	static function get($id) {
 		if(empty($id))
 			return null;
@@ -1073,7 +698,7 @@ class DAO_Translation extends DevblocksORMHelper {
 	}
 	
 	static function importTmxFile($filename) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(!file_exists($filename))
 			return;
@@ -1151,7 +776,7 @@ class DAO_Translation extends DevblocksORMHelper {
 	}
 	
 	static function getDefinedLangCodes() {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$translate = DevblocksPlatform::getTranslationService();
 		
 		$lang_codes = array();
@@ -1181,7 +806,7 @@ class DAO_Translation extends DevblocksORMHelper {
 	}
 	
 	static function getByLang($lang='en_US') {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		return self::getWhere(sprintf("%s = %s",
 			self::LANG_CODE,
@@ -1204,7 +829,7 @@ class DAO_Translation extends DevblocksORMHelper {
 	
 	// [TODO] Allow null 2nd arg for all instances of a given string?
 	static function getString($string_id, $lang='en_US') {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$objects = self::getWhere(sprintf("%s = %s AND %s = %s",
 			self::STRING_ID,
@@ -1221,7 +846,7 @@ class DAO_Translation extends DevblocksORMHelper {
 	
 	/**
 	 * @param resource $rs
-	 * @return Model_Translation[]
+	 * @return Model_TranslationDefault[]
 	 */
 	static private function _getObjectsFromResult($rs) {
 		$objects = array();
@@ -1244,7 +869,7 @@ class DAO_Translation extends DevblocksORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -1258,7 +883,7 @@ class DAO_Translation extends DevblocksORMHelper {
 	
 	static function deleteByLangCodes($codes) {
 		if(!is_array($codes)) $codes = array($codes);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$codes_list = implode("','", $codes);
 		
@@ -1283,7 +908,7 @@ class DAO_Translation extends DevblocksORMHelper {
 				SearchFields_Translation::LANG_CODE,
 				SearchFields_Translation::STRING_DEFAULT,
 				SearchFields_Translation::STRING_OVERRIDE
-			);
+			 );
 		
 		$join_sql =
 			"FROM translation tl ";
@@ -1316,7 +941,7 @@ class DAO_Translation extends DevblocksORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -1413,51 +1038,14 @@ class SearchFields_Translation extends DevblocksSearchFields {
 };
 
 class DAO_DevblocksStorageQueue extends DevblocksORMHelper {
-	const STORAGE_EXTENSION = 'storage_extension';
-	const STORAGE_KEY = 'storage_key';
-	const STORAGE_NAMESPACE = 'storage_namespace';
-	const STORAGE_PROFILE_ID = 'storage_profile_id';
-	
-	private function __construct() {}
-
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// varchar(128)
-		$validation
-			->addField(self::STORAGE_EXTENSION)
-			->string()
-			->setMaxLength(128)
-			;
-		// varchar(255)
-		$validation
-			->addField(self::STORAGE_KEY)
-			->string()
-			->setMaxLength(255)
-			;
-		// varchar(64)
-		$validation
-			->addField(self::STORAGE_NAMESPACE)
-			->string()
-			->setMaxLength(64)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::STORAGE_PROFILE_ID)
-			->id()
-			;
-
-		return $validation->getFields();
-	}
-	
 	static function getPendingProfiles() {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		return $db->GetArrayMaster("SELECT DISTINCT storage_extension, storage_profile_id, storage_namespace FROM devblocks_storage_queue_delete");
 	}
 	
 	static function getKeys($storage_namespace, $storage_extension, $storage_profile_id=0, $limit=500) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$keys = $db->GetArrayMaster(sprintf("SELECT storage_key FROM devblocks_storage_queue_delete WHERE storage_namespace = %s AND storage_extension = %s AND storage_profile_id = %d LIMIT %d",
 			$db->qstr($storage_namespace),
@@ -1472,7 +1060,7 @@ class DAO_DevblocksStorageQueue extends DevblocksORMHelper {
 	}
 	
 	static function enqueueDelete($storage_namespace, $storage_key, $storage_extension, $storage_profile_id=0) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$db->ExecuteMaster(sprintf("INSERT IGNORE INTO devblocks_storage_queue_delete (storage_namespace, storage_key, storage_extension, storage_profile_id) ".
 			"VALUES (%s, %s, %s, %d)",
@@ -1486,7 +1074,7 @@ class DAO_DevblocksStorageQueue extends DevblocksORMHelper {
 	}
 	
 	static function purgeKeys($keys, $storage_namespace, $storage_extension, $storage_profile_id=0) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$escaped_keys = array_map(function($e) use ($db) {
 			return $db->qstr($e);
@@ -1504,46 +1092,13 @@ class DAO_DevblocksStorageQueue extends DevblocksORMHelper {
 };
 
 class DAO_DevblocksStorageProfile extends DevblocksORMHelper {
-	const EXTENSION_ID = 'extension_id';
 	const ID = 'id';
 	const NAME = 'name';
+	const EXTENSION_ID = 'extension_id';
 	const PARAMS_JSON = 'params_json';
-	
-	private function __construct() {}
 
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// varchar(255)
-		$validation
-			->addField(self::EXTENSION_ID)
-			->string()
-			->setMaxLength(255)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		// varchar(128)
-		$validation
-			->addField(self::NAME)
-			->string()
-			->setMaxLength(128)
-			;
-		// longtext
-		$validation
-			->addField(self::PARAMS_JSON)
-			->string()
-			->setMaxLength('32 bits')
-			;
-
-		return $validation->getFields();
-	}
-	
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("INSERT INTO devblocks_storage_profile () ".
 			"VALUES ()"
@@ -1567,7 +1122,7 @@ class DAO_DevblocksStorageProfile extends DevblocksORMHelper {
 	}
 	
 	static function getAll() {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		if(null === ($profiles = $cache->load(DevblocksPlatform::CACHE_STORAGE_PROFILES))) {
 			$profiles = self::getWhere();
@@ -1582,7 +1137,7 @@ class DAO_DevblocksStorageProfile extends DevblocksORMHelper {
 	}
 	
 	static private function _clearCache() {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache->remove(DevblocksPlatform::CACHE_STORAGE_PROFILES);
 	}
 	
@@ -1591,7 +1146,7 @@ class DAO_DevblocksStorageProfile extends DevblocksORMHelper {
 	 * @return Model_DevblocksStorageProfile[]
 	 */
 	static function getWhere($where=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "SELECT id, name, extension_id, params_json ".
 			"FROM devblocks_storage_profile ".
@@ -1658,7 +1213,7 @@ class DAO_DevblocksStorageProfile extends DevblocksORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -1719,7 +1274,7 @@ class DAO_DevblocksStorageProfile extends DevblocksORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);

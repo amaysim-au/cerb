@@ -16,154 +16,24 @@
 ***********************************************************************/
 
 class DAO_Message extends Cerb_ORMHelper {
-	const ADDRESS_ID = 'address_id';
-	const CREATED_DATE = 'created_date';
-	const HASH_HEADER_MESSAGE_ID = 'hash_header_message_id';
-	const HTML_ATTACHMENT_ID = 'html_attachment_id';
 	const ID = 'id';
+	const TICKET_ID = 'ticket_id';
+	const CREATED_DATE = 'created_date';
+	const ADDRESS_ID = 'address_id';
 	const IS_BROADCAST = 'is_broadcast';
-	const IS_NOT_SENT = 'is_not_sent';
 	const IS_OUTGOING = 'is_outgoing';
-	const RESPONSE_TIME = 'response_time';
+	const IS_NOT_SENT = 'is_not_sent';
+	const WORKER_ID = 'worker_id';
+	const HTML_ATTACHMENT_ID = 'html_attachment_id';
 	const STORAGE_EXTENSION = 'storage_extension';
 	const STORAGE_KEY = 'storage_key';
 	const STORAGE_PROFILE_ID = 'storage_profile_id';
 	const STORAGE_SIZE = 'storage_size';
-	const TICKET_ID = 'ticket_id';
-	const WAS_ENCRYPTED = 'was_encrypted';
-	const WAS_SIGNED = 'was_signed';
-	const WORKER_ID = 'worker_id';
-	const _CONTENT = '_content';
-	const _HEADERS = '_headers';
-	
-	private function __construct() {}
+	const RESPONSE_TIME = 'response_time';
+	const HASH_HEADER_MESSAGE_ID = 'hash_header_message_id';
 
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// int(10) unsigned
-		$validation
-			->addField(self::ADDRESS_ID)
-			->id()
-			->setRequired(true)
-			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_ADDRESS))
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::CREATED_DATE)
-			->timestamp()
-			;
-		// varchar(40)
-		$validation
-			->addField(self::HASH_HEADER_MESSAGE_ID)
-			->string()
-			->setMaxLength(40)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::HTML_ATTACHMENT_ID)
-			->id()
-			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_ATTACHMENT, true))
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		// tinyint(3) unsigned
-		$validation
-			->addField(self::IS_BROADCAST)
-			->bit()
-			;
-		// tinyint(3) unsigned
-		$validation
-			->addField(self::IS_NOT_SENT)
-			->bit()
-			;
-		// tinyint(1) unsigned
-		$validation
-			->addField(self::IS_OUTGOING)
-			->bit()
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::RESPONSE_TIME)
-			->uint(4)
-			;
-		// varchar(255)
-		$validation
-			->addField(self::STORAGE_EXTENSION)
-			->string()
-			->setMaxLength(255)
-			;
-		// varchar(255)
-		$validation
-			->addField(self::STORAGE_KEY)
-			->string()
-			->setMaxLength(255)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::STORAGE_PROFILE_ID)
-			->id()
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::STORAGE_SIZE)
-			->uint(4)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::TICKET_ID)
-			->id()
-			->setRequired(true)
-			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_TICKET))
-			;
-		// tinyint(1)
-		$validation
-			->addField(self::WAS_ENCRYPTED)
-			->bit()
-			;
-		// tinyint(1)
-		$validation
-			->addField(self::WAS_SIGNED)
-			->bit()
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::WORKER_ID)
-			->id()
-			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_WORKER, true))
-			;
-		// text
-		$validation
-			->addField(self::_CONTENT)
-			->string()
-			->setMaxLength(16777215)
-			->setRequired(true)
-			;
-		// text
-		$validation
-			->addField(self::_HEADERS)
-			->string()
-			->setMaxLength(16777215)
-			->setRequired(true)
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
-	
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
-		
-		if(!isset($fields[self::CREATED_DATE]))
-			$fields[self::CREATED_DATE] = time();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "INSERT INTO message () VALUES ()";
 		if(false == ($db->ExecuteMaster($sql)))
@@ -178,63 +48,9 @@ class DAO_Message extends Cerb_ORMHelper {
 		
 		return $id;
 	}
-	
-	static function update($ids, $fields) {
-		if(!is_array($ids))
-			$ids = [$ids];
-		
-		$context = CerberusContexts::CONTEXT_MESSAGE;
-		self::_updateAbstract($context, $ids, $fields);
-		
-		if(isset($fields[self::_CONTENT])) {
-			foreach($ids as $id)
-				Storage_MessageContent::put($id, $fields[self::_CONTENT]);
-			unset($fields[self::_CONTENT]);
-		}
-		
-		if(isset($fields[self::_HEADERS])) {
-			foreach($ids as $id)
-				DAO_MessageHeaders::upsert($id, $fields[self::_HEADERS]);
-			unset($fields[self::_HEADERS]);
-		}
-		
-		parent::_update($ids, 'message', $fields);
-	}
-	
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		$context = CerberusContexts::CONTEXT_MESSAGE;
-		
-		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
-			return false;
-		
-		if(!$id && !isset($fields[self::TICKET_ID])) {
-			$error = "A 'ticket_id' is required.";
-			return false;
-		}
-		
-		if(isset($fields[self::TICKET_ID])) {
-			@$ticket_id = $fields[self::TICKET_ID];
-			
-			if(!$ticket_id) {
-				$error = "Invalid 'ticket_id' value.";
-				return false;
-			}
-			
-			if(!Context_Ticket::isWriteableByActor($ticket_id, $actor)) {
-				$error = "You do not have permission to create messages on this ticket.";
-				return false;
-			}
-		}
-		
-		return true;
-	}
-	
-	static function onUpdateByActor($actor, $fields, $id) {
-		@$ticket_id = $fields[self::TICKET_ID];
-		
-		if($ticket_id) {
-			DAO_Ticket::rebuild($ticket_id);
-		}
+
+	static function update($id, $fields) {
+		parent::_update($id, 'message', $fields);
 	}
 
 	/**
@@ -242,12 +58,12 @@ class DAO_Message extends Cerb_ORMHelper {
 	 * @return Model_Message[]
 	 */
 	static function getWhere($where=null, $sortBy='created_date', $sortAsc=true, $limit=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
 		// SQL
-		$sql = "SELECT id, ticket_id, created_date, is_outgoing, worker_id, html_attachment_id, address_id, storage_extension, storage_key, storage_profile_id, storage_size, response_time, is_broadcast, is_not_sent, hash_header_message_id, was_encrypted, was_signed ".
+		$sql = "SELECT id, ticket_id, created_date, is_outgoing, worker_id, html_attachment_id, address_id, storage_extension, storage_key, storage_profile_id, storage_size, response_time, is_broadcast, is_not_sent, hash_header_message_id ".
 			"FROM message ".
 			$where_sql.
 			$sort_sql.
@@ -304,8 +120,6 @@ class DAO_Message extends Cerb_ORMHelper {
 			$object->is_broadcast = intval($row['is_broadcast']);
 			$object->is_not_sent = intval($row['is_not_sent']);
 			$object->hash_header_message_id = $row['hash_header_message_id'];
-			$object->was_encrypted = !empty($row['was_encrypted']) ? 1 : 0;
-			$object->was_signed = !empty($row['was_signed']) ? 1 : 0;
 			$objects[$object->id] = $object;
 		}
 		
@@ -329,7 +143,7 @@ class DAO_Message extends Cerb_ORMHelper {
 	}
 	
 	static function countByTicketId($ticket_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("SELECT count(id) FROM message WHERE ticket_id = %d",
 			$ticket_id
@@ -338,7 +152,7 @@ class DAO_Message extends Cerb_ORMHelper {
 	}
 
 	static function delete($ids) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(!is_array($ids))
 			$ids = array($ids);
@@ -375,7 +189,7 @@ class DAO_Message extends Cerb_ORMHelper {
 		}
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
+		$eventMgr = DevblocksPlatform::getEventService();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -388,8 +202,8 @@ class DAO_Message extends Cerb_ORMHelper {
 	}
 
 	static function maint() {
-		$db = DevblocksPlatform::services()->database();
-		$logger = DevblocksPlatform::services()->log();
+		$db = DevblocksPlatform::getDatabaseService();
+		$logger = DevblocksPlatform::getConsoleLog();
 		$tables = DevblocksPlatform::getDatabaseTables();
 		
 		// Purge message content (storage)
@@ -432,10 +246,6 @@ class DAO_Message extends Cerb_ORMHelper {
 		// Headers
 		$db->ExecuteMaster("DELETE message_headers FROM message_headers INNER JOIN _tmp_maint_message ON (_tmp_maint_message.id=message_headers.message_id)");
 		$logger->info('[Maint] Purged ' . $db->Affected_Rows() . ' message_headers records.');
-		
-		// Attachments
-		$db->ExecuteMaster("DELETE FROM attachment_link WHERE context = 'cerberusweb.contexts.message' AND context_id NOT IN (SELECT id FROM message)");
-		$logger->info('[Maint] Purged ' . $db->Affected_Rows() . ' message attachment_link records.');
 
 		// Search indexes
 		if(isset($tables['fulltext_message_content'])) {
@@ -446,7 +256,7 @@ class DAO_Message extends Cerb_ORMHelper {
 		$db->ExecuteMaster("DROP TABLE _tmp_maint_message");
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
+		$eventMgr = DevblocksPlatform::getEventService();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.maint',
@@ -483,8 +293,11 @@ class DAO_Message extends Cerb_ORMHelper {
 			"m.response_time as %s, ".
 			"m.is_broadcast as %s, ".
 			"m.is_not_sent as %s, ".
-			"m.was_encrypted as %s, ".
-			"m.was_signed as %s ",
+			"t.group_id as %s, ".
+			"t.mask as %s, ".
+			"t.subject as %s, ".
+			"t.status_id as %s, ".
+			"a.email as %s ",
 			SearchFields_Message::ID,
 			SearchFields_Message::ADDRESS_ID,
 			SearchFields_Message::CREATED_DATE,
@@ -499,19 +312,24 @@ class DAO_Message extends Cerb_ORMHelper {
 			SearchFields_Message::RESPONSE_TIME,
 			SearchFields_Message::IS_BROADCAST,
 			SearchFields_Message::IS_NOT_SENT,
-			SearchFields_Message::WAS_ENCRYPTED,
-			SearchFields_Message::WAS_SIGNED
+			SearchFields_Message::TICKET_GROUP_ID,
+			SearchFields_Message::TICKET_MASK,
+			SearchFields_Message::TICKET_SUBJECT,
+			SearchFields_Message::TICKET_STATUS_ID,
+			SearchFields_Message::ADDRESS_EMAIL
 		);
 		
+		// [TODO] Remove the address JOIN
 		$join_sql = "FROM message m ".
-			(isset($tables['t']) ? "INNER JOIN ticket t ON (m.ticket_id = t.id) " : " ").
-			(isset($tables['a']) ? "INNER JOIN address a ON (m.address_id = a.id) " : " ")
+			"INNER JOIN ticket t ON (m.ticket_id = t.id) ".
+			"INNER JOIN address a ON (m.address_id = a.id) "
 			;
 		
 		$where_sql = "".
 			(!empty($wheres) ? sprintf("WHERE %s ",implode(' AND ',$wheres)) : "WHERE 1 ");
 			
 		$sort_sql = self::_buildSortClause($sortBy, $sortAsc, $fields, $select_sql, 'SearchFields_Message');
+		
 		
 		$result = array(
 			'primary_table' => 'm',
@@ -525,6 +343,7 @@ class DAO_Message extends Cerb_ORMHelper {
 	}
 
 	/**
+	 * Enter description here...
 	 *
 	 * @param DevblocksSearchCriteria[] $params
 	 * @param integer $limit
@@ -535,7 +354,7 @@ class DAO_Message extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$fulltext_params = array();
 		
@@ -634,8 +453,6 @@ class SearchFields_Message extends DevblocksSearchFields {
 	const RESPONSE_TIME = 'm_response_time';
 	const IS_BROADCAST = 'm_is_broadcast';
 	const IS_NOT_SENT = 'm_is_not_sent';
-	const WAS_ENCRYPTED = 'm_was_encrypted';
-	const WAS_SIGNED = 'm_was_signed';
 	
 	// Storage
 	const STORAGE_EXTENSION = 'm_storage_extension';
@@ -702,21 +519,9 @@ class SearchFields_Message extends DevblocksSearchFields {
 				break;
 				
 			case self::VIRTUAL_HEADER_MESSAGE_ID:
-				$value = $param->value;
-				
-				if(DevblocksPlatform::strStartsWith($value, '<'))
-					$value = sha1($value);
-				
-				if(false !== strpos($value, '*')) {
-					return sprintf("m.hash_header_message_id LIKE %s",
-						Cerb_ORMHelper::qstr(str_replace('*','%',$value))
-					);
-				} else {
-					return sprintf("m.hash_header_message_id = %s",
-						Cerb_ORMHelper::qstr($value)
-					);
-				}
-				
+				return sprintf("m.hash_header_message_id = %s",
+					Cerb_ORMHelper::qstr(sha1($param->value))
+				);
 				break;
 				
 			case self::VIRTUAL_SENDER_SEARCH:
@@ -761,7 +566,7 @@ class SearchFields_Message extends DevblocksSearchFields {
 		
 		$columns = array(
 			SearchFields_Message::ID => new DevblocksSearchField(SearchFields_Message::ID, 'm', 'id', $translate->_('common.id'), null, true),
-			SearchFields_Message::ADDRESS_ID => new DevblocksSearchField(SearchFields_Message::ADDRESS_ID, 'm', 'address_id', $translate->_('common.sender'), true),
+			SearchFields_Message::ADDRESS_ID => new DevblocksSearchField(SearchFields_Message::ADDRESS_ID, 'm', 'address_id', null, true),
 			SearchFields_Message::CREATED_DATE => new DevblocksSearchField(SearchFields_Message::CREATED_DATE, 'm', 'created_date', $translate->_('common.created'), Model_CustomField::TYPE_DATE, true),
 			SearchFields_Message::IS_OUTGOING => new DevblocksSearchField(SearchFields_Message::IS_OUTGOING, 'm', 'is_outgoing', $translate->_('message.is_outgoing'), Model_CustomField::TYPE_CHECKBOX, true),
 			SearchFields_Message::TICKET_ID => new DevblocksSearchField(SearchFields_Message::TICKET_ID, 'm', 'ticket_id', 'Ticket ID', null, true),
@@ -770,20 +575,18 @@ class SearchFields_Message extends DevblocksSearchFields {
 			SearchFields_Message::RESPONSE_TIME => new DevblocksSearchField(SearchFields_Message::RESPONSE_TIME, 'm', 'response_time', $translate->_('message.response_time'), Model_CustomField::TYPE_NUMBER, true),
 			SearchFields_Message::IS_BROADCAST => new DevblocksSearchField(SearchFields_Message::IS_BROADCAST, 'm', 'is_broadcast', $translate->_('message.is_broadcast'), Model_CustomField::TYPE_CHECKBOX, true),
 			SearchFields_Message::IS_NOT_SENT => new DevblocksSearchField(SearchFields_Message::IS_NOT_SENT, 'm', 'is_not_sent', $translate->_('message.is_not_sent'), Model_CustomField::TYPE_CHECKBOX, true),
-			SearchFields_Message::WAS_ENCRYPTED => new DevblocksSearchField(SearchFields_Message::WAS_ENCRYPTED, 'm', 'was_encrypted', $translate->_('message.is_encrypted'), Model_CustomField::TYPE_CHECKBOX, true),
-			SearchFields_Message::WAS_SIGNED => new DevblocksSearchField(SearchFields_Message::WAS_SIGNED, 'm', 'was_signed', $translate->_('message.is_signed'), Model_CustomField::TYPE_CHECKBOX, true),
 			
 			SearchFields_Message::STORAGE_EXTENSION => new DevblocksSearchField(SearchFields_Message::STORAGE_EXTENSION, 'm', 'storage_extension', null, true),
 			SearchFields_Message::STORAGE_KEY => new DevblocksSearchField(SearchFields_Message::STORAGE_KEY, 'm', 'storage_key', null, true),
 			SearchFields_Message::STORAGE_PROFILE_ID => new DevblocksSearchField(SearchFields_Message::STORAGE_PROFILE_ID, 'm', 'storage_profile_id', null, true),
 			SearchFields_Message::STORAGE_SIZE => new DevblocksSearchField(SearchFields_Message::STORAGE_SIZE, 'm', 'storage_size', null, true),
 			
-			SearchFields_Message::ADDRESS_EMAIL => new DevblocksSearchField(SearchFields_Message::ADDRESS_EMAIL, 'a', 'email', $translate->_('common.email'), Model_CustomField::TYPE_SINGLE_LINE, false),
+			SearchFields_Message::ADDRESS_EMAIL => new DevblocksSearchField(SearchFields_Message::ADDRESS_EMAIL, 'a', 'email', $translate->_('common.email'), Model_CustomField::TYPE_SINGLE_LINE, true),
 			
-			SearchFields_Message::TICKET_GROUP_ID => new DevblocksSearchField(SearchFields_Message::TICKET_GROUP_ID, 't', 'group_id', $translate->_('common.group'), null, false),
-			SearchFields_Message::TICKET_STATUS_ID => new DevblocksSearchField(SearchFields_Message::TICKET_STATUS_ID, 't', 'status_id', $translate->_('common.status'), Model_CustomField::TYPE_NUMBER, false),
-			SearchFields_Message::TICKET_MASK => new DevblocksSearchField(SearchFields_Message::TICKET_MASK, 't', 'mask', $translate->_('ticket.mask'), Model_CustomField::TYPE_SINGLE_LINE, false),
-			SearchFields_Message::TICKET_SUBJECT => new DevblocksSearchField(SearchFields_Message::TICKET_SUBJECT, 't', 'subject', $translate->_('ticket.subject'), Model_CustomField::TYPE_SINGLE_LINE, false),
+			SearchFields_Message::TICKET_GROUP_ID => new DevblocksSearchField(SearchFields_Message::TICKET_GROUP_ID, 't', 'group_id', $translate->_('common.group'), null, true),
+			SearchFields_Message::TICKET_STATUS_ID => new DevblocksSearchField(SearchFields_Message::TICKET_STATUS_ID, 't', 'status_id', $translate->_('common.status'), Model_CustomField::TYPE_NUMBER, true),
+			SearchFields_Message::TICKET_MASK => new DevblocksSearchField(SearchFields_Message::TICKET_MASK, 't', 'mask', $translate->_('ticket.mask'), Model_CustomField::TYPE_SINGLE_LINE, true),
+			SearchFields_Message::TICKET_SUBJECT => new DevblocksSearchField(SearchFields_Message::TICKET_SUBJECT, 't', 'subject', $translate->_('ticket.subject'), Model_CustomField::TYPE_SINGLE_LINE, true),
 			
 			SearchFields_Message::VIRTUAL_ATTACHMENTS_SEARCH => new DevblocksSearchField(SearchFields_Message::VIRTUAL_ATTACHMENTS_SEARCH, '*', 'attachments_search', null, null, false),
 			SearchFields_Message::VIRTUAL_CONTEXT_LINK => new DevblocksSearchField(SearchFields_Message::VIRTUAL_CONTEXT_LINK, '*', 'context_link', $translate->_('common.links'), null, false),
@@ -800,13 +603,6 @@ class SearchFields_Message extends DevblocksSearchFields {
 		
 		$columns[self::MESSAGE_CONTENT]->ft_schema = Search_MessageContent::ID;
 		$columns[self::FULLTEXT_NOTE_CONTENT]->ft_schema = Search_CommentContent::ID;
-		
-		// Custom fields with fieldsets
-		
-		$custom_columns = DevblocksSearchField::getCustomSearchFieldsByContexts(array_keys(self::getCustomFieldContextKeys()));
-		
-		if(is_array($custom_columns))
-			$columns = array_merge($columns, $custom_columns);
 		
 		// Sort by label (translation-conscious)
 		DevblocksPlatform::sortObjects($columns, 'db_label');
@@ -831,8 +627,6 @@ class Model_Message {
 	public $is_broadcast;
 	public $is_not_sent;
 	public $hash_header_message_id;
-	public $was_encrypted;
-	public $was_signed;
 	
 	private $_sender_object = null;
 	private $_headers_raw = null;
@@ -1038,7 +832,7 @@ class Search_MessageContent extends Extension_DevblocksSearchSchema {
 	}
 	
 	private function _indexDictionary($dict, $engine) {
-		$logger = DevblocksPlatform::services()->log();
+		$logger = DevblocksPlatform::getConsoleLog();
 
 		$id = $dict->id;
 		
@@ -1098,7 +892,7 @@ class Search_MessageContent extends Extension_DevblocksSearchSchema {
 	}
 	
 	public function index($stop_time=null) {
-		$logger = DevblocksPlatform::services()->log();
+		$logger = DevblocksPlatform::getConsoleLog();
 		
 		if(false == ($engine = $this->getEngine()))
 			return false;
@@ -1148,7 +942,7 @@ class Storage_MessageContent extends Extension_DevblocksStorageSchema {
 	}
 	
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('active_storage_profile', $this->getParam('active_storage_profile'));
 		$tpl->assign('archive_storage_profile', $this->getParam('archive_storage_profile'));
@@ -1158,7 +952,7 @@ class Storage_MessageContent extends Extension_DevblocksStorageSchema {
 	}
 	
 	function renderConfig() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('active_storage_profile', $this->getParam('active_storage_profile'));
 		$tpl->assign('archive_storage_profile', $this->getParam('archive_storage_profile'));
@@ -1185,7 +979,7 @@ class Storage_MessageContent extends Extension_DevblocksStorageSchema {
 	
 	/**
 	 * @param Model_Message | $message_id
-	 * @return string
+	 * @return unknown_type
 	 */
 	public static function get($object, &$fp=null) {
 		if($object instanceof Model_Message) {
@@ -1259,7 +1053,7 @@ class Storage_MessageContent extends Extension_DevblocksStorageSchema {
 	public static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("SELECT storage_extension, storage_key, storage_profile_id FROM message WHERE id IN (%s)", implode(',',$ids));
 
@@ -1287,7 +1081,7 @@ class Storage_MessageContent extends Extension_DevblocksStorageSchema {
 	}
 		
 	public static function archive($stop_time=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Params
 		$src_profile = DAO_DevblocksStorageProfile::get(DAO_DevblocksExtensionPropertyStore::get(self::ID, 'active_storage_profile'));
@@ -1328,7 +1122,7 @@ class Storage_MessageContent extends Extension_DevblocksStorageSchema {
 	public static function unarchive($stop_time=null) {
 		// We don't want to unarchive message content under any condition
 		/*
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Params
 		$dst_profile = DAO_DevblocksStorageProfile::get(DAO_DevblocksExtensionPropertyStore::get(self::ID, 'active_storage_profile'));
@@ -1364,7 +1158,7 @@ class Storage_MessageContent extends Extension_DevblocksStorageSchema {
 	}
 	
 	private static function _migrate($dst_profile, $row, $is_unarchive=false) {
-		$logger = DevblocksPlatform::services()->log();
+		$logger = DevblocksPlatform::getConsoleLog();
 		
 		$ns = 'message_content';
 		
@@ -1514,7 +1308,6 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 		));
 		
 		$this->addParamsHidden(array(
-			SearchFields_Message::ADDRESS_ID,
 			SearchFields_Message::HTML_ATTACHMENT_ID,
 			SearchFields_Message::ID,
 			SearchFields_Message::TICKET_STATUS_ID,
@@ -1563,8 +1356,6 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 				case SearchFields_Message::TICKET_GROUP_ID:
 				case SearchFields_Message::TICKET_ID:
 				case SearchFields_Message::TICKET_MASK:
-				case SearchFields_Message::WAS_ENCRYPTED:
-				case SearchFields_Message::WAS_SIGNED:
 				case SearchFields_Message::WORKER_ID:
 				case SearchFields_Message::VIRTUAL_CONTEXT_LINK:
 				case SearchFields_Message::VIRTUAL_HAS_FIELDSET:
@@ -1573,7 +1364,7 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 					
 				// Valid custom fields
 				default:
-					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
+					if('cf_' == substr($field_key,0,3))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -1595,31 +1386,23 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 		
 		switch($column) {
 			case SearchFields_Message::ADDRESS_EMAIL:
-				$label_map = function($ids) {
-					$rows = DAO_Address::getIds($ids);
-					return array_column(DevblocksPlatform::objectsToArrays($rows), 'email', 'id');
-				};
-				$counts = $this->_getSubtotalCountForStringColumn($context, SearchFields_Message::ADDRESS_ID, $label_map, 'in', 'value[]');
+				$counts = $this->_getSubtotalCountForStringColumn($context, $column);
 				break;
-			
+				
 			case SearchFields_Message::TICKET_GROUP_ID:
-				$label_map = function($ids) {
-					$rows = DAO_Group::getIds($ids);
-					return array_column(DevblocksPlatform::objectsToArrays($rows), 'name', 'id');
-				};
-				$counts = $this->_getSubtotalCountForVirtualColumn($context, SearchFields_Message::TICKET_GROUP_ID, $label_map, SearchFields_Message::VIRTUAL_TICKET_SEARCH, 'group:(id:%s)', 'group:null');
+				$groups = DAO_Group::getAll();
+				$label_map = array();
+				foreach($groups as $group_id => $group)
+					$label_map[$group_id] = $group->name;
+				$counts = $this->_getSubtotalCountForStringColumn($context, $column, $label_map, 'in', 'group_id[]');
 				break;
-			
+				
 			case SearchFields_Message::TICKET_ID:
 				$counts = $this->_getSubtotalCountForNumberColumn($context, $column, array(), '=', 'value');
 				break;
 				
 			case SearchFields_Message::TICKET_MASK:
-				$label_map = function($ids) {
-					$rows = DAO_Ticket::getIds($ids);
-					return array_column(DevblocksPlatform::objectsToArrays($rows), 'mask', 'id');
-				};
-				$counts = $this->_getSubtotalCountForStringColumn($context, SearchFields_Message::TICKET_ID, $label_map, 'in', 'value[]');
+				$counts = $this->_getSubtotalCountForStringColumn($context, $column, array(), '=', 'value');
 				break;
 				
 			case SearchFields_Message::WORKER_ID:
@@ -1633,8 +1416,6 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 			case SearchFields_Message::IS_BROADCAST:
 			case SearchFields_Message::IS_NOT_SENT:
 			case SearchFields_Message::IS_OUTGOING:
-			case SearchFields_Message::WAS_ENCRYPTED:
-			case SearchFields_Message::WAS_SIGNED:
 				$counts = $this->_getSubtotalCountForBooleanColumn($context, $column);
 				break;
 				
@@ -1709,11 +1490,6 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 					'type' => DevblocksSearchCriteria::TYPE_BOOL,
 					'options' => array('param_key' => SearchFields_Message::IS_BROADCAST),
 				),
-			'isEncrypted' => 
-				array(
-					'type' => DevblocksSearchCriteria::TYPE_BOOL,
-					'options' => array('param_key' => SearchFields_Message::WAS_ENCRYPTED),
-				),
 			'isNotSent' => 
 				array(
 					'type' => DevblocksSearchCriteria::TYPE_BOOL,
@@ -1723,11 +1499,6 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 				array(
 					'type' => DevblocksSearchCriteria::TYPE_BOOL,
 					'options' => array('param_key' => SearchFields_Message::IS_OUTGOING),
-				),
-			'isSigned' => 
-				array(
-					'type' => DevblocksSearchCriteria::TYPE_BOOL,
-					'options' => array('param_key' => SearchFields_Message::WAS_SIGNED),
 				),
 			'notes' =>
 				array(
@@ -1773,7 +1544,7 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 				),
 			'worker.id' => 
 				array(
-					'type' => DevblocksSearchCriteria::TYPE_WORKER,
+					'type' => DevblocksSearchCriteria::TYPE_NUMBER,
 					'options' => array('param_key' => SearchFields_Message::WORKER_ID),
 					'examples' => [
 						['type' => 'chooser', 'context' => CerberusContexts::CONTEXT_WORKER, 'q' => ''],
@@ -1894,7 +1665,7 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 	}
 	
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 		
@@ -1963,7 +1734,7 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 	}
 	
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1974,7 +1745,6 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 				$tpl->display('devblocks:cerberusweb.core::internal/views/criteria/__string.tpl');
 				break;
 				
-			case SearchFields_Message::ADDRESS_ID:
 			case SearchFields_Message::TICKET_ID:
 				$tpl->display('devblocks:cerberusweb.core::internal/views/criteria/__number.tpl');
 				break;
@@ -1986,8 +1756,6 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 			case SearchFields_Message::IS_BROADCAST:
 			case SearchFields_Message::IS_NOT_SENT:
 			case SearchFields_Message::IS_OUTGOING:
-			case SearchFields_Message::WAS_ENCRYPTED:
-			case SearchFields_Message::WAS_SIGNED:
 				$tpl->display('devblocks:cerberusweb.core::internal/views/criteria/__bool.tpl');
 				break;
 				
@@ -2031,8 +1799,6 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 			case SearchFields_Message::IS_BROADCAST:
 			case SearchFields_Message::IS_NOT_SENT:
 			case SearchFields_Message::IS_OUTGOING:
-			case SearchFields_Message::WAS_ENCRYPTED:
-			case SearchFields_Message::WAS_SIGNED:
 				$this->_renderCriteriaParamBoolean($param);
 				break;
 				
@@ -2045,16 +1811,6 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 					continue;
 
 					$strings[] = DevblocksPlatform::strEscapeHtml($groups[$val]->name);
-				}
-				echo implode(" or ", $strings);
-				break;
-				
-			case SearchFields_Message::ADDRESS_ID:
-				$senders = DAO_Address::getIds($values);
-				$strings = array();
-
-				foreach($senders as $sender) {
-					$strings[] = DevblocksPlatform::strEscapeHtml($sender->getNameWithEmail());
 				}
 				echo implode(" or ", $strings);
 				break;
@@ -2105,19 +1861,12 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 		$criteria = null;
 
 		switch($field) {
-			case SearchFields_Message::VIRTUAL_TICKET_SEARCH:
-				if(is_array($value))
-					$value = array_shift($value);
-				$criteria = new DevblocksSearchCriteria($field, DevblocksSearchCriteria::OPER_CUSTOM, $value);
-				break;
-			
 			case SearchFields_Message::ADDRESS_EMAIL:
 			case SearchFields_Message::TICKET_MASK:
 			case SearchFields_Message::TICKET_SUBJECT:
 				$criteria = $this->_doSetCriteriaString($field, $oper, $value);
 				break;
 				
-			case SearchFields_Message::ADDRESS_ID:
 			case SearchFields_Message::TICKET_ID:
 				$criteria = new DevblocksSearchCriteria($field,$oper,$value);
 				break;
@@ -2137,8 +1886,6 @@ class View_Message extends C4_AbstractView implements IAbstractView_Subtotals, I
 			case SearchFields_Message::IS_BROADCAST:
 			case SearchFields_Message::IS_NOT_SENT:
 			case SearchFields_Message::IS_OUTGOING:
-			case SearchFields_Message::WAS_ENCRYPTED:
-			case SearchFields_Message::WAS_SIGNED:
 				@$bool = DevblocksPlatform::importGPC($_REQUEST['bool'],'integer',1);
 				$criteria = new DevblocksSearchCriteria($field,$oper,$bool);
 				break;
@@ -2246,7 +1993,7 @@ class Context_Message extends Extension_DevblocksContext implements IDevblocksCo
 	}
 	
 	function getMeta($context_id) {
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 
 		if(null == ($message = DAO_Message::get($context_id)))
 			return FALSE;
@@ -2314,7 +2061,6 @@ class Context_Message extends Extension_DevblocksContext implements IDevblocksCo
 			$prefix = 'Message:';
 		
 		$translate = DevblocksPlatform::getTranslationService();
-		$fields = DAO_CustomField::getByContext(CerberusContexts::CONTEXT_MESSAGE);
 
 		// Polymorph
 		if(is_numeric($message)) {
@@ -2326,7 +2072,6 @@ class Context_Message extends Extension_DevblocksContext implements IDevblocksCo
 		} else {
 			$message = null;
 		}
-		
 		/* @var $message Model_Message */
 		
 		// Token labels
@@ -2343,10 +2088,6 @@ class Context_Message extends Extension_DevblocksContext implements IDevblocksCo
 			'storage_size' => $prefix.$translate->_('message.storage_size'),
 			'record_url' => $prefix.$translate->_('common.url.record'),
 			'headers' => $prefix.$translate->_('message.headers'),
-			'reply_cc' => $prefix."Reply Cc",
-			'reply_to' => $prefix."Reply To",
-			'was_encrypted' => $prefix.$translate->_('message.is_encrypted'),
-			'was_signed' => $prefix.$translate->_('message.is_signed'),
 		);
 		
 		// Token types
@@ -2363,19 +2104,7 @@ class Context_Message extends Extension_DevblocksContext implements IDevblocksCo
 			'storage_size' => 'size_bytes',
 			'record_url' => Model_CustomField::TYPE_URL,
 			'headers' => null,
-			'reply_cc' => Model_CustomField::TYPE_SINGLE_LINE,
-			'reply_to' => Model_CustomField::TYPE_SINGLE_LINE,
-			'was_encrypted' => Model_CustomField::TYPE_CHECKBOX,
-			'was_signed' => Model_CustomField::TYPE_CHECKBOX,
 		);
-		
-		// Custom field/fieldset token labels
-		if(false !== ($custom_field_labels = $this->_getTokenLabelsFromCustomFields($fields, $prefix)) && is_array($custom_field_labels))
-			$token_labels = array_merge($token_labels, $custom_field_labels);
-		
-		// Custom field/fieldset token types
-		if(false !== ($custom_field_types = $this->_getTokenTypesFromCustomFields($fields, $prefix)) && is_array($custom_field_types))
-			$token_types = array_merge($token_types, $custom_field_types);
 		
 		// Token values
 		$token_values = array();
@@ -2398,14 +2127,12 @@ class Context_Message extends Extension_DevblocksContext implements IDevblocksCo
 			$token_values['ticket_id'] = $message->ticket_id;
 			$token_values['worker_id'] = $message->worker_id;
 			$token_values['hash_header_message_id'] = $message->hash_header_message_id;
-			$token_values['was_encrypted'] = $message->was_encrypted;
-			$token_values['was_signed'] = $message->was_signed;
 			
 			// Custom fields
 			$token_values = $this->_importModelCustomFieldsAsValues($message, $token_values);
 			
 			// URL
-			$url_writer = DevblocksPlatform::services()->url();
+			$url_writer = DevblocksPlatform::getUrlService();
 			$token_values['record_url'] = $url_writer->writeNoProxy(sprintf("c=profiles&type=ticket&id=%d/message/%d", $message->ticket_id, $message->id), true);
 		}
 
@@ -2454,54 +2181,6 @@ class Context_Message extends Extension_DevblocksContext implements IDevblocksCo
 			$token_labels,
 			$token_values
 		);
-		
-		return true;
-	}
-	
-	function getKeyToDaoFieldMap() {
-		return [
-			'created' => DAO_Message::CREATED_DATE,
-			'hash_header_message_id' => DAO_Message::HASH_HEADER_MESSAGE_ID,
-			'html_attachment_id' => DAO_Message::HTML_ATTACHMENT_ID,
-			'id' => DAO_Message::ID,
-			'is_broadcast' => DAO_Message::IS_BROADCAST,
-			'is_not_sent' => DAO_Message::IS_NOT_SENT,
-			'is_outgoing' => DAO_Message::IS_OUTGOING,
-			'links' => '_links',
-			'response_time' => DAO_Message::RESPONSE_TIME,
-			'sender_id' => DAO_Message::ADDRESS_ID,
-			'storage_size' => DAO_Message::STORAGE_SIZE,
-			'ticket_id' => DAO_Message::TICKET_ID,
-			'was_encrypted' => DAO_Message::WAS_ENCRYPTED,
-			'was_signed' => DAO_Message::WAS_SIGNED,
-			'worker_id' => DAO_Message::WORKER_ID,
-		];
-	}
-	
-	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
-		$dict_key = DevblocksPlatform::strLower($key);
-		switch($dict_key) {
-			case 'content':
-				$out_fields[DAO_Message::_CONTENT] = $value;
-				break;
-				
-			case 'headers':
-				$out_fields[DAO_Message::_HEADERS] = $value;
-				break;
-				
-			case 'links':
-				$this->_getDaoFieldsLinks($value, $out_fields, $error);
-				break;
-				
-			case 'sender':
-				if(false == ($address = DAO_Address::lookupAddress($value, true))) {
-					$error = sprintf("Failed to lookup address: %s", $value);
-					return false;
-				}
-				
-				$out_fields[DAO_Message::ADDRESS_ID] = $address->id;
-				break;
-		}
 		
 		return true;
 	}
@@ -2559,43 +2238,6 @@ class Context_Message extends Extension_DevblocksContext implements IDevblocksCo
 			case 'headers':
 				$headers = DAO_MessageHeaders::getAll($context_id);
 				$values['headers'] = $headers;
-				break;
-				
-			case 'reply_to':
-				$dict = DevblocksDictionaryDelegate::instance($dictionary);
-				$message_headers = $dict->headers;
-				$values['reply_to'] = '';
-				
-				if(isset($message_headers['to'])) {
-					$from = isset($message_headers['reply-to']) ? $message_headers['reply-to'] : $message_headers['from'];
-					$addys = CerberusMail::parseRfcAddresses($from . ', ' . $message_headers['to'], true);
-					$recipients = array();
-					
-					if(is_array($addys))
-					foreach($addys as $addy) {
-						$recipients[] = $addy['full_email'];
-					}
-					
-					$values['reply_to'] = implode(', ', $recipients);
-				}
-				break;
-				
-			case 'reply_cc':
-				$dict = DevblocksDictionaryDelegate::instance($dictionary);
-				$message_headers = $dict->headers;
-				$values['reply_cc'] = '';
-				
-				if(isset($message_headers['cc'])) {
-					$addys = CerberusMail::parseRfcAddresses($message_headers['cc'], true);
-					$recipients = array();
-					
-					if(is_array($addys))
-					foreach($addys as $addy) {
-						$recipients[] = $addy['full_email'];
-					}
-					
-					$values['reply_cc'] = implode(', ', $recipients);
-				}
 				break;
 				
 			case 'links':
@@ -2660,7 +2302,7 @@ class Context_Message extends Extension_DevblocksContext implements IDevblocksCo
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		$tpl->assign('view_id', $view_id);

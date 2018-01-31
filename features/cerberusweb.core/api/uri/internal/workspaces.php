@@ -1,18 +1,18 @@
 <?php
 /***********************************************************************
-| Cerb(tm) developed by Webgroup Media, LLC.
-|-----------------------------------------------------------------------
-| All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
-|   unless specifically noted otherwise.
-|
-| This source code is released under the Devblocks Public License.
-| The latest version of this license can be found here:
-| http://cerb.ai/license
-|
-| By using this software, you acknowledge having read this license
-| and agree to be bound thereby.
-| ______________________________________________________________________
-|	http://cerb.ai	    http://webgroup.media
+ | Cerb(tm) developed by Webgroup Media, LLC.
+ |-----------------------------------------------------------------------
+ | All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
+ |   unless specifically noted otherwise.
+ |
+ | This source code is released under the Devblocks Public License.
+ | The latest version of this license can be found here:
+ | http://cerb.ai/license
+ |
+ | By using this software, you acknowledge having read this license
+ | and agree to be bound thereby.
+ | ______________________________________________________________________
+ |	http://cerb.ai	    http://webgroup.media
  ***********************************************************************/
 
 if(class_exists('Extension_PageSection')):
@@ -25,7 +25,7 @@ if(class_exists('Extension_WorkspacePage')):
 class WorkspacePage_Workspace extends Extension_WorkspacePage {
 	function renderPage(Model_WorkspacePage $page) {
 		$active_worker = CerberusApplication::getActiveWorker();
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('page', $page);
 
@@ -40,7 +40,6 @@ class WorkspacePage_Workspace extends Extension_WorkspacePage {
 		
 		$json_array = array(
 			'page' => array(
-				'uid' => 'workspace_page_' . $page->id,
 				'name' => $page->name,
 				'extension_id' => $page->extension_id,
 				'tabs' => array(),
@@ -57,7 +56,7 @@ class WorkspacePage_Workspace extends Extension_WorkspacePage {
 			@$tab_json = json_decode($tab_extension->exportTabConfigJson($page, $tab), true);
 			
 			if(!empty($tab_json))
-				$json_array['page']['tabs'][] = $tab_json['tab'];
+				$json_array['page']['tabs'][] = $tab_json;
 		}
 		
 		return json_encode($json_array);
@@ -71,14 +70,14 @@ class WorkspacePage_Workspace extends Extension_WorkspacePage {
 			return false;
 		
 		foreach($import_json['page']['tabs'] as $pos => $tab_json) {
-			if(null == (@$tab_extension_id = $tab_json['extension_id']))
+			if(null == (@$tab_extension_id = $tab_json['tab']['extension_id']))
 				return false;
 			
 			if(null == ($tab_extension = Extension_WorkspaceTab::get($tab_extension_id)))
 				return false;
 			
-			@$name = $tab_json['name'];
-			@$params = $tab_json['params'] ?: array();
+			@$name = $tab_json['tab']['name'];
+			@$params = $tab_json['tab']['params'] ?: array();
 			
 			$tab_id = DAO_WorkspaceTab::create(array(
 				DAO_WorkspaceTab::NAME => $name ?: 'New Tab',
@@ -103,7 +102,7 @@ endif;
 if(class_exists('Extension_WorkspaceTab')):
 class WorkspaceTab_Worklists extends Extension_WorkspaceTab {
 	public function renderTab(Model_WorkspacePage $page, Model_WorkspaceTab $tab) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('workspace_page', $page);
 		$tpl->assign('workspace_tab', $tab);
@@ -115,7 +114,7 @@ class WorkspaceTab_Worklists extends Extension_WorkspaceTab {
 	}
 	
 	function renderTabConfig(Model_WorkspacePage $page, Model_WorkspaceTab $tab) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->display('devblocks:cerberusweb.core::internal/workspaces/tabs/worklists/config.tpl');
 	}
 	
@@ -127,7 +126,7 @@ class WorkspaceTab_Worklists extends Extension_WorkspaceTab {
 		if(is_array($ids) && !empty($ids))
 			foreach($ids as $idx => $id) {
 			if(!is_numeric($id)) { // Create
-				if(null == ($context_ext = Extension_DevblocksContext::get($id)))
+				if(null == ($context_ext = DevblocksPlatform::getExtension($id, true))) /* @var $context_ext Extension_DevblocksContext */
 					continue;
 					
 				if(null == ($view = $context_ext->getChooserView()))  /* @var $view C4_AbstractView */
@@ -190,7 +189,6 @@ class WorkspaceTab_Worklists extends Extension_WorkspaceTab {
 	function exportTabConfigJson(Model_WorkspacePage $page, Model_WorkspaceTab $tab) {
 		$json = array(
 			'tab' => array(
-				'uid' => 'workspace_tab_' . $tab->id,
 				'name' => $tab->name,
 				'extension_id' => $tab->extension_id,
 				'params' => $tab->params,
@@ -233,16 +231,18 @@ class WorkspaceTab_Worklists extends Extension_WorkspaceTab {
 				'params' => json_decode(json_encode($view->getEditableParams()), true),
 				'params_required' => json_decode(json_encode($view->getParamsRequired()), true),
 				'limit' => $view->renderLimit,
-				'sort_by' => @$view->renderSortBy,
-				'sort_asc' => !empty(@$view->renderSortAsc),
+				'sort_by' => $view->renderSortBy,
+				'sort_asc' => !empty($view->renderSortAsc),
 				'subtotals' => $view->renderSubtotals,
 				'context' => $worklist->context,
 			);
 			
 			$worklist_json = array(
-				'pos' => $worklist->list_pos,
-				'title' => $worklist->list_view->title,
-				'model' => $model,
+				'worklist' => array(
+					'pos' => $worklist->list_pos,
+					'title' => $worklist->list_view->title,
+					'model' => $model,
+				),
 			);
 			
 			$json['tab']['worklists'][] = $worklist_json;
@@ -252,36 +252,32 @@ class WorkspaceTab_Worklists extends Extension_WorkspaceTab {
 	}
 	
 	function importTabConfigJson($json, Model_WorkspaceTab $tab) {
-		if(empty($tab) || empty($tab->id) || !is_array($json))
+		if(empty($tab) || empty($tab->id) || !is_array($json) || !isset($json['tab']))
 			return false;
 		
-		// Backwards compatibility
-		if(isset($json['tab']))
-			$json = $json['tab'];
-			
-		if(!isset($json['worklists']))
+		if(!isset($json['tab']['worklists']))
 			return false;
 		
-		foreach($json['worklists'] as $worklist) {
-			$worklist_view = C4_AbstractViewLoader::unserializeViewFromAbstractJson($worklist['model'], '');
+		foreach($json['tab']['worklists'] as $worklist) {
+			$worklist_view = C4_AbstractViewLoader::unserializeViewFromAbstractJson($worklist['worklist']['model'], '');
 			
 			// [TODO] This is sloppy, we need to convert it.
 			$view_model = C4_AbstractViewLoader::serializeAbstractView($worklist_view);
 			
 			$list_view = new Model_WorkspaceListView();
-			$list_view->title = $worklist['title'];
+			$list_view->title = $worklist['worklist']['title'];
 			$list_view->options = $view_model->options;
 			$list_view->columns = $view_model->view_columns;
 			$list_view->num_rows = $view_model->renderLimit;
 			$list_view->params = $view_model->paramsEditable;
 			$list_view->params_required = $view_model->paramsRequired;
-			$list_view->sort_by = key(@$view_model->renderSort);
-			$list_view->sort_asc = current(@$view_model->renderSort);
+			$list_view->sort_by = $view_model->renderSortBy;
+			$list_view->sort_asc = $view_model->renderSortAsc;
 			$list_view->subtotals = $view_model->renderSubtotals;
 			
 			$worklist_id = DAO_WorkspaceList::create(array(
-				DAO_WorkspaceList::CONTEXT => $worklist['model']['context'],
-				DAO_WorkspaceList::LIST_POS => $worklist['pos'],
+				DAO_WorkspaceList::CONTEXT => $worklist['worklist']['model']['context'],
+				DAO_WorkspaceList::LIST_POS => $worklist['worklist']['pos'],
 				DAO_WorkspaceList::LIST_VIEW => serialize($list_view),
 				DAO_WorkspaceList::WORKSPACE_TAB_ID => $tab->id,
 			));

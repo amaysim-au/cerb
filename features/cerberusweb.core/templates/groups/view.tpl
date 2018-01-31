@@ -6,7 +6,7 @@
 
 {include file="devblocks:cerberusweb.core::internal/views/view_marquee.tpl" view=$view}
 
-<table cellpadding="0" cellspacing="0" border="0" class="worklist" width="100%" {if $view->options.header_color}style="background-color:{$view->options.header_color};"{/if}>
+<table cellpadding="0" cellspacing="0" border="0" class="worklist" width="100%">
 	<tr>
 		<td nowrap="nowrap"><span class="title">{$view->name}</span></td>
 		<td nowrap="nowrap" align="right" class="title-toolbar">
@@ -14,7 +14,7 @@
 			<a href="javascript:;" title="{'common.search'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxPopup('search','c=internal&a=viewShowQuickSearchPopup&view_id={$view->id}',null,false,'400');"><span class="glyphicons glyphicons-search"></span></a>
 			<a href="javascript:;" title="{'common.customize'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxGet('customize{$view->id}','c=internal&a=viewCustomize&id={$view->id}');toggleDiv('customize{$view->id}','block');"><span class="glyphicons glyphicons-cogwheel"></span></a>
 			<a href="javascript:;" title="{'common.subtotals'|devblocks_translate|capitalize}" class="subtotals minimal"><span class="glyphicons glyphicons-signal"></span></a>
-			{if $active_worker->hasPriv("contexts.{$view_context}.export")}<a href="javascript:;" title="{'common.export'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxGet('{$view->id}_tips','c=internal&a=viewShowExport&id={$view->id}');toggleDiv('{$view->id}_tips','block');"><span class="glyphicons glyphicons-file-export"></span></a>{/if}
+			<a href="javascript:;" title="{'common.export'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxGet('{$view->id}_tips','c=internal&a=viewShowExport&id={$view->id}');toggleDiv('{$view->id}_tips','block');"><span class="glyphicons glyphicons-file-export"></span></a>
 			<a href="javascript:;" title="{'common.copy'|devblocks_translate|capitalize}" onclick="genericAjaxGet('{$view->id}_tips','c=internal&a=viewShowCopy&view_id={$view->id}');toggleDiv('{$view->id}_tips','block');"><span class="glyphicons glyphicons-duplicate"></span></a>
 			<a href="javascript:;" title="{'common.refresh'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxGet('view{$view->id}','c=internal&a=viewRefresh&id={$view->id}');"><span class="glyphicons glyphicons-refresh"></span></a>
 			<input type="checkbox" class="select-all">
@@ -82,28 +82,6 @@
 				<td data-column="{$column}">{if $result.$column}<span class="glyphicons glyphicons-circle-ok" style="font-size:16px;color:rgb(75,75,75);"></span>{else}{/if}</td>
 			{elseif in_array($column, ["g_created", "g_updated"])}
 				<td data-column="{$column}"><abbr title="{$result.$column|devblocks_date}">{$result.$column|devblocks_prettytime}</abbr>&nbsp;</td>
-			{elseif $column == "g_reply_address_id"}
-				{$replyto_address = $replyto_addresses.{$result.$column}}
-				<td data-column="{$column}">
-					{if $replyto_address}
-					<img src="{devblocks_url}c=avatars&context=address&context_id={$replyto_address->id}{/devblocks_url}?v={$replyto_address->updated_at}" style="height:16px;width:16px;border-radius:16px;vertical-align:middle;margin-right:3px;">
-					<a href="javascript:;" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_ADDRESS}" data-context-id="{$result.$column}">{$replyto_address->email}</a>
-					{/if}
-				</td>
-			{elseif $column == "g_reply_html_template_id"}
-				{$html_template = $html_templates.{$result.$column}}
-				<td data-column="{$column}">
-					{if $html_template}
-					<a href="javascript:;" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_MAIL_HTML_TEMPLATE}" data-context-id="{$result.$column}">{$html_template->name}</a>
-					{/if}
-				</td>
-			{elseif $column == "g_reply_signature_id"}
-				{$signature = $signatures.{$result.$column}}
-				<td data-column="{$column}">
-					{if $signature}
-					<a href="javascript:;" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_EMAIL_SIGNATURE}" data-context-id="{$result.$column}">{$signature->name}</a>
-					{/if}
-				</td>
 			{else}
 			<td data-column="{$column}">{$result.$column}</td>
 			{/if}
@@ -166,8 +144,9 @@ $frm_actions.find('button.action-explore').click(function() {
 $frm.bind('keyboard_shortcut',function(event) {
 	//console.log("{$view->id} received " + (indirect ? 'indirect' : 'direct') + " keyboard event for: " + event.keypress_event.which);
 	
-	var $view_actions = $('#{$view->id}_actions');
-	var hotkey_activated = true;
+	$view_actions = $('#{$view->id}_actions');
+	
+	hotkey_activated = true;
 
 	switch(event.keypress_event.which) {
 		default:

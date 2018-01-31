@@ -50,11 +50,8 @@ class ChRest_Attachments extends Extension_RestController implements IExtensionR
 	
 	private function _findAttachmentIdInContainer($id, $container) {
 		foreach($container['results'] as $result) {
-			if(is_array($result) && $result['id'] == $id) {
-				// Deprecated. For backwards compatibility in 8.0.6
-				$result['file_id'] = $id;
+			if(is_array($result) && $result['id'] == $id)
 				return $result;
-			}
 		}
 		
 		return null;
@@ -338,7 +335,9 @@ class ChRest_Attachments extends Extension_RestController implements IExtensionR
 		if(empty($file_id))
 			return array();
 		
-		$this->getId($file_id);
+		return array(
+			'file_id' => $file_id,
+		);
 	}
 	
 	function postUpload() {

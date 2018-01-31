@@ -72,7 +72,7 @@ class ChFilesController extends DevblocksControllerExtension {
 // 		header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 
 		if($is_download) {
-			header("Content-Disposition: attachment; filename=\"" . $file->name . "\"");
+			header('Content-Disposition: attachment; filename=' . urlencode($file->name));
 			
 		} else {
 			@$range = DevblocksPlatform::importGPC($_SERVER['HTTP_RANGE'], 'string', null);
@@ -120,11 +120,8 @@ class ChFilesController extends DevblocksControllerExtension {
 		
 		switch($mime_type) {
 			case 'application/json':
-			case 'application/pgp-signature':
 			case 'message/feedback-report':
 			case 'message/rfc822':
-			case 'multipart/encrypted':
-			case 'multipart/signed':
 			case 'text/csv':
 			case 'text/javascript':
 			case 'text/css':

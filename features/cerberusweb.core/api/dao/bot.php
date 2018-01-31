@@ -16,75 +16,20 @@
 ***********************************************************************/
 
 class DAO_Bot extends Cerb_ORMHelper {
-	const AT_MENTION_NAME = 'at_mention_name';
-	const CREATED_AT = 'created_at';
 	const ID = 'id';
-	const IS_DISABLED = 'is_disabled';
 	const NAME = 'name';
+	const AT_MENTION_NAME = 'at_mention_name';
 	const OWNER_CONTEXT = 'owner_context';
 	const OWNER_CONTEXT_ID = 'owner_context_id';
+	const IS_DISABLED = 'is_disabled';
 	const PARAMS_JSON = 'params_json';
+	const CREATED_AT = 'created_at';
 	const UPDATED_AT = 'updated_at';
 	
 	const CACHE_ALL = 'ch_bots';
-	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		$validation
-			->addField(self::AT_MENTION_NAME)
-			->string()
-			;
-		$validation
-			->addField(self::CREATED_AT)
-			->timestamp()
-			;
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		$validation
-			->addField(self::IS_DISABLED)
-			->bit()
-			;
-		$validation
-			->addField(self::NAME)
-			->string()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::OWNER_CONTEXT)
-			->context()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::OWNER_CONTEXT_ID)
-			->id()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::PARAMS_JSON)
-			->string()
-			->setMaxLength(65535)
-			;
-		$validation
-			->addField(self::UPDATED_AT)
-			->timestamp()
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
 
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(!isset($fields[DAO_Bot::CREATED_AT]))
 			$fields[DAO_Bot::CREATED_AT] = time();
@@ -101,11 +46,6 @@ class DAO_Bot extends Cerb_ORMHelper {
 	static function update($ids, $fields, $check_deltas=true) {
 		if(!is_array($ids))
 			$ids = array($ids);
-		
-		if(!isset($fields[self::UPDATED_AT]))
-			$fields[self::UPDATED_AT] = time();
-		
-		self::_updateAbstract(Context_Bot::ID, $ids, $fields);
 		
 		// Make a diff for the requested objects in batches
 		
@@ -126,7 +66,7 @@ class DAO_Bot extends Cerb_ORMHelper {
 			if($check_deltas) {
 				
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::services()->event();
+				$eventMgr = DevblocksPlatform::getEventService();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.bot.update',
@@ -146,20 +86,6 @@ class DAO_Bot extends Cerb_ORMHelper {
 	
 	static function updateWhere($fields, $where) {
 		parent::_updateWhere('bot', $fields, $where);
-	}
-	
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		$context = CerberusContexts::CONTEXT_BOT;
-		
-		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
-			return false;
-		
-		if(!CerberusContexts::isActorAnAdmin($actor)) {
-			$error = DevblocksPlatform::translate('error.core.no_acl.admin');
-			return false;
-		}
-		
-		return true;
 	}
 	
 	static function autocomplete($term, $as='models') {
@@ -196,7 +122,7 @@ class DAO_Bot extends Cerb_ORMHelper {
 	 * @return Model_Bot[]
 	 */
 	static function getWhere($where=null, $sortBy='name', $sortAsc=true, $limit=null, $options=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -257,7 +183,7 @@ class DAO_Bot extends Cerb_ORMHelper {
 	}
 	
 	static function getAll($nocache=false) {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		if($nocache || null === ($objects = $cache->load(self::CACHE_ALL))) {
 			$objects = DAO_Bot::getWhere(
@@ -298,15 +224,35 @@ class DAO_Bot extends Cerb_ORMHelper {
 		return $results;
 	}
 	
-	static function getReadableByActor($actor, $ignore_admins=false) {
+	static function getReadableByActor($actor) {
 		$bots = DAO_Bot::getAll();
-		$privs = Context_Bot::isReadableByActor($bots, $actor, $ignore_admins);
+		$privs = Context_Bot::isReadableByActor($bots, $actor);
 		return array_intersect_key($bots, array_flip(array_keys($privs, true)));
 	}
 	
-	static function getWriteableByActor($actor, $ignore_admins=false) {
+	static function getReadableByActorAndInteraction($actor, $interaction) {
 		$bots = DAO_Bot::getAll();
-		$privs = Context_Bot::isWriteableByActor($bots, $actor, $ignore_admins);
+		
+		$bots = array_filter($bots, function($bot) { /* @var $bot Model_Bot */
+			if(!$bot->at_mention_name)
+				return false;
+			
+			if(!isset($bot->params['interactions']))
+				return false;
+			
+			if(!isset($bot->params['interactions']['worker']) || empty($bot->params['interactions']['worker']))
+				return false;
+			
+			return true;
+		});
+		
+		$privs = Context_Bot::isReadableByActor($bots, $actor);
+		return array_intersect_key($bots, array_flip(array_keys($privs, true)));
+	}
+	
+	static function getWriteableByActor($actor) {
+		$bots = DAO_Bot::getAll();
+		$privs = Context_Bot::isWriteableByActor($bots, $actor);
 		return array_intersect_key($bots, array_flip(array_keys($privs, true)));
 	}
 	
@@ -344,7 +290,7 @@ class DAO_Bot extends Cerb_ORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -359,7 +305,7 @@ class DAO_Bot extends Cerb_ORMHelper {
 			DAO_TriggerEvent::deleteByBot($id);
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
+		$eventMgr = DevblocksPlatform::getEventService();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -376,7 +322,7 @@ class DAO_Bot extends Cerb_ORMHelper {
 	}
 	
 	public static function deleteByOwner($context, $context_ids) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($context) || empty($context_ids))
 			return false;
@@ -465,6 +411,7 @@ class DAO_Bot extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -476,7 +423,7 @@ class DAO_Bot extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -531,7 +478,7 @@ class DAO_Bot extends Cerb_ORMHelper {
 
 	public static function clearCache() {
 		// Invalidate cache on changes
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache->remove(self::CACHE_ALL);
 	}
 };
@@ -708,39 +655,6 @@ class Model_Bot {
 		
 		return $manifests;
 	}
-	
-	function exportToJson() {
-		$bot_data = array(
-			'uid' => 'bot_'.$this->id,
-			'name' => $this->name,
-			'owner' => [
-				'context' => $this->owner_context,
-				'id' => $this->owner_context_id,
-			],
-			'is_disabled' => $this->is_disabled ? true : false,
-			'params' => $this->params,
-			'image' => null,
-			'behaviors' => [],
-		);
-		
-		if(false != ($avatar = DAO_ContextAvatar::getByContext(CerberusContexts::CONTEXT_BOT, $this->id))) {
-			if(false != ($image = Storage_ContextAvatar::get($avatar)))
-				$bot_data['image'] = 'data:image/png;base64,' . base64_encode($image);
-		}
-		
-		$behaviors = $this->getBehaviors(null, true);
-		
-		foreach($behaviors as $behavior) {
-			if(null == ($event = $behavior->getEvent()))
-				return;
-			
-			$behavior_json = $behavior->exportToJson(0);
-			$behavior_data = json_decode($behavior_json, true);
-			$bot_data['behaviors'][] = $behavior_data['behavior'];
-		}
-		
-		return DevblocksPlatform::strFormatJson($bot_data);
-	}
 };
 
 class View_Bot extends C4_AbstractView implements IAbstractView_Subtotals, IAbstractView_QuickSearch {
@@ -829,7 +743,7 @@ class View_Bot extends C4_AbstractView implements IAbstractView_Subtotals, IAbst
 					
 				// Valid custom fields
 				default:
-					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
+					if('cf_' == substr($field_key,0,3))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -863,7 +777,7 @@ class View_Bot extends C4_AbstractView implements IAbstractView_Subtotals, IAbst
 				break;
 				
 			case SearchFields_Bot::VIRTUAL_OWNER:
-				$counts = $this->_getSubtotalCountForContextAndIdColumns($context, $column, DAO_Bot::OWNER_CONTEXT, DAO_Bot::OWNER_CONTEXT_ID, 'owner_context[]');
+				$counts = $this->_getSubtotalCountForContextAndIdColumns($context, $column, DAO_CustomFieldset::OWNER_CONTEXT, DAO_CustomFieldset::OWNER_CONTEXT_ID, 'owner_context[]');
 				break;
 				
 			case SearchFields_Bot::VIRTUAL_WATCHERS:
@@ -974,7 +888,7 @@ class View_Bot extends C4_AbstractView implements IAbstractView_Subtotals, IAbst
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -987,7 +901,7 @@ class View_Bot extends C4_AbstractView implements IAbstractView_Subtotals, IAbst
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {
@@ -1150,21 +1064,12 @@ class View_Bot extends C4_AbstractView implements IAbstractView_Subtotals, IAbst
 };
 
 class Context_Bot extends Extension_DevblocksContext implements IDevblocksContextProfile, IDevblocksContextPeek, IDevblocksContextAutocomplete { // IDevblocksContextImport
-	static function isReadableByActor($models, $actor, $ignore_admins=false) {
-		return CerberusContexts::isReadableByDelegateOwner($actor, CerberusContexts::CONTEXT_BOT, $models, 'owner_', $ignore_admins);
+	static function isReadableByActor($models, $actor) {
+		return CerberusContexts::isReadableByDelegateOwner($actor, CerberusContexts::CONTEXT_BOT, $models);
 	}
 	
-	static function isWriteableByActor($models, $actor, $ignore_admins=false) {
-		// Only admins can modify
-
-		if(false == ($actor = CerberusContexts::polymorphActorToDictionary($actor)))
-			CerberusContexts::denyEverything($models);
-
-		// Admins can do whatever they want
-		if(CerberusContexts::isActorAnAdmin($actor))
-			return CerberusContexts::allowEverything($models);
-
-		return CerberusContexts::denyEverything($models);
+	static function isWriteableByActor($models, $actor) {
+		return CerberusContexts::isWriteableByDelegateOwner($actor, CerberusContexts::CONTEXT_BOT, $models);
 	}
 	
 	function getRandom() {
@@ -1172,7 +1077,7 @@ class Context_Bot extends Extension_DevblocksContext implements IDevblocksContex
 	}
 	
 	function autocomplete($term, $query=null) {
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		$list = array();
 		
 		$models = DAO_Bot::autocomplete($term);
@@ -1204,7 +1109,7 @@ class Context_Bot extends Extension_DevblocksContext implements IDevblocksContex
 		if(empty($context_id))
 			return '';
 	
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		$url = $url_writer->writeNoProxy('c=profiles&type=bot&id='.$context_id, true);
 		return $url;
 	}
@@ -1213,7 +1118,7 @@ class Context_Bot extends Extension_DevblocksContext implements IDevblocksContex
 		if(false == ($bot = DAO_Bot::get($context_id)))
 			return [];
 			
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		$url = $this->profileGetUrl($context_id);
 		$friendly = DevblocksPlatform::strToPermalink($bot->name);
@@ -1265,7 +1170,7 @@ class Context_Bot extends Extension_DevblocksContext implements IDevblocksContex
 			$prefix = 'Bot:';
 		
 		$translate = DevblocksPlatform::getTranslationService();
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		$fields = DAO_CustomField::getByContext(CerberusContexts::CONTEXT_BOT);
 
 		// Polymorph
@@ -1282,7 +1187,6 @@ class Context_Bot extends Extension_DevblocksContext implements IDevblocksContex
 		// Token labels
 		$token_labels = array(
 			'_label' => $prefix,
-			'config' => $prefix.$translate->_('common.configuration'),
 			'created_at' => $prefix.$translate->_('common.created'),
 			'id' => $prefix.$translate->_('common.id'),
 			'mention_name' => $prefix.$translate->_('worker.at_mention_name'),
@@ -1298,7 +1202,6 @@ class Context_Bot extends Extension_DevblocksContext implements IDevblocksContex
 		// Token types
 		$token_types = array(
 			'_label' => 'context_url',
-			'config' => null,
 			'created_at' => Model_CustomField::TYPE_DATE,
 			'id' => Model_CustomField::TYPE_NUMBER,
 			'mention_name' => Model_CustomField::TYPE_SINGLE_LINE,
@@ -1342,41 +1245,13 @@ class Context_Bot extends Extension_DevblocksContext implements IDevblocksContex
 			// URL
 			$token_values['record_url'] = $url_writer->writeNoProxy(sprintf("c=profiles&type=bot&id=%d-%s",$model->id, DevblocksPlatform::strToPermalink($model->name)), true);
 			
-			// Owner
 			$token_values['owner__context'] = $model->owner_context;
 			$token_values['owner_id'] = $model->owner_context_id;
-			
-			// Configuration JSON
-			$token_values['config'] = is_array(@$model->params['config']) ? $model->params['config'] : [];
 		}
 		
 		return true;
 	}
 
-	function getKeyToDaoFieldMap() {
-		return [
-			'created_at' => DAO_Bot::CREATED_AT,
-			'id' => DAO_Bot::ID,
-			'is_disabled' => DAO_Bot::IS_DISABLED,
-			'links' => '_links',
-			'mention_name' => DAO_Bot::AT_MENTION_NAME,
-			'name' => DAO_Bot::NAME,
-			'owner__context' => DAO_Bot::OWNER_CONTEXT,
-			'owner_id' => DAO_Bot::OWNER_CONTEXT_ID,
-			'updated_at' => DAO_Bot::UPDATED_AT,
-		];
-	}
-	
-	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
-		switch(DevblocksPlatform::strLower($key)) {
-			case 'links':
-				$this->_getDaoFieldsLinks($value, $out_fields, $error);
-				break;
-		}
-		
-		return true;
-	}
-	
 	function lazyLoadContextValues($token, $dictionary) {
 		if(!isset($dictionary['id']))
 			return;
@@ -1490,7 +1365,7 @@ class Context_Bot extends Extension_DevblocksContext implements IDevblocksContex
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('view_id', $view_id);
 		
 		$context = CerberusContexts::CONTEXT_BOT;
@@ -1525,7 +1400,7 @@ class Context_Bot extends Extension_DevblocksContext implements IDevblocksContex
 			$tpl->assign('types', $types);
 			
 			// Owner
-			$owners_menu = Extension_DevblocksContext::getOwnerTree([CerberusContexts::CONTEXT_APPLICATION, CerberusContexts::CONTEXT_GROUP, CerberusContexts::CONTEXT_ROLE, CerberusContexts::CONTEXT_WORKER]);
+			$owners_menu = Extension_DevblocksContext::getOwnerTree(['app','group','role','worker']);
 			$tpl->assign('owners_menu', $owners_menu);
 			
 			// VA Events
@@ -1538,19 +1413,16 @@ class Context_Bot extends Extension_DevblocksContext implements IDevblocksContex
 			DevblocksPlatform::sortObjects($action_extensions, 'params->[label]');
 			$tpl->assign('action_extensions', $action_extensions);
 			
+			// Interaction behaviors
+			$interaction_behaviors = DAO_TriggerEvent::getReadableByActor($active_worker, Event_InteractionChatWorker::ID);
+			$tpl->assign('interaction_behaviors', $interaction_behaviors);
+			
 			// View
 			$tpl->assign('id', $context_id);
 			$tpl->assign('view_id', $view_id);
 			$tpl->display('devblocks:cerberusweb.core::internal/bot/peek_edit.tpl');
 			
 		} else {
-			// Dictionary
-			$labels = array();
-			$values = array();
-			CerberusContexts::getContext($context, $model, $labels, $values, '', true, false);
-			$dict = DevblocksDictionaryDelegate::instance($values);
-			$tpl->assign('dict', $dict);
-			
 			// Counts
 			$activity_counts = array(
 				'behaviors' => DAO_TriggerEvent::countByBot($context_id),
@@ -1582,10 +1454,12 @@ class Context_Bot extends Extension_DevblocksContext implements IDevblocksContex
 			if(false == ($context_ext = Extension_DevblocksContext::get($context)))
 				return;
 			
-			// Interactions
-			$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
-			$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
-			$tpl->assign('interactions_menu', $interactions_menu);
+			// Dictionary
+			$labels = array();
+			$values = array();
+			CerberusContexts::getContext($context, $model, $labels, $values, '', true, false);
+			$dict = DevblocksDictionaryDelegate::instance($values);
+			$tpl->assign('dict', $dict);
 			
 			$properties = $context_ext->getCardProperties();
 			$tpl->assign('properties', $properties);

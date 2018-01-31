@@ -3,7 +3,7 @@
 /*
  * This file is part of Twig.
  *
- * (c) Fabien Potencier
+ * (c) 2009 Fabien Potencier
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -22,7 +22,9 @@ abstract class Twig_TokenParser implements Twig_TokenParserInterface
     protected $parser;
 
     /**
-     * Sets the parser associated with this token parser.
+     * Sets the parser associated with this token parser
+     *
+     * @param $parser A Twig_Parser instance
      */
     public function setParser(Twig_Parser $parser)
     {

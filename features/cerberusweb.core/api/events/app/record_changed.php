@@ -24,7 +24,7 @@ class Event_RecordChanged extends AbstractEvent_Record {
 	}
 	
 	static function trigger($context, $new_model, $old_model, $actor=null, $variables=array()) {
-		$events = DevblocksPlatform::services()->event();
+		$events = DevblocksPlatform::getEventService();
 		return $events->trigger(
 			new Model_DevblocksEvent(
 				self::ID,

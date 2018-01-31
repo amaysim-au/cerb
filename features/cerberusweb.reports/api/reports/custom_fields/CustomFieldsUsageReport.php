@@ -17,8 +17,8 @@
 
 class ChReportCustomFieldUsage extends Extension_Report {
 	function render() {
-		$db = DevblocksPlatform::services()->database();
-		$tpl = DevblocksPlatform::services()->template();
+		$db = DevblocksPlatform::getDatabaseService();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		// Custom Field contexts (tickets, orgs, etc.)
 		$tpl->assign('context_manifests', Extension_DevblocksContext::getAll());
@@ -59,7 +59,7 @@ class ChReportCustomFieldUsage extends Extension_Report {
 	}
 	
 	private function _getValueCounts($field_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Selected custom field
 		if(null == ($field = DAO_CustomField::get($field_id)))

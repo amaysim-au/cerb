@@ -23,7 +23,8 @@ class ChDebugController extends DevblocksControllerExtension  {
 		$stack = $request->path;
 		array_shift($stack); // update
 
-		$settings = DevblocksPlatform::services()->pluginSettings();
+//		$cache = DevblocksPlatform::getCacheService(); /* @var $cache _DevblocksCacheManager */
+		$settings = DevblocksPlatform::getPluginSettingsService();
 
 		$authorized_ips_str = $settings->get('cerberusweb.core',CerberusSettings::AUTHORIZED_IPS,CerberusSettingsDefaults::AUTHORIZED_IPS);
 		$authorized_ips = DevblocksPlatform::parseCrlfString($authorized_ips_str);
@@ -31,7 +32,16 @@ class ChDebugController extends DevblocksControllerExtension  {
 		$authorized_ip_defaults = DevblocksPlatform::parseCsvString(AUTHORIZED_IPS_DEFAULTS);
 		$authorized_ips = array_merge($authorized_ips, $authorized_ip_defaults);
 		
-		if(!DevblocksPlatform::isIpAuthorized(DevblocksPlatform::getClientIp(), $authorized_ips)) {
+		// Is this IP authorized?
+		$pass = false;
+		foreach ($authorized_ips as $ip) {
+			if(substr($ip,0,strlen($ip)) == substr(DevblocksPlatform::getClientIp(),0,strlen($ip))) {
+				$pass = true;
+				break;
+			}
+		}
+		
+		if(!$pass) {
 			echo sprintf('Your IP address (%s) is not authorized to debug this helpdesk.  Your administrator needs to authorize your IP in Helpdesk Setup or in the framework.config.php file under AUTHORIZED_IPS_DEFAULTS.',
 				DevblocksPlatform::strEscapeHtml(DevblocksPlatform::getClientIp())
 			);
@@ -82,7 +92,7 @@ class ChDebugController extends DevblocksControllerExtension  {
 				break;
 				
 			case 'status':
-				@$db = DevblocksPlatform::services()->database();
+				@$db = DevblocksPlatform::getDatabaseService();
 
 				header('Content-Type: application/json; charset=utf-8');
 
@@ -105,22 +115,12 @@ class ChDebugController extends DevblocksControllerExtension  {
 					}
 				}
 				
-				$results = $db->GetArrayMaster('SELECT COUNT(*) AS hits, event_point FROM trigger_event GROUP BY event_point ORDER BY hits DESC');
-				
-				if(false != ($bot_behavior_counts = array_column($results, 'hits', 'event_point')) && is_array($bot_behavior_counts)) {
-					array_walk($bot_behavior_counts, function(&$count) {
-						$count = intval($count);
-					});
-				}
-				
 				$status = array(
 					'counts' => array(
 						'attachments' => intval($db->GetOneMaster('SELECT count(id) FROM attachment')),
 						'bots' => intval($db->GetOneMaster('SELECT count(id) FROM bot')),
 						'bot_behaviors' => intval($db->GetOneMaster('SELECT count(id) FROM trigger_event')),
-						'bot_events' => is_array($bot_behavior_counts) ? $bot_behavior_counts : [],
 						'buckets' => intval($db->GetOneMaster('SELECT count(id) FROM bucket')),
-						'classifiers' => intval(@$db->GetOneMaster('SELECT count(id) FROM classifier')),
 						'comments' => intval($db->GetOneMaster('SELECT count(id) FROM comment')),
 						'custom_fields' => intval($db->GetOneMaster('SELECT count(id) FROM custom_field')),
 						'custom_fieldsets' => intval($db->GetOneMaster('SELECT count(id) FROM custom_fieldset')),
@@ -135,10 +135,9 @@ class ChDebugController extends DevblocksControllerExtension  {
 							'sent_24h' => intval($db->GetOneMaster(sprintf('SELECT count(id) FROM message WHERE is_outgoing=1 AND created_date >= %d', time()-86400))),
 						),
 						'portals' => intval(@$db->GetOneMaster('SELECT count(id) FROM community_tool')),
-						'project_boards' => intval(@$db->GetOneMaster('SELECT count(id) FROM project_board')),
 						'tickets' => intval($db->GetOneMaster('SELECT count(id) FROM ticket')),
 						'tickets_status' => $tickets_by_status,
-						'webhooks' => intval(@$db->GetOneMaster('SELECT count(id) FROM webhook_listener')),
+						'webhooks' => intval($db->GetOneMaster('SELECT count(id) FROM webhook_listener')),
 						'workers' => intval($db->GetOneMaster('SELECT count(id) FROM worker')),
 						'workers_active_15m' => intval($db->GetOneMaster(sprintf('SELECT count(DISTINCT actor_context_id) FROM context_activity_log WHERE actor_context = "cerberusweb.contexts.worker" AND created >= %d', time()-900))),
 						'workers_active_30m' => intval($db->GetOneMaster(sprintf('SELECT count(DISTINCT actor_context_id) FROM context_activity_log WHERE actor_context = "cerberusweb.contexts.worker" AND created >= %d', time()-1800))),
@@ -196,12 +195,12 @@ class ChDebugController extends DevblocksControllerExtension  {
 				
 				// Output
 				
-				echo json_encode($status, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+				echo json_encode($status);
 				break;
 				
 			case 'report':
-				@$db = DevblocksPlatform::services()->database();
-				@$settings = DevblocksPlatform::services()->pluginSettings();
+				@$db = DevblocksPlatform::getDatabaseService();
+				@$settings = DevblocksPlatform::getPluginSettingsService();
 				
 				@$tables = $db->metaTablesDetailed();
 				
@@ -357,21 +356,35 @@ class ChDebugController extends DevblocksControllerExtension  {
 
 				header("Content-type: application/json");
 				
-				$output = [
-					'bots' => [],
-				];
+				$output = array(
+					'bots' => array(),
+				);
 				
-				$bots = DAO_Bot::getAll();
+				$vas = DAO_Bot::getAll();
 				
-				foreach($bots as $bot) {
-					$output['bots'][$bot->id] = json_decode($bot->exportToJson());
+				foreach($vas as $va) {
+					$output['bots'][$va->id] = array(
+						'label' => $va->name,
+						'owner_context' => $va->owner_context,
+						'owner_context_id' => $va->owner_context_id,
+						'behaviors' => array(),
+					);
+					
+					$behaviors = $va->getBehaviors(null, true);
+					
+					foreach($behaviors as $behavior) {
+						if(false !== ($json = $behavior->exportToJson())) {
+							$json_array = json_decode($json, true);
+							$output['bots'][$va->id]['behaviors'][] = $json_array;
+						}
+					}
 				}
 				
 				echo DevblocksPlatform::strFormatJson($output);
 				break;
 				
 			default:
-				$url_service = DevblocksPlatform::services()->url();
+				$url_service = DevblocksPlatform::getUrlService();
 				
 				echo sprintf(
 					"<html>

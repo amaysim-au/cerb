@@ -11,17 +11,17 @@ class CalendarDatasource_Calendar extends Extension_CalendarDatasource {
 	function renderConfig(Model_Calendar $calendar, $params, $params_prefix) {
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('calendar', $calendar);
 		$tpl->assign('params', $params);
 		$tpl->assign('params_prefix', $params_prefix);
 		
-		$calendars = [];
+		$calendars = array();
 		
 		if($calendar instanceof Model_Calendar && $calendar->id) {
-			$calendars = DAO_Calendar::getReadableByActor([$calendar->owner_context, $calendar->owner_context_id]);
+			$calendars = DAO_Calendar::getReadableByActor(array($calendar->owner_context, $calendar->owner_context_id));
 		} else {
-			$calendars = DAO_Calendar::getReadableByActor([CerberusContexts::CONTEXT_WORKER, $active_worker->id]);
+			$calendars = DAO_Calendar::getReadableByActor(array(CerberusContexts::CONTEXT_WORKER, $active_worker->id));
 		}
 		
 		// We need to exclude the current calendar from being sync'd to itself
@@ -66,7 +66,7 @@ class CalendarDatasource_Worklist extends Extension_CalendarDatasource {
 	}
 	
 	function renderConfig(Model_Calendar $calendar, $params, $params_prefix) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('calendar', $calendar);
 		$tpl->assign('params', $params);
 		$tpl->assign('params_prefix', $params_prefix);
@@ -160,12 +160,11 @@ class CalendarDatasource_Worklist extends Extension_CalendarDatasource {
 					
 					$view->renderPage = 0;
 					$view->renderLimit = -1;
-					$view->setAutoPersist(false);
 
 					// [TODO] Paging
 					// [TODO] Subtotals
 					
-					$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+					$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 					@$template = $params['label'];
 					
 					if(empty($template))

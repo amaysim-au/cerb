@@ -17,7 +17,7 @@
 
 class ChReportGroupRoster extends Extension_Report {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$rosters = DAO_Group::getRosters();
 		$tpl->assign('rosters', $rosters);

@@ -33,7 +33,7 @@ class _DevblocksPluginSettingsManager {
 			$value = json_encode($value);
 		
 		if($encrypted) {
-			$encrypt = DevblocksPlatform::services()->encryption();
+			$encrypt = DevblocksPlatform::getEncryptionService();
 			$value = $encrypt->encrypt($value);
 		}
 		
@@ -53,7 +53,7 @@ class _DevblocksPluginSettingsManager {
 	 * @return mixed
 	 */
 	public function get($plugin_id, $key, $default=null, $json_decode=false, $encrypted=false) {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache_key = $this->_getCacheKey($plugin_id);
 		
 		if(null === ($settings = $cache->load($cache_key))) {
@@ -69,7 +69,7 @@ class _DevblocksPluginSettingsManager {
 			$value = $settings[$key];
 			
 			if($encrypted) {
-				$encrypt = DevblocksPlatform::services()->encryption();
+				$encrypt = DevblocksPlatform::getEncryptionService();
 				$value = $encrypt->decrypt($value);
 			}
 			
@@ -97,7 +97,7 @@ class _DevblocksPluginSettingsManager {
 	 */
 	private function _clearCache($plugin_id) {
 		// Clear the plugin's settings cache when changed
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache_key = $this->_getCacheKey($plugin_id);
 		return $cache->remove($cache_key);
 	}

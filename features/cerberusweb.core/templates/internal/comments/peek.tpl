@@ -5,13 +5,12 @@
 <div id="{$div_id}">
 	<div style="float:left;">
 		<div style="margin-top:5px;">
-			{if $dict->id}<button type="button" class="cerb-peek-profile"><span class="glyphicons glyphicons-nameplate"></span> {'common.profile'|devblocks_translate|capitalize}</button>{/if}
-			
-			{if $is_writeable && $active_worker->hasPriv("contexts.{$peek_context}.update")}
+			{if $is_writeable}
 			<button type="button" class="cerb-peek-edit" data-context="{$peek_context}" data-context-id="{$dict->id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span> {'common.edit'|devblocks_translate|capitalize}</button>
 			{/if}
 			
-			{if $active_worker->hasPriv("contexts.{$dict->target__context}.comment")}<button type="button" class="cerb-peek-comments-add" data-context="{CerberusContexts::CONTEXT_COMMENT}" data-context-id="0" data-edit="context:{$dict->target__context} context.id:{$dict->target_id}"><span class="glyphicons glyphicons-conversation"></span> {'common.reply'|devblocks_translate|capitalize}</button>{/if}
+			{if $dict->id}<button type="button" class="cerb-peek-profile"><span class="glyphicons glyphicons-nameplate"></span> {'common.profile'|devblocks_translate|capitalize}</button>{/if}
+			<button type="button" class="cerb-peek-comments-add" data-context="{CerberusContexts::CONTEXT_COMMENT}" data-context-id="0" data-edit="context:{$dict->target__context} context.id:{$dict->target_id}"><span class="glyphicons glyphicons-conversation"></span> {'display.ui.reply'|devblocks_translate|capitalize}</button>
 		</div>
 	</div>
 </div>
@@ -62,7 +61,7 @@ $(function() {
 		$popup.find('div.cerb-properties-grid').cerbPropertyGrid();
 		
 		// Edit button
-		{if $is_writeable && $active_worker->hasPriv("contexts.{$peek_context}.update")}
+		{if $is_writeable}
 		$popup.find('button.cerb-peek-edit')
 			.cerbPeekTrigger({ 'view_id': '{$view_id}' })
 			.on('cerb-peek-saved', function(e) {

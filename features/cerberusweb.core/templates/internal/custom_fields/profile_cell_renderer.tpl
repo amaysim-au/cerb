@@ -28,8 +28,6 @@
 	{if isset($workers.{$v.value})}
 		{$workers.{$v.value}->getName()}
 	{/if}
-{elseif $v.type == Model_CustomField::TYPE_LIST}
-	{$v.value|implode:', '}
 {elseif $v.type == Model_CustomField::TYPE_MULTI_CHECKBOX}
 	{$v.value|implode:', '}
 {elseif $v.type == Model_CustomField::TYPE_LINK}

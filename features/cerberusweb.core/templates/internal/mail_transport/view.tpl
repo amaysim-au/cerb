@@ -1,4 +1,4 @@
-{$view_context = CerberusContexts::CONTEXT_MAIL_TRANSPORT}
+{$view_context = 'cerberusweb.contexts.mail.transport'}
 {$view_fields = $view->getColumnsAvailable()}
 {$results = $view->getData()}
 {$total = $results[1]}
@@ -6,15 +6,15 @@
 
 {include file="devblocks:cerberusweb.core::internal/views/view_marquee.tpl" view=$view}
 
-<table cellpadding="0" cellspacing="0" border="0" class="worklist" width="100%" {if $view->options.header_color}style="background-color:{$view->options.header_color};"{/if}>
+<table cellpadding="0" cellspacing="0" border="0" class="worklist" width="100%">
 	<tr>
 		<td nowrap="nowrap"><span class="title">{$view->name}</span></td>
 		<td nowrap="nowrap" align="right" class="title-toolbar">
-			{if $active_worker->hasPriv("contexts.{$view_context}.create")}<a href="javascript:;" title="{'common.add'|devblocks_translate|capitalize}" class="minimal peek cerb-peek-trigger" data-context="{$view_context}" data-context-id="0"><span class="glyphicons glyphicons-circle-plus"></span></a>{/if}
+			{if $active_worker->is_superuser}<a href="javascript:;" title="{'common.add'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxPopup('peek','c=internal&a=showPeekPopup&context={$view_context}&context_id=0&view_id={$view->id}',null,false,'50%');"><span class="glyphicons glyphicons-circle-plus"></span></a>{/if}
 			<a href="javascript:;" title="{'common.search'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxPopup('search','c=internal&a=viewShowQuickSearchPopup&view_id={$view->id}',null,false,'400');"><span class="glyphicons glyphicons-search"></span></a>
 			<a href="javascript:;" title="{'common.customize'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxGet('customize{$view->id}','c=internal&a=viewCustomize&id={$view->id}');toggleDiv('customize{$view->id}','block');"><span class="glyphicons glyphicons-cogwheel"></span></a>
 			<a href="javascript:;" title="{'common.subtotals'|devblocks_translate|capitalize}" class="subtotals minimal"><span class="glyphicons glyphicons-signal"></span></a>
-			{if $active_worker->hasPriv("contexts.{$view_context}.export")}<a href="javascript:;" title="{$translate->_('common.export')|capitalize}" class="minimal" onclick="genericAjaxGet('{$view->id}_tips','c=internal&a=viewShowExport&id={$view->id}');toggleDiv('{$view->id}_tips','block');"><span class="glyphicons glyphicons-file-export"></span></a>{/if}
+			<a href="javascript:;" title="{$translate->_('common.export')|capitalize}" class="minimal" onclick="genericAjaxGet('{$view->id}_tips','c=internal&a=viewShowExport&id={$view->id}');toggleDiv('{$view->id}_tips','block');"><span class="glyphicons glyphicons-file-export"></span></a>
 			<a href="javascript:;" title="{$translate->_('common.copy')|capitalize}" onclick="genericAjaxGet('{$view->id}_tips','c=internal&a=viewShowCopy&view_id={$view->id}');toggleDiv('{$view->id}_tips','block');"><span class="glyphicons glyphicons-duplicate"></span></a>
 			<a href="javascript:;" title="{'common.refresh'|devblocks_translate|capitalize}" class="minimal" onclick="genericAjaxGet('view{$view->id}','c=internal&a=viewRefresh&id={$view->id}');"><span class="glyphicons glyphicons-refresh"></span></a>
 			<input type="checkbox" class="select-all">
@@ -34,17 +34,11 @@
 <input type="hidden" name="explore_from" value="0">
 <input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
 
-<table cellpadding="1" cellspacing="0" border="0" width="100%" class="worklistBody">
+<table cellpadding="5" cellspacing="0" border="0" width="100%" class="worklistBody">
 
 	{* Column Headers *}
 	<thead>
 	<tr>
-		{if !$view->options.disable_watchers}
-		<th class="no-sort" style="text-align:center;width:40px;padding-left:0;padding-right:0;" title="{'common.watchers'|devblocks_translate|capitalize}">
-			<span class="glyphicons glyphicons-eye-open" style="color:rgb(80,80,80);"></span>
-		</th>
-		{/if}
-
 		{foreach from=$view->view_columns item=header name=headers}
 			{* start table header, insert column title and link *}
 			<th class="{if $view->options.disable_sorting}no-sort{/if}">
@@ -74,22 +68,27 @@
 	{/if}
 	<tbody style="cursor:pointer;">
 		<tr class="{$tableRowClass}">
-			<td data-column="*_watchers" align="center" nowrap="nowrap" style="padding:5px;">
-				{include file="devblocks:cerberusweb.core::internal/watchers/context_follow_button.tpl" context=$view_context context_id=$result.m_id}
-			</td>
 		{foreach from=$view->view_columns item=column name=columns}
 			{if substr($column,0,3)=="cf_"}
 				{include file="devblocks:cerberusweb.core::internal/custom_fields/view/cell_renderer.tpl"}
 			{elseif $column == "m_name"}
-			<td>
+			<td data-column="{$column}">
 				<input type="checkbox" name="row_id[]" value="{$result.m_id}" style="display:none;">
+				{if $result.m_is_default}<span class="glyphicons glyphicons-circle-ok" style="font-size:16px;color:rgb(80,80,80);"></span>{/if}
 				<a href="{devblocks_url}c=profiles&type=mail_transport&id={$result.m_id}-{$result.m_name|devblocks_permalink}{/devblocks_url}" class="subject">{$result.m_name}</a>
-				<button type="button" class="peek cerb-peek-trigger" data-context="{$view_context}" data-context-id="{$result.m_id}"><span class="glyphicons glyphicons-new-window-alt"></span></button>
+				{if $active_worker->is_superuser}<button type="button" class="peek" onclick="genericAjaxPopup('peek','c=internal&a=showPeekPopup&context={$view_context}&context_id={$result.m_id}&view_id={$view->id}',null,false,'50%');"><span class="glyphicons glyphicons-new-window-alt" style="margin-left:2px" title="{$translate->_('views.peek')}"></span></button>{/if}
+			</td>
+			{elseif $column == "m_extension_id"}
+			<td data-column="{$column}">
+				{$mail_transport_ext = $mail_transport_exts.{$result.$column}}
+				{if !empty($mail_transport_ext)}
+					{$mail_transport_ext->name}
+				{/if}
 			</td>
 			{elseif in_array($column, ["m_created_at", "m_updated_at"])}
-				<td>
+				<td data-column="{$column}" title="{$result.$column|devblocks_date}">
 					{if !empty($result.$column)}
-						<abbr title="{$result.$column|devblocks_date}">{$result.$column|devblocks_prettytime}</abbr>
+						{$result.$column|devblocks_prettytime}&nbsp;
 					{/if}
 				</td>
 			{else}
@@ -127,6 +126,9 @@
 	{if $total}
 	<div style="float:left;" id="{$view->id}_actions">
 		<button type="button" class="action-always-show action-explore" onclick="this.form.explore_from.value=$(this).closest('form').find('tbody input:checkbox:checked:first').val();this.form.action.value='viewExplore';this.form.submit();"><span class="glyphicons glyphicons-play-button"></span> {'common.explore'|devblocks_translate|lower}</button>
+		{*
+		{if $active_worker->hasPriv('calls.actions.update_all')}<button type="button" class="action-always-show action-bulkupdate" onclick="genericAjaxPopup('peek','c=profiles&a=handleSectionAction&section=mail_transport&action=showBulkPanel&view_id={$view->id}&ids=' + Devblocks.getFormEnabledCheckboxValues('viewForm{$view->id}','row_id[]'),null,false,'50%');"><span class="glyphicons glyphicons-folder-closed"></span> {'common.bulk_update'|devblocks_translate|lower}</button>{/if}
+		*}
 	</div>
 	{/if}
 </div>
@@ -138,35 +140,46 @@
 {include file="devblocks:cerberusweb.core::internal/views/view_common_jquery_ui.tpl"}
 
 <script type="text/javascript">
-$(function() {
-	var $frm = $('#viewForm{$view->id}');
+$frm = $('#viewForm{$view->id}');
+
+{if $pref_keyboard_shortcuts}
+$frm.bind('keyboard_shortcut',function(event) {
+	$view_actions = $('#{$view->id}_actions');
 	
-	{if $pref_keyboard_shortcuts}
-	$frm.bind('keyboard_shortcut',function(event) {
-		$view_actions = $('#{$view->id}_actions');
+	hotkey_activated = true;
+
+	switch(event.keypress_event.which) {
+		{*
+		case 98: // (b) bulk update
+			$btn = $view_actions.find('button.action-bulkupdate');
 		
-		hotkey_activated = true;
-	
-		switch(event.keypress_event.which) {
-			case 101: // (e) explore
-				$btn = $view_actions.find('button.action-explore');
-			
-				if(event.indirect) {
-					$btn.select().focus();
-					
-				} else {
-					$btn.click();
-				}
-				break;
+			if(event.indirect) {
+				$btn.select().focus();
 				
-			default:
-				hotkey_activated = false;
-				break;
-		}
-	
-		if(hotkey_activated)
-			event.preventDefault();
-	});
-	{/if}
+			} else {
+				$btn.click();
+			}
+			break;
+		*}
+		
+		case 101: // (e) explore
+			$btn = $view_actions.find('button.action-explore');
+		
+			if(event.indirect) {
+				$btn.select().focus();
+				
+			} else {
+				$btn.click();
+			}
+			break;
+			
+		default:
+			hotkey_activated = false;
+			break;
+	}
+
+	if(hotkey_activated)
+		event.preventDefault();
 });
+{/if}
 </script>

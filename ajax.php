@@ -50,23 +50,12 @@ $request = DevblocksPlatform::readRequest();
 DevblocksPlatform::init();
 DevblocksPlatform::setHandlerSession('Cerb_DevblocksSessionHandler');
 
-$tpl = DevblocksPlatform::services()->template();
-
-DevblocksPlatform::setStateless(in_array(@$request->path[0], ['cron','portal','resource']));
-
-if(DevblocksPlatform::isStateless()) {
-	$_SESSION = [];
-	
-} else {
-	$session = DevblocksPlatform::services()->session();
-	$tpl->assign('session', $_SESSION);
-	$tpl->assign('visit', $session->getVisit());
-}
-
-$settings = DevblocksPlatform::services()->pluginSettings();
+$session = DevblocksPlatform::getSessionService();
+$settings = DevblocksPlatform::getPluginSettingsService();
 $worker = CerberusApplication::getActiveWorker();
 
 // Localization
+
 DevblocksPlatform::setDateTimeFormat(DevblocksPlatform::getPluginSetting('cerberusweb.core', CerberusSettings::TIME_FORMAT, CerberusSettingsDefaults::TIME_FORMAT));
 
 // Locale
@@ -80,7 +69,10 @@ if(isset($_SESSION['time_format']))
 	DevblocksPlatform::setDateTimeFormat($_SESSION['time_format']);
 
 // Scope
+$tpl = DevblocksPlatform::getTemplateService();
 $tpl->assign('translate', DevblocksPlatform::getTranslationService());
+$tpl->assign('session', $_SESSION);
+$tpl->assign('visit', $session->getVisit());
 $tpl->assign('active_worker', $worker);
 $tpl->assign('settings', $settings);
 

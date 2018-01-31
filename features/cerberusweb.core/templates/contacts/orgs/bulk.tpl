@@ -21,7 +21,7 @@
 	<legend>Set Fields</legend>
 	
 	<table cellspacing="0" cellpadding="2" width="100%">
-		{if $active_worker->hasPriv('contexts.cerberusweb.contexts.org.delete')}
+		{if $active_worker->hasPriv('core.addybook.org.actions.delete')}
 		<tr>
 			<td width="0%" nowrap="nowrap" valign="middle" align="right">{'common.status'|devblocks_translate|capitalize}:</td>
 			<td width="100%"><select name="status">
@@ -40,6 +40,7 @@
 			</td>
 		</tr>
 		
+		{if $active_worker->hasPriv('core.watchers.assign')}
 		<tr>
 			<td width="0%" nowrap="nowrap" align="right" valign="top">Add watchers:</td>
 			<td width="100%">
@@ -49,7 +50,9 @@
 				</div>
 			</td>
 		</tr>
+		{/if}
 		
+		{if $active_worker->hasPriv('core.watchers.unassign')}
 		<tr>
 			<td width="0%" nowrap="nowrap" align="right" valign="top">Remove watchers:</td>
 			<td width="100%">
@@ -59,6 +62,7 @@
 				</div>
 			</td>
 		</tr>
+		{/if}
 		
 	</table>
 </fieldset>
@@ -74,11 +78,11 @@
 
 {include file="devblocks:cerberusweb.core::internal/macros/behavior/bulk.tpl" macros=$macros}
 
-{if $active_worker->hasPriv('contexts.cerberusweb.contexts.org.broadcast')}
+{if $active_worker->hasPriv('context.org.worklist.broadcast')}
 {include file="devblocks:cerberusweb.core::internal/views/bulk_broadcast.tpl" context=CerberusContexts::CONTEXT_ORG}
 {/if}
 
-{if $active_worker->hasPriv('contexts.cerberusweb.contexts.org.update.bulk')}<button type="button" class="submit"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate|capitalize}</button>{/if}
+{if $active_worker->hasPriv('core.addybook.org.actions.update')}<button type="button" class="submit"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate|capitalize}</button>{/if}
 <br>
 </form>
 

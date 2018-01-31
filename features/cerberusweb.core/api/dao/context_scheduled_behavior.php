@@ -16,70 +16,18 @@
 ***********************************************************************/
 
 class DAO_ContextScheduledBehavior extends Cerb_ORMHelper {
-	const BEHAVIOR_ID = 'behavior_id';
+	const ID = 'id';
 	const CONTEXT = 'context';
 	const CONTEXT_ID = 'context_id';
-	const ID = 'id';
-	const REPEAT_JSON = 'repeat_json';
+	const BEHAVIOR_ID = 'behavior_id';
 	const RUN_DATE = 'run_date';
-	const RUN_LITERAL = 'run_literal';
 	const RUN_RELATIVE = 'run_relative';
+	const RUN_LITERAL = 'run_literal';
 	const VARIABLES_JSON = 'variables_json';
-	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		$validation
-			->addField(self::BEHAVIOR_ID)
-			->id()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::CONTEXT)
-			->context()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::CONTEXT_ID)
-			->id()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		$validation
-			->addField(self::REPEAT_JSON)
-			->string()
-			->setMaxLength(16777215)
-			;
-		$validation
-			->addField(self::RUN_DATE)
-			->timestamp()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::RUN_LITERAL)
-			->string()
-			;
-		$validation
-			->addField(self::RUN_RELATIVE)
-			->string()
-			;
-		$validation
-			->addField(self::VARIABLES_JSON)
-			->string()
-			->setMaxLength(16777215)
-			;
-			
-		return $validation->getFields();
-	}
+	const REPEAT_JSON = 'repeat_json';
 
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		$sql = "INSERT INTO context_scheduled_behavior () VALUES ()";
 		$db->ExecuteMaster($sql);
@@ -99,7 +47,7 @@ class DAO_ContextScheduledBehavior extends Cerb_ORMHelper {
 	}
 
 	static function updateRelativeSchedules($context, $context_ids) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($context_ids))
 			return;
@@ -127,7 +75,7 @@ class DAO_ContextScheduledBehavior extends Cerb_ORMHelper {
 			$event->setEvent($event_model, $macro);
 			$values = $event->getValues();
 			
-			$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+			$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 			@$run_relative_timestamp = strtotime($tpl_builder->build(sprintf("{{%s|date}}",$object->run_relative), $values));
 			
 			if(empty($run_relative_timestamp))
@@ -149,7 +97,7 @@ class DAO_ContextScheduledBehavior extends Cerb_ORMHelper {
 	 * @return Model_ContextScheduledBehavior[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 
@@ -186,8 +134,8 @@ class DAO_ContextScheduledBehavior extends Cerb_ORMHelper {
 	/**
 	 *
 	 * Enter description here ...
-	 * @param string $context
-	 * @param integer $context_id
+	 * @param unknown_type $context
+	 * @param unknown_type $context_id
 	 * @return Model_ContextScheduledBehavior
 	 */
 	static public function getByContext($context, $context_id) {
@@ -238,7 +186,7 @@ class DAO_ContextScheduledBehavior extends Cerb_ORMHelper {
 
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		if(empty($ids))
 			return;
@@ -259,7 +207,7 @@ class DAO_ContextScheduledBehavior extends Cerb_ORMHelper {
 		
 		$context_ids = DevblocksPlatform::sanitizeArray($context_ids, 'int');
 			
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$db->ExecuteMaster(sprintf("DELETE FROM context_scheduled_behavior WHERE context = %s AND context_id IN (%s) ",
 			$db->qstr($context),
@@ -271,7 +219,7 @@ class DAO_ContextScheduledBehavior extends Cerb_ORMHelper {
 	
 	static function deleteByBehavior($behavior_ids, $only_context=null, $only_context_id=null) {
 		if(!is_array($behavior_ids)) $behavior_ids = array($behavior_ids);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($behavior_ids))
 			return;
@@ -356,6 +304,7 @@ class DAO_ContextScheduledBehavior extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -367,7 +316,7 @@ class DAO_ContextScheduledBehavior extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -569,7 +518,7 @@ class Model_ContextScheduledBehavior {
 				throw new Exception("Invalid macro.");
 			
 			// Load event manifest
-			if(null == ($ext = Extension_DevblocksEvent::get($macro->event_point, false))) /* @var $ext DevblocksExtensionManifest */
+			if(null == ($ext = DevblocksPlatform::getExtension($macro->event_point, false))) /* @var $ext DevblocksExtensionManifest */
 				throw new Exception("Invalid event.");
 			
 		} catch(Exception $e) {
@@ -823,7 +772,7 @@ class View_ContextScheduledBehavior extends C4_AbstractView implements IAbstract
 	function render() {
 		$this->_sanitize();
 
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 		
@@ -836,7 +785,7 @@ class View_ContextScheduledBehavior extends C4_AbstractView implements IAbstract
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {

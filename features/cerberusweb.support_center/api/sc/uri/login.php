@@ -69,7 +69,7 @@ class UmScLoginController extends Extension_UmScController {
 	
 	function writeResponse(DevblocksHttpResponse $response) {
 		$umsession = ChPortalHelper::getSession();
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 
 		$stack = $response->path;
 		@array_shift($stack); // login
@@ -84,17 +84,17 @@ class UmScLoginController extends Extension_UmScController {
 	}
 	
 	function configure(Model_CommunityTool $instance) {
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 
 		// Login extensions
-		$login_extensions = DevblocksPlatform::getExtensions('usermeet.login.authenticator', true);
+		$login_extensions = DevblocksPlatform::getExtensions('usermeet.login.authenticator');
 		if(!empty($login_extensions)) {
 			DevblocksPlatform::sortObjects($login_extensions, 'name');
 			$tpl->assign('login_extensions', $login_extensions);
 		}
 
 		// Enabled login extensions
-		$login_extensions_enabled = UmScApp::getLoginExtensionsEnabled($instance->code, true);
+		$login_extensions_enabled = UmScApp::getLoginExtensionsEnabled($instance->code);
 		$tpl->assign('login_extensions_enabled', $login_extensions_enabled);
 		
 		$tpl->display("devblocks:cerberusweb.support_center::portal/sc/config/module/login.tpl");
@@ -103,18 +103,12 @@ class UmScLoginController extends Extension_UmScController {
 	function saveConfiguration(Model_CommunityTool $instance) {
 		@$login_extensions_enabled = DevblocksPlatform::importGPC($_POST['login_extensions'],'array',array());
 
-		$login_extensions = DevblocksPlatform::getExtensions('usermeet.login.authenticator', true);
+		$login_extensions = DevblocksPlatform::getExtensions('usermeet.login.authenticator', false);
 		
 		// Validate
 		foreach($login_extensions_enabled as $idx => $login_extension_enabled) {
-			@$login_extension = $login_extensions[$login_extension_enabled];
-			
-			if(!$login_extension) {
+			if(!isset($login_extensions[$login_extension_enabled]))
 				unset($login_extensions_enabled[$idx]);
-				continue;
-			}
-			
-			$login_extension->saveConfiguration($instance);
 		}
 
 		DAO_CommunityToolProperty::set($instance->code, UmScApp::PARAM_LOGIN_EXTENSIONS, implode(',', $login_extensions_enabled));

@@ -126,7 +126,7 @@
 		{/if}
 		
 		<br>
-		<b>{'portal.public.logged_ip'|devblocks_translate}</b> {$client_ip}<br>
+		<b>{'portal.public.logged_ip'|devblocks_translate}</b> {$fingerprint.ip}<br>
 		<br>
 		
 		<div class="buttons">
