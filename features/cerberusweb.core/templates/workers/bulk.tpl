@@ -107,7 +107,7 @@
 
 {include file="devblocks:cerberusweb.core::internal/custom_fieldsets/peek_custom_fieldsets.tpl" context=CerberusContexts::CONTEXT_WORKER bulk=true}
 
-{if $active_worker->hasPriv('contexts.cerberusweb.contexts.worker.broadcast')}
+{if $active_worker->hasPriv('context.worker.worklist.broadcast')}
 {include file="devblocks:cerberusweb.core::internal/views/bulk_broadcast.tpl" context=CerberusContexts::CONTEXT_WORKER}
 {/if}
 

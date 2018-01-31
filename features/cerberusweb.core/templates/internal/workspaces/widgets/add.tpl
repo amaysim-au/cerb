@@ -1,7 +1,7 @@
 <div id="frmWidgetAddTabs">
 	<ul>
 		<li><a href="#divWidgetAddBuild">Build</a></li>
-		{if $active_worker->hasPriv("contexts.{CerberusContexts::CONTEXT_WORKSPACE_WIDGET}.import")}<li><a href="#divWidgetAddImport">Import</a></li>{/if}
+		<li><a href="#divWidgetAddImport">Import</a></li>
 	</ul>
 	
 	<div id="divWidgetAddBuild">
@@ -26,7 +26,6 @@
 		</form>
 	</div>
 	
-	{if $active_worker->hasPriv("contexts.{CerberusContexts::CONTEXT_WORKSPACE_WIDGET}.import")}
 	<div id="divWidgetAddImport">
 		<form action="{devblocks_url}{/devblocks_url}" method="post" id="frmWidgetAddImport">
 		<input type="hidden" name="c" value="internal">
@@ -51,7 +50,6 @@
 		</div>
 		</form>
 	</div>
-	{/if}
 </div>
 
 <script type="text/javascript">

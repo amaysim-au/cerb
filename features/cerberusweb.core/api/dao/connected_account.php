@@ -1,82 +1,19 @@
 <?php
 class DAO_ConnectedAccount extends Cerb_ORMHelper {
-	const CREATED_AT = 'created_at';
-	const EXTENSION_ID = 'extension_id';
 	const ID = 'id';
 	const NAME = 'name';
+	const EXTENSION_ID = 'extension_id';
 	const OWNER_CONTEXT = 'owner_context';
 	const OWNER_CONTEXT_ID = 'owner_context_id';
 	const PARAMS_JSON = 'params_json';
+	const CREATED_AT = 'created_at';
 	const UPDATED_AT = 'updated_at';
-	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
 
-		$validation
-			->addField(self::CREATED_AT)
-			->timestamp()
-			;
-		$validation
-			->addField(self::EXTENSION_ID)
-			->string()
-			->setRequired(true)
-			->addValidator(function($value, &$error) {
-				if(false == ($extension = Extension_ServiceProvider::get($value))) {
-					$error = sprintf("(%s) is not a valid service provider (%s) extension ID.",
-						$value,
-						Extension_ServiceProvider::POINT
-					);
-					return false;
-				}
-				
-				return true;
-			})
-			;
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		$validation
-			->addField(self::NAME)
-			->string()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::OWNER_CONTEXT)
-			->context()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::OWNER_CONTEXT_ID)
-			->id()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::PARAMS_JSON)
-			->string()
-			->setMaxLength(16777215)
-			;
-		$validation
-			->addField(self::UPDATED_AT)
-			->timestamp()
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
-	
 	static function create($fields) {
 		if(!isset($fields[self::CREATED_AT]))
 			$fields[self::CREATED_AT] = time();
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "INSERT INTO connected_account () VALUES ()";
 		$db->ExecuteMaster($sql);
@@ -88,14 +25,11 @@ class DAO_ConnectedAccount extends Cerb_ORMHelper {
 	}
 	
 	static function update($ids, $fields, $check_deltas=true) {
-		if(!is_array($ids))
-			$ids = array($ids);
-		
 		if(!isset($fields[self::UPDATED_AT]))
 			$fields[self::UPDATED_AT] = time();
 		
-		$context = CerberusContexts::CONTEXT_CONNECTED_ACCOUNT;
-		self::_updateAbstract($context, $ids, $fields);
+		if(!is_array($ids))
+			$ids = array($ids);
 		
 		// Make a diff for the requested objects in batches
 		
@@ -115,7 +49,7 @@ class DAO_ConnectedAccount extends Cerb_ORMHelper {
 			// Send events
 			if($check_deltas) {
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::services()->event();
+				$eventMgr = DevblocksPlatform::getEventService();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.connected_account.update',
@@ -133,26 +67,6 @@ class DAO_ConnectedAccount extends Cerb_ORMHelper {
 	
 	static function updateWhere($fields, $where) {
 		parent::_updateWhere('connected_account', $fields, $where);
-	}
-	
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		$context = CerberusContexts::CONTEXT_CONNECTED_ACCOUNT;
-		
-		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
-			return false;
-		
-		@$owner_context = $fields[self::OWNER_CONTEXT];
-		@$owner_context_id = intval($fields[self::OWNER_CONTEXT_ID]);
-		
-		// Verify that the actor can use this new owner
-		if($owner_context) {
-			if(!CerberusContexts::isOwnableBy($owner_context, $owner_context_id, $actor)) {
-				$error = DevblocksPlatform::translate('error.core.no_acl.owner');
-				return false;
-			}
-		}
-		
-		return true;
 	}
 	
 	static function getByExtension($extension_id) {
@@ -237,7 +151,7 @@ class DAO_ConnectedAccount extends Cerb_ORMHelper {
 	 * @return Model_ConnectedAccount[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null, $options=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -264,7 +178,7 @@ class DAO_ConnectedAccount extends Cerb_ORMHelper {
 	 * @return Model_ConnectedAccount[]
 	 */
 	static function getAll($nocache=false) {
-		//$cache = DevblocksPlatform::services()->cache();
+		//$cache = DevblocksPlatform::getCacheService();
 		//if($nocache || null === ($objects = $cache->load(self::_CACHE_ALL))) {
 			$objects = self::getWhere(null, DAO_ConnectedAccount::NAME, true, null, Cerb_ORMHelper::OPT_GET_MASTER_ONLY);
 			
@@ -311,7 +225,7 @@ class DAO_ConnectedAccount extends Cerb_ORMHelper {
 		if(!method_exists(get_called_class(), 'getWhere'))
 			return array();
 
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		$ids = DevblocksPlatform::importVar($ids, 'array:integer');
 
@@ -361,7 +275,7 @@ class DAO_ConnectedAccount extends Cerb_ORMHelper {
 	}
 	
 	static function setAndEncryptParams($id, array $params) {
-		$encrypt = DevblocksPlatform::services()->encryption();
+		$encrypt = DevblocksPlatform::getEncryptionService();
 		$ciphertext = $encrypt->encrypt(json_encode($params));
 		
 		return DAO_ConnectedAccount::update($id, [
@@ -375,7 +289,7 @@ class DAO_ConnectedAccount extends Cerb_ORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -385,7 +299,7 @@ class DAO_ConnectedAccount extends Cerb_ORMHelper {
 		$db->ExecuteMaster(sprintf("DELETE FROM connected_account WHERE id IN (%s)", $ids_list));
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
+		$eventMgr = DevblocksPlatform::getEventService();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -469,6 +383,7 @@ class DAO_ConnectedAccount extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -480,7 +395,7 @@ class DAO_ConnectedAccount extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -641,7 +556,7 @@ class Model_ConnectedAccount {
 		if($actor && !Context_ConnectedAccount::isReadableByActor($this, $actor))
 			return false;
 		
-		$encrypt = DevblocksPlatform::services()->encryption();
+		$encrypt = DevblocksPlatform::getEncryptionService();
 		
 		if(false == ($json = $encrypt->decrypt($this->params_json_encrypted)))
 			return false;
@@ -759,7 +674,7 @@ class View_ConnectedAccount extends C4_AbstractView implements IAbstractView_Sub
 					
 				// Valid custom fields
 				default:
-					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
+					if('cf_' == substr($field_key,0,3))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -890,7 +805,7 @@ class View_ConnectedAccount extends C4_AbstractView implements IAbstractView_Sub
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -907,7 +822,7 @@ class View_ConnectedAccount extends C4_AbstractView implements IAbstractView_Sub
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {
@@ -1061,7 +976,7 @@ class Context_ConnectedAccount extends Extension_DevblocksContext implements IDe
 	}
 	
 	function autocomplete($term, $query=null) {
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		$list = array();
 		
 		$models = DAO_ConnectedAccount::autocomplete($term);
@@ -1092,14 +1007,14 @@ class Context_ConnectedAccount extends Extension_DevblocksContext implements IDe
 		if(empty($context_id))
 			return '';
 	
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		$url = $url_writer->writeNoProxy('c=profiles&type=connected_account&id='.$context_id, true);
 		return $url;
 	}
 	
 	function getMeta($context_id) {
 		$connected_account = DAO_ConnectedAccount::get($context_id);
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		$url = $this->profileGetUrl($context_id);
 		$friendly = DevblocksPlatform::strToPermalink($connected_account->name);
@@ -1192,31 +1107,8 @@ class Context_ConnectedAccount extends Extension_DevblocksContext implements IDe
 			$token_values = $this->_importModelCustomFieldsAsValues($connected_account, $token_values);
 			
 			// URL
-			$url_writer = DevblocksPlatform::services()->url();
+			$url_writer = DevblocksPlatform::getUrlService();
 			$token_values['record_url'] = $url_writer->writeNoProxy(sprintf("c=profiles&type=connected_account&id=%d-%s",$connected_account->id, DevblocksPlatform::strToPermalink($connected_account->name)), true);
-		}
-		
-		return true;
-	}
-	
-	function getKeyToDaoFieldMap() {
-		return [
-			'extension_id' => DAO_ConnectedAccount::EXTENSION_ID,
-			'id' => DAO_ConnectedAccount::ID,
-			'links' => '_links',
-			'name' => DAO_ConnectedAccount::NAME,
-			'owner__context' => DAO_ConnectedAccount::OWNER_CONTEXT,
-			'owner_id' => DAO_ConnectedAccount::OWNER_CONTEXT_ID,
-			'service' => DAO_ConnectedAccount::EXTENSION_ID,
-			'updated_at' => DAO_ConnectedAccount::UPDATED_AT,
-		];
-	}
-	
-	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
-		switch(DevblocksPlatform::strLower($key)) {
-			case 'links':
-				$this->_getDaoFieldsLinks($value, $out_fields, $error);
-				break;
 		}
 		
 		return true;
@@ -1335,38 +1227,20 @@ class Context_ConnectedAccount extends Extension_DevblocksContext implements IDe
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('view_id', $view_id);
 		
 		$context = CerberusContexts::CONTEXT_CONNECTED_ACCOUNT;
 		
 		if(!empty($context_id)) {
 			$model = DAO_ConnectedAccount::get($context_id);
-		} else {
-			$model = new Model_ConnectedAccount();
 		}
 		
 		if(empty($context_id) || $edit) {
-			if(!empty($edit)) {
-				$tokens = explode(' ', trim($edit));
-				
-				foreach($tokens as $token) {
-					@list($k,$v) = explode(':', $token);
-					
-					if(empty($k) || empty($v))
-						continue;
-					
-					switch($k) {
-						case 'service':
-							$model->extension_id = $v;
-							break;
-					}
-				}
-			}
+			if(isset($model))
+				$tpl->assign('model', $model);
 			
-			$tpl->assign('model', $model);
-			
-			if(empty($context_id) && empty($model->extension_id)) {
+			if(empty($context_id)) {
 				$services = Extension_ServiceProvider::getAll(false);
 				$tpl->assign('services', $services);
 				
@@ -1386,7 +1260,7 @@ class Context_ConnectedAccount extends Extension_DevblocksContext implements IDe
 			$tpl->assign('types', $types);
 			
 			// Owner
-			$owners_menu = Extension_DevblocksContext::getOwnerTree([CerberusContexts::CONTEXT_APPLICATION, CerberusContexts::CONTEXT_ROLE, CerberusContexts::CONTEXT_GROUP, CerberusContexts::CONTEXT_WORKER]);
+			$owners_menu = Extension_DevblocksContext::getOwnerTree(['app','group','role','worker']);
 			$tpl->assign('owners_menu', $owners_menu);
 			
 			// View

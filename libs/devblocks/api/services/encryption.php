@@ -9,6 +9,7 @@ class _DevblocksEncryptionService {
 	 */
 	public static function getInstance() {
 		if(null == self::$instance) {
+			require_once(DEVBLOCKS_PATH . 'libs/defuse-crypto.phar');
 			self::$instance = new _DevblocksEncryptionService();
 		}
 		return self::$instance;

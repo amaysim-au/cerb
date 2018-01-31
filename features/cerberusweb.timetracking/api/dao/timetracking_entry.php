@@ -1,18 +1,18 @@
 <?php
 /***********************************************************************
-| Cerb(tm) developed by Webgroup Media, LLC.
-|-----------------------------------------------------------------------
-| All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
-|   unless specifically noted otherwise.
-|
-| This source code is released under the Devblocks Public License.
-| The latest version of this license can be found here:
-| http://cerb.ai/license
-|
-| By using this software, you acknowledge having read this license
-| and agree to be bound thereby.
-| ______________________________________________________________________
-|	http://cerb.ai	    http://webgroup.media
+ | Cerb(tm) developed by Webgroup Media, LLC.
+ |-----------------------------------------------------------------------
+ | All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
+ |   unless specifically noted otherwise.
+ |
+ | This source code is released under the Devblocks Public License.
+ | The latest version of this license can be found here:
+ | http://cerb.ai/license
+ |
+ | By using this software, you acknowledge having read this license
+ | and agree to be bound thereby.
+ | ______________________________________________________________________
+ |	http://cerb.ai	    http://webgroup.media
  ***********************************************************************/
 /*
  * IMPORTANT LICENSING NOTE from your friends at Cerb
@@ -43,42 +43,9 @@
 class DAO_TimeTrackingActivity extends Cerb_ORMHelper {
 	const ID = 'id';
 	const NAME = 'name';
-	const RATE = 'rate';
-	
-	private function __construct() {}
-
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// int(10) unsigned
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		// varchar(255)
-		$validation
-			->addField(self::NAME)
-			->string()
-			->setMaxLength(255)
-			->setRequired(true)
-			;
-		// decimal(8,2)
-		$validation
-			->addField(self::RATE)
-			->float()
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
 
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("INSERT INTO timetracking_activity () ".
 			"VALUES ()"
@@ -100,7 +67,7 @@ class DAO_TimeTrackingActivity extends Cerb_ORMHelper {
 	 * @return Model_TimeTrackingActivity[]
 	 */
 	static function getWhere($where=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "SELECT id, name ".
 			"FROM timetracking_activity ".
@@ -153,7 +120,7 @@ class DAO_TimeTrackingActivity extends Cerb_ORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -172,67 +139,15 @@ class Model_TimeTrackingActivity {
 };
 
 class DAO_TimeTrackingEntry extends Cerb_ORMHelper {
-	const ACTIVITY_ID = 'activity_id';
 	const ID = 'id';
-	const IS_CLOSED = 'is_closed';
-	const LOG_DATE = 'log_date';
 	const TIME_ACTUAL_MINS = 'time_actual_mins';
+	const LOG_DATE = 'log_date';
 	const WORKER_ID = 'worker_id';
-	
-	private function __construct() {}
+	const ACTIVITY_ID = 'activity_id';
+	const IS_CLOSED = 'is_closed';
 
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// int(10) unsigned
-		$validation
-			->addField(self::ACTIVITY_ID)
-			->id()
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		// tinyint(3) unsigned
-		$validation
-			->addField(self::IS_CLOSED)
-			->bit()
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::LOG_DATE)
-			->timestamp()
-			;
-		// smallint(5) unsigned
-		$validation
-			->addField(self::TIME_ACTUAL_MINS)
-			->uint(2)
-			->setNotEmpty(true)
-			->setRequired(true)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::WORKER_ID)
-			->id()
-			->setRequired(true)
-			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_WORKER))
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
-	
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
-		
-		if(!isset($fields[self::LOG_DATE]))
-			$fields[self::LOG_DATE] = time();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("INSERT INTO timetracking_entry () ".
 			"VALUES ()"
@@ -248,9 +163,6 @@ class DAO_TimeTrackingEntry extends Cerb_ORMHelper {
 	static function update($ids, $fields, $check_deltas=true) {
 		if(!is_array($ids))
 			$ids = array($ids);
-		
-		$context = CerberusContexts::CONTEXT_TIMETRACKING;
-		self::_updateAbstract($context, $ids, $fields);
 		
 		// Make a diff for the requested objects in batches
 		
@@ -273,7 +185,7 @@ class DAO_TimeTrackingEntry extends Cerb_ORMHelper {
 				self::_processUpdateEvents($batch_ids, $fields);
 				
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::services()->event();
+				$eventMgr = DevblocksPlatform::getEventService();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.timetracking.update',
@@ -287,34 +199,6 @@ class DAO_TimeTrackingEntry extends Cerb_ORMHelper {
 				DevblocksPlatform::markContextChanged(CerberusContexts::CONTEXT_TIMETRACKING, $batch_ids);
 			}
 		}
-	}
-	
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		$context = CerberusContexts::CONTEXT_TIMETRACKING;
-		
-		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
-			return false;
-		
-		if(!$id && !isset($fields[self::WORKER_ID])) {
-			$error = "A 'worker_id' is required.";
-			return false;
-		}
-		
-		if(isset($fields[self::WORKER_ID])) {
-			@$worker_id = $fields[self::WORKER_ID];
-			
-			if(!$worker_id) {
-				$error = "Invalid 'worker_id' value.";
-				return false;
-			}
-			
-			if(!CerberusContexts::isOwnableBy(CerberusContexts::CONTEXT_WORKER, $worker_id, $actor)) {
-				$error = "You do not have permission to create time entries for this worker.";
-				return false;
-			}
-		}
-		
-		return true;
 	}
 	
 	/**
@@ -455,7 +339,7 @@ class DAO_TimeTrackingEntry extends Cerb_ORMHelper {
 	 * @return Model_TimeTrackingEntry[]
 	 */
 	static function getWhere($where=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "SELECT id, time_actual_mins, log_date, worker_id, activity_id, is_closed ".
 			"FROM timetracking_entry ".
@@ -511,13 +395,13 @@ class DAO_TimeTrackingEntry extends Cerb_ORMHelper {
 	}
 	
 	static function getItemCount() {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		return $db->GetOneSlave("SELECT count(id) FROM timetracking_entry");
 	}
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -528,7 +412,7 @@ class DAO_TimeTrackingEntry extends Cerb_ORMHelper {
 		$db->ExecuteMaster(sprintf("DELETE FROM timetracking_entry WHERE id IN (%s)", $ids_list));
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
+		$eventMgr = DevblocksPlatform::getEventService();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -544,7 +428,7 @@ class DAO_TimeTrackingEntry extends Cerb_ORMHelper {
 
 	static function maint() {
 		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
+		$eventMgr = DevblocksPlatform::getEventService();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.maint',
@@ -631,6 +515,7 @@ class DAO_TimeTrackingEntry extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param DevblocksSearchCriteria[] $params
 	 * @param integer $limit
@@ -641,7 +526,7 @@ class DAO_TimeTrackingEntry extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -925,7 +810,7 @@ class View_TimeTracking extends C4_AbstractView implements IAbstractView_Subtota
 					
 				// Valid custom fields
 				default:
-					if(DevblocksPlatform::strStartsWith($field_key, 'cf_')) {
+					if('cf_' == substr($field_key,0,3)) {
 						$pass = $this->_canSubtotalCustomField($field_key);
 					}
 					break;
@@ -1134,7 +1019,7 @@ class View_TimeTracking extends C4_AbstractView implements IAbstractView_Subtota
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1184,7 +1069,7 @@ class View_TimeTracking extends C4_AbstractView implements IAbstractView_Subtota
 	}
 	
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1396,7 +1281,7 @@ class Context_TimeTracking extends Extension_DevblocksContext implements IDevblo
 		if(empty($context_id))
 			return '';
 	
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		$url = $url_writer->writeNoProxy('c=profiles&type=time_tracking&id='.$context_id, true);
 		return $url;
 	}
@@ -1523,7 +1408,7 @@ class Context_TimeTracking extends Extension_DevblocksContext implements IDevblo
 			$token_values = $this->_importModelCustomFieldsAsValues($timeentry, $token_values);
 			
 			// URL
-			$url_writer = DevblocksPlatform::services()->url();
+			$url_writer = DevblocksPlatform::getUrlService();
 			$token_values['record_url'] = $url_writer->writeNoProxy(sprintf("c=profiles&type=time_tracking&id=%d-%s",$timeentry->id, DevblocksPlatform::strToPermalink($timeentry->getSummary())), true);
 			
 			// Worker
@@ -1555,28 +1440,6 @@ class Context_TimeTracking extends Extension_DevblocksContext implements IDevblo
 				$token_labels,
 				$token_values
 			);
-		
-		return true;
-	}
-	
-	function getKeyToDaoFieldMap() {
-		return [
-			'activity_id' => DAO_TimeTrackingEntry::ACTIVITY_ID,
-			'id' => DAO_TimeTrackingEntry::ID,
-			'is_closed' => DAO_TimeTrackingEntry::IS_CLOSED,
-			'links' => '_links',
-			'log_date' => DAO_TimeTrackingEntry::LOG_DATE,
-			'mins' => DAO_TimeTrackingEntry::TIME_ACTUAL_MINS,
-			'worker_id' => DAO_TimeTrackingEntry::WORKER_ID,
-		];
-	}
-	
-	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
-		switch(DevblocksPlatform::strLower($key)) {
-			case 'links':
-				$this->_getDaoFieldsLinks($value, $out_fields, $error);
-				break;
-		}
 		
 		return true;
 	}
@@ -1672,10 +1535,9 @@ class Context_TimeTracking extends Extension_DevblocksContext implements IDevblo
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('view_id', $view_id);
 		
-		$active_worker = CerberusApplication::getActiveWorker();
 		$context = CerberusContexts::CONTEXT_TIMETRACKING;
 		
 		if(!empty($context_id)) {
@@ -1732,13 +1594,6 @@ class Context_TimeTracking extends Extension_DevblocksContext implements IDevblo
 			$tpl->display('devblocks:cerberusweb.timetracking::timetracking/peek_edit.tpl');
 			
 		} else {
-			// Dictionary
-			$labels = array();
-			$values = array();
-			CerberusContexts::getContext($context, $model, $labels, $values, '', true, false);
-			$dict = DevblocksDictionaryDelegate::instance($values);
-			$tpl->assign('dict', $dict);
-			
 			// Counts
 			$activity_counts = array(
 				//'comments' => DAO_Comment::count($context, $context_id),
@@ -1768,13 +1623,15 @@ class Context_TimeTracking extends Extension_DevblocksContext implements IDevblo
 			if(false == ($context_ext = Extension_DevblocksContext::get($context)))
 				return;
 			
+			// Dictionary
+			$labels = array();
+			$values = array();
+			CerberusContexts::getContext($context, $model, $labels, $values, '', true, false);
+			$dict = DevblocksDictionaryDelegate::instance($values);
+			$tpl->assign('dict', $dict);
+			
 			$properties = $context_ext->getCardProperties();
 			$tpl->assign('properties', $properties);
-			
-			// Interactions
-			$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
-			$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
-			$tpl->assign('interactions_menu', $interactions_menu);
 			
 			$tpl->display('devblocks:cerberusweb.timetracking::timetracking/peek.tpl');
 		}

@@ -1,11 +1,15 @@
 {$page_context = CerberusContexts::CONTEXT_CLASSIFIER_EXAMPLE}
 {$page_context_id = $model->id}
-{$is_writeable = Context_ClassifierExample::isWriteableByActor($model, $active_worker)}
 
 <div style="float:left;" class="cerb-expression-editor">
 	<div class="expression">
-		<h1>{$model->expression|devblocks_rangy_deserialize nofilter}</h1>
+		<h1 style="color:inherit;">{$model->expression|devblocks_rangy_deserialize nofilter}</h1>
 	</div>
+</div>
+
+<div style="float:right;">
+{$ctx = Extension_DevblocksContext::get($page_context)}
+{include file="devblocks:cerberusweb.core::search/quick_search.tpl" view=$ctx->getSearchView() return_url="{devblocks_url}c=search&context={$ctx->manifest->params.alias}{/devblocks_url}"}
 </div>
 
 <div style="clear:both;"></div>
@@ -14,16 +18,21 @@
 	<form class="toolbar" action="{devblocks_url}{/devblocks_url}" onsubmit="return false;" style="margin-bottom:5px;">
 		<input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
 		
+		<!-- Toolbar -->
+		
+		<!-- Macros -->
+		{devblocks_url assign=return_url full=true}c=profiles&type=classifier_example&id={$page_context_id}-{$model->expression|devblocks_permalink}{/devblocks_url}
+		{include file="devblocks:cerberusweb.core::internal/macros/display/button.tpl" context=$page_context context_id=$page_context_id macros=$macros return_url=$return_url}
+		
 		<!-- Edit -->
-		{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
 		<button type="button" id="btnDisplayClassifierExampleEdit" title="{'common.edit'|devblocks_translate|capitalize}">&nbsp;<span class="glyphicons glyphicons-cogwheel"></span>&nbsp;</button>
-		{/if}
 	</form>
 	
 	{if $pref_keyboard_shortcuts}
 		<small>
 		{$translate->_('common.keyboard')|lower}:
 		(<b>e</b>) {'common.edit'|devblocks_translate|lower}
+		{if !empty($macros)}(<b>m</b>) {'common.macros'|devblocks_translate|lower} {/if}
 		(<b>1-9</b>) change tab
 		</small>
 	{/if}
@@ -89,6 +98,8 @@ $(function() {
 			document.location.reload();
 		});
 	});
+
+	{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_button=null selector_menu=null}
 });
 </script>
 

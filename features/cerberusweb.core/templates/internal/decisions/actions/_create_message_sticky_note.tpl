@@ -20,3 +20,8 @@
 	{include file="devblocks:cerberusweb.core::internal/decisions/actions/_shared_var_worker_picker.tpl" param_name="notify_worker_id" values_to_contexts=$values_to_contexts}
 </div>
 </div>
+
+<script type="text/javascript">
+$action = $('fieldset#{$namePrefix}');
+$action.find('textarea').autosize();
+</script>

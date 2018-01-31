@@ -1,62 +1,15 @@
 <?php
 class DAO_Skill extends Cerb_ORMHelper {
-	const CREATED_AT = 'created_at';
 	const ID = 'id';
 	const NAME = 'name';
 	const SKILLSET_ID = 'skillset_id';
+	const CREATED_AT = 'created_at';
 	const UPDATED_AT = 'updated_at';
 	
 	const CACHE_ALL = 'dao_skills_all';
-	
-	private function __construct() {}
 
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// int(10) unsigned
-		$validation
-			->addField(self::CREATED_AT)
-			->timestamp()
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		// varchar(255)
-		$validation
-			->addField(self::NAME)
-			->string()
-			->setMaxLength(255)
-			->setRequired(true)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::SKILLSET_ID)
-			->id()
-			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_SKILLSET))
-			->setRequired(true)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::UPDATED_AT)
-			->timestamp()
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
-	
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
-		
-		if(!isset($fields[self::CREATED_AT]))
-			$fields[self::CREATED_AT] = true;
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "INSERT INTO skill () VALUES ()";
 		$db->ExecuteMaster($sql);
@@ -70,12 +23,6 @@ class DAO_Skill extends Cerb_ORMHelper {
 	static function update($ids, $fields, $check_deltas=true) {
 		if(!is_array($ids))
 			$ids = array($ids);
-		
-		if(!isset($fields[self::UPDATED_AT]))
-			$fields[self::UPDATED_AT] = time();
-		
-		$context = CerberusContexts::CONTEXT_SKILL;
-		self::_updateAbstract($context, $ids, $fields);
 		
 		// Make a diff for the requested objects in batches
 		
@@ -95,7 +42,7 @@ class DAO_Skill extends Cerb_ORMHelper {
 			// Send events
 			if($check_deltas) {
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::services()->event();
+				$eventMgr = DevblocksPlatform::getEventService();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.skill.update',
@@ -118,20 +65,6 @@ class DAO_Skill extends Cerb_ORMHelper {
 		self::clearCache();
 	}
 	
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		$context = CerberusContexts::CONTEXT_SKILL;
-		
-		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
-			return false;
-		
-		if(!CerberusContexts::isActorAnAdmin($actor)) {
-			$error = DevblocksPlatform::translate('error.core.no_acl.admin');
-			return false;
-		}
-		
-		return true;
-	}
-	
 	/**
 	 * @param string $where
 	 * @param mixed $sortBy
@@ -140,7 +73,7 @@ class DAO_Skill extends Cerb_ORMHelper {
 	 * @return Model_Skill[]
 	 */
 	static function getWhere($where=null, $sortBy=DAO_Skill::NAME, $sortAsc=true, $limit=null, $options=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -167,7 +100,7 @@ class DAO_Skill extends Cerb_ORMHelper {
 	 * @return Model_Skill[]
 	 */
 	static function getAll($nocache=false) {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		if($nocache || null === ($objects = $cache->load(self::CACHE_ALL))) {
 			$objects = DAO_Skill::getWhere(
@@ -220,7 +153,7 @@ class DAO_Skill extends Cerb_ORMHelper {
 	}
 	
 	static function getContextSkillLevels($context, $context_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// [TODO] Do we cache this for workers?
 		// [TODO] Or do we pull worker skill levels separately?
@@ -277,7 +210,7 @@ class DAO_Skill extends Cerb_ORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -287,7 +220,7 @@ class DAO_Skill extends Cerb_ORMHelper {
 		$db->ExecuteMaster(sprintf("DELETE FROM skill WHERE id IN (%s)", $ids_list));
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
+		$eventMgr = DevblocksPlatform::getEventService();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -369,6 +302,7 @@ class DAO_Skill extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -380,7 +314,7 @@ class DAO_Skill extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -435,7 +369,7 @@ class DAO_Skill extends Cerb_ORMHelper {
 	
 	public static function clearCache() {
 		// Invalidate cache on changes
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache->remove(self::CACHE_ALL);
 	}
 
@@ -618,7 +552,7 @@ class View_Skill extends C4_AbstractView implements IAbstractView_Subtotals, IAb
 					
 				// Valid custom fields
 				default:
-					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
+					if('cf_' == substr($field_key,0,3))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -761,7 +695,7 @@ class View_Skill extends C4_AbstractView implements IAbstractView_Subtotals, IAb
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -778,7 +712,7 @@ class View_Skill extends C4_AbstractView implements IAbstractView_Subtotals, IAb
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {
@@ -962,14 +896,14 @@ class Context_Skill extends Extension_DevblocksContext implements IDevblocksCont
 		if(empty($context_id))
 			return '';
 	
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		$url = $url_writer->writeNoProxy('c=profiles&type=skill&id='.$context_id, true);
 		return $url;
 	}
 	
 	function getMeta($context_id) {
 		$skill = DAO_Skill::get($context_id);
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		$url = $this->profileGetUrl($context_id);
 		$friendly = DevblocksPlatform::strToPermalink($skill->name);
@@ -987,7 +921,6 @@ class Context_Skill extends Extension_DevblocksContext implements IDevblocksCont
 	
 	function getDefaultProperties() {
 		return array(
-			'skillset__label',
 			'updated_at',
 		);
 	}
@@ -1047,49 +980,14 @@ class Context_Skill extends Extension_DevblocksContext implements IDevblocksCont
 			$token_values['_label'] = $skill->name;
 			$token_values['id'] = $skill->id;
 			$token_values['name'] = $skill->name;
-			$token_values['skillset_id'] = $skill->skillset_id;
 			$token_values['updated_at'] = $skill->updated_at;
 			
 			// Custom fields
 			$token_values = $this->_importModelCustomFieldsAsValues($skill, $token_values);
 			
 			// URL
-			$url_writer = DevblocksPlatform::services()->url();
+			$url_writer = DevblocksPlatform::getUrlService();
 			$token_values['record_url'] = $url_writer->writeNoProxy(sprintf("c=profiles&type=skill&id=%d-%s",$skill->id, DevblocksPlatform::strToPermalink($skill->name)), true);
-		}
-		
-		// Skillset
-		$merge_token_labels = [];
-		$merge_token_values = [];
-		CerberusContexts::getContext(CerberusContexts::CONTEXT_SKILLSET, null, $merge_token_labels, $merge_token_values, '', true);
-
-		CerberusContexts::merge(
-			'skillset_',
-			$prefix.'Skillset:',
-			$merge_token_labels,
-			$merge_token_values,
-			$token_labels,
-			$token_values
-		);
-		
-		return true;
-	}
-	
-	function getKeyToDaoFieldMap() {
-		return [
-			'id' => DAO_Skill::ID,
-			'links' => '_links',
-			'name' => DAO_Skill::NAME,
-			'skillset_id' => DAO_Skill::SKILLSET_ID,
-			'updated_at' => DAO_Skill::UPDATED_AT,
-		];
-	}
-	
-	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
-		switch(DevblocksPlatform::strLower($key)) {
-			case 'links':
-				$this->_getDaoFieldsLinks($value, $out_fields, $error);
-				break;
 		}
 		
 		return true;
@@ -1185,7 +1083,7 @@ class Context_Skill extends Extension_DevblocksContext implements IDevblocksCont
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('view_id', $view_id);
 		
 		if(!empty($context_id) && null != ($skill = DAO_Skill::get($context_id))) {

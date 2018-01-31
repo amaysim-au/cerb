@@ -64,7 +64,7 @@ class ChRest_Feedback extends Extension_RestController implements IExtensionRest
 	function deleteAction($stack) {
 		$worker = CerberusApplication::getActiveWorker();
 
-		if(!$worker->hasPriv('contexts.cerberusweb.contexts.feedback.delete'))
+		if(!$worker->hasPriv('feedback.actions.delete_all'))
 			$this->error(self::ERRNO_ACL);
 
 		$id = array_shift($stack);
@@ -140,6 +140,10 @@ class ChRest_Feedback extends Extension_RestController implements IExtensionRest
 	function getId($id) {
 		$worker = CerberusApplication::getActiveWorker();
 		
+		// ACL
+		if(!$worker->hasPriv('plugin.cerberusweb.feedback'))
+			$this->error(self::ERRNO_ACL);
+
 		$container = $this->search(array(
 			array('id', '=', $id),
 		));
@@ -251,6 +255,10 @@ class ChRest_Feedback extends Extension_RestController implements IExtensionRest
 	function postSearch() {
 		$worker = CerberusApplication::getActiveWorker();
 		
+		// ACL
+		if(!$worker->hasPriv('plugin.cerberusweb.feedback'))
+			$this->error(self::ERRNO_ACL);
+
 		$container = $this->_handlePostSearch();
 		
 		$this->success($container);
@@ -264,7 +272,7 @@ class ChRest_Feedback extends Extension_RestController implements IExtensionRest
 			$this->error(self::ERRNO_CUSTOM, sprintf("Invalid feedback ID '%d'", $id));
 			
 		// ACL
-		if(!($worker->hasPriv('contexts.cerberusweb.contexts.feedback.update') || $feedback->worker_id == $worker->id))
+		if(!($worker->hasPriv('feedback.actions.update_all') || $feedback->worker_id == $worker->id))
 			$this->error(self::ERRNO_ACL);
 			
 		$putfields = array(
@@ -338,7 +346,7 @@ class ChRest_Feedback extends Extension_RestController implements IExtensionRest
 		$worker = CerberusApplication::getActiveWorker();
 		
 		// ACL
-		if(!$worker->hasPriv('contexts.cerberusweb.contexts.feedback.create'))
+		if(!$worker->hasPriv('feedback.actions.create'))
 			$this->error(self::ERRNO_ACL);
 		
 		$postfields = array(

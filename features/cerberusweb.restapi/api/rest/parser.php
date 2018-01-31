@@ -27,7 +27,7 @@ class ChRest_Parser extends Extension_RestController { //implements IExtensionRe
 	private function postParse() {
 		$worker = CerberusApplication::getActiveWorker();
 		
-		if(!$worker->hasPriv('contexts.cerberusweb.contexts.ticket.create'))
+		if(!$worker->hasPriv('acl.core.mail.send'))
 			$this->error(self::ERRNO_ACL);
 		
 		@$content = DevblocksPlatform::importGPC($_POST['message'],'string','');

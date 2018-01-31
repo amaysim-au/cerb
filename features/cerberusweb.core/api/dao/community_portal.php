@@ -16,57 +16,20 @@
 ***********************************************************************/
 
 class DAO_CommunityTool extends Cerb_ORMHelper {
-	const CODE = 'code';
-	const EXTENSION_ID = 'extension_id';
-	const ID = 'id';
-	const NAME = 'name';
-	
 	const _CACHE_ALL = 'dao_communitytool_all';
 	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		$validation
-			->addField(self::CODE)
-			->string()
-			->setMaxLength(8)
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::EXTENSION_ID)
-			->string()
-			->setMaxLength(128)
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		$validation
-			->addField(self::NAME)
-			->string()
-			->setMaxLength(128)
-			->setRequired(true)
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
+	const ID = 'id';
+	const NAME = 'name';
+	const CODE = 'code';
+	const EXTENSION_ID = 'extension_id';
 	
 	static function clearCache() {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache->remove(self::_CACHE_ALL);
 	}
 	
 	public static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(!isset($fields[self::CODE]))
 			$fields[self::CODE] = self::generateUniqueCode();
@@ -85,11 +48,11 @@ class DAO_CommunityTool extends Cerb_ORMHelper {
 
 	// [TODO] APIize?
 	public static function generateUniqueCode($length=8) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// [JAS]: [TODO] Inf loop check
 		do {
-			$code = substr(md5(mt_rand(0,1000) . microtime()),0,$length);
+			$code = substr(md5(mt_rand(0,1000) * microtime()),0,$length);
 			$exists = $db->GetOneMaster(sprintf("SELECT id FROM community_tool WHERE code = %s",$db->qstr($code)));
 			
 		} while(!empty($exists));
@@ -97,15 +60,13 @@ class DAO_CommunityTool extends Cerb_ORMHelper {
 		return $code;
 	}
 	
-	public static function update($ids, $fields) {
-		$context = CerberusContexts::CONTEXT_PORTAL;
-		self::_updateAbstract($context, $ids, $fields);
-		
-		self::_update($ids, 'community_tool', $fields);
+	public static function update($id, $fields) {
+		self::_update($id, 'community_tool', $fields);
 		self::clearCache();
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param integer $id
 	 * @return Model_CommunityTool
@@ -123,7 +84,7 @@ class DAO_CommunityTool extends Cerb_ORMHelper {
 	}
 	
 	public static function getAll($nocache=false) {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		if($nocache || null === ($objects = $cache->load(self::_CACHE_ALL))) {
 			$objects = self::getWhere(null, DAO_CommunityTool::NAME, true, null, Cerb_ORMHelper::OPT_GET_MASTER_ONLY);
@@ -138,6 +99,7 @@ class DAO_CommunityTool extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param string $code
 	 * @return Model_CommunityTool
@@ -157,6 +119,7 @@ class DAO_CommunityTool extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param array $ids
 	 * @return Model_CommunityTool[]
@@ -179,7 +142,7 @@ class DAO_CommunityTool extends Cerb_ORMHelper {
 	}
 	
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null, $options=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -228,7 +191,7 @@ class DAO_CommunityTool extends Cerb_ORMHelper {
 		if(!is_array($ids))
 			$ids = array($ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$ids = DevblocksPlatform::sanitizeArray($ids, 'int');
 		
@@ -285,6 +248,7 @@ class DAO_CommunityTool extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param DevblocksSearchCriteria[] $params
 	 * @param integer $limit
@@ -295,7 +259,7 @@ class DAO_CommunityTool extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 	
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -415,44 +379,19 @@ class SearchFields_CommunityTool extends DevblocksSearchFields {
 };
 
 class DAO_CommunityToolProperty extends Cerb_ORMHelper {
+	const TOOL_CODE = 'tool_code';
 	const PROPERTY_KEY = 'property_key';
 	const PROPERTY_VALUE = 'property_value';
-	const TOOL_CODE = 'tool_code';
 	
 	const _CACHE_PREFIX = 'um_comtoolprops_';
 	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		$validation
-			->addField(self::PROPERTY_KEY)
-			->string()
-			->setMaxLength(64)
-			;
-		$validation
-			->addField(self::PROPERTY_VALUE)
-			->string()
-			->setMaxLength(16777215)
-			;
-		$validation
-			->addField(self::TOOL_CODE)
-			->string()
-			->setMaxLength(8)
-			->setRequired(true)
-			;
-		
-		return $validation->getFields();
-	}
-	
 	static function getAllByTool($tool_code) {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 
 		if(null == ($props = $cache->load(self::_CACHE_PREFIX.$tool_code))) {
 			$props = array();
 			
-			$db = DevblocksPlatform::services()->database();
+			$db = DevblocksPlatform::getDatabaseService();
 			
 			$sql = sprintf("SELECT property_key, property_value ".
 				"FROM community_tool_property ".
@@ -498,7 +437,7 @@ class DAO_CommunityToolProperty extends Cerb_ORMHelper {
 	}
 	
 	static function set($tool_code, $key, $value, $json_encode=false) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if($json_encode)
 			$value = json_encode($value);
@@ -511,51 +450,20 @@ class DAO_CommunityToolProperty extends Cerb_ORMHelper {
 		));
 		
 		// Invalidate cache
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$cache->remove(self::_CACHE_PREFIX.$tool_code);
 	}
 };
 
 class DAO_CommunitySession extends Cerb_ORMHelper {
+	const SESSION_ID = 'session_id';
 	const CREATED = 'created';
+	const UPDATED = 'updated';
 	const CSRF_TOKEN = 'csrf_token';
 	const PROPERTIES = 'properties';
-	const SESSION_ID = 'session_id';
-	const UPDATED = 'updated';
-	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		$validation
-			->addField(self::CREATED)
-			->timestamp()
-			;
-		$validation
-			->addField(self::CSRF_TOKEN)
-			->string()
-			;
-		$validation
-			->addField(self::PROPERTIES)
-			->string()
-			->setMaxLength(65535)
-			;
-		$validation
-			->addField(self::SESSION_ID)
-			->string()
-			->setMaxLength(64)
-			;
-		$validation
-			->addField(self::UPDATED)
-			->timestamp()
-			;
-		
-		return $validation->getFields();
-	}
 	
 	static public function save(Model_CommunitySession $session) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("UPDATE community_session SET updated = %d, properties = %s WHERE session_id = %s",
 			time(),
@@ -570,7 +478,7 @@ class DAO_CommunitySession extends Cerb_ORMHelper {
 	 * @return Model_CommunitySession
 	 */
 	static public function get($session_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("SELECT session_id, created, updated, csrf_token, properties ".
 			"FROM community_session ".
@@ -596,7 +504,7 @@ class DAO_CommunitySession extends Cerb_ORMHelper {
 	}
 	
 	static public function delete($session_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("DELETE FROM community_session WHERE session_id = %s",
 			$db->qstr($session_id)
@@ -611,7 +519,7 @@ class DAO_CommunitySession extends Cerb_ORMHelper {
 	 * @return Model_CommunitySession
 	 */
 	static private function create($session_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		$session = new Model_CommunitySession();
 		$session->session_id = $session_id;
@@ -634,7 +542,7 @@ class DAO_CommunitySession extends Cerb_ORMHelper {
 	}
 	
 	static private function gc() {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$sql = sprintf("DELETE FROM community_session WHERE updated < %d",
 			(time()-(60*60)) // 1 hr
 		);
@@ -797,12 +705,12 @@ class View_CommunityPortal extends C4_AbstractView implements IAbstractView_Quic
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
 		// Tool Manifests
-		$tools = DevblocksPlatform::getExtensions('cerb.portal', false);
+		$tools = DevblocksPlatform::getExtensions('usermeet.tool', false);
 		$tpl->assign('tool_extensions', $tools);
 		
 		// Custom fields
@@ -813,7 +721,7 @@ class View_CommunityPortal extends C4_AbstractView implements IAbstractView_Quic
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		
 		switch($field) {
@@ -824,7 +732,7 @@ class View_CommunityPortal extends C4_AbstractView implements IAbstractView_Quic
 				
 			case SearchFields_CommunityTool::EXTENSION_ID:
 				$options = array();
-				$portals = DevblocksPlatform::getExtensions('cerb.portal', false);
+				$portals = DevblocksPlatform::getExtensions('usermeet.tool', false);
 
 				foreach($portals as $ext_id => $ext) {
 					$options[$ext_id] = $ext->name;
@@ -852,7 +760,7 @@ class View_CommunityPortal extends C4_AbstractView implements IAbstractView_Quic
 
 		switch($field) {
 			case SearchFields_CommunityTool::EXTENSION_ID:
-				$portals = DevblocksPlatform::getExtensions('cerb.portal', false);
+				$portals = DevblocksPlatform::getExtensions('usermeet.tool', false);
 				$strings = array();
 				
 				foreach($values as $val) {

@@ -1,18 +1,18 @@
 <?php
 /***********************************************************************
-| Cerb(tm) developed by Webgroup Media, LLC.
-|-----------------------------------------------------------------------
-| All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
-|   unless specifically noted otherwise.
-|
-| This source code is released under the Devblocks Public License.
-| The latest version of this license can be found here:
-| http://cerb.ai/license
-|
-| By using this software, you acknowledge having read this license
-| and agree to be bound thereby.
-| ______________________________________________________________________
-|	http://cerb.ai	    http://webgroup.media
+ | Cerb(tm) developed by Webgroup Media, LLC.
+ |-----------------------------------------------------------------------
+ | All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
+ |   unless specifically noted otherwise.
+ |
+ | This source code is released under the Devblocks Public License.
+ | The latest version of this license can be found here:
+ | http://cerb.ai/license
+ |
+ | By using this software, you acknowledge having read this license
+ | and agree to be bound thereby.
+ | ______________________________________________________________________
+ |	http://cerb.ai	    http://webgroup.media
  ***********************************************************************/
 
 class UmScKbController extends Extension_UmScController {
@@ -30,7 +30,7 @@ class UmScKbController extends Extension_UmScController {
 	}
 	
 	function renderSidebar(DevblocksHttpResponse $response) {
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 		
 		@$q = DevblocksPlatform::importGPC($_POST['q'],'string','');
 		$tpl->assign('q', $q);
@@ -39,7 +39,7 @@ class UmScKbController extends Extension_UmScController {
 	}
 	
 	function writeResponse(DevblocksHttpResponse $response) {
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 		
 		$umsession = ChPortalHelper::getSession();
 		
@@ -129,10 +129,10 @@ class UmScKbController extends Extension_UmScController {
 				
 				// Template overrides
 				
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				
 				$function_cerb_file_url = new Twig_SimpleFunction('cerb_file_url', function ($id) {
-					$url_writer = DevblocksPlatform::services()->url();
+					$url_writer = DevblocksPlatform::getUrlService();
 					
 					if(false == ($file = DAO_Attachment::get($id)))
 						return null;
@@ -151,10 +151,9 @@ class UmScKbController extends Extension_UmScController {
 
 				@$article_list = $umsession->getProperty(self::SESSION_ARTICLE_LIST, array());
 				if(!empty($article) && !isset($article_list[$id])) {
-					DAO_KbArticle::update($article->id, [
-						DAO_KbArticle::VIEWS => ++$article->views,
-						DAO_KbArticle::UPDATED => $article->updated,
-					]);
+					DAO_KbArticle::update($article->id, array(
+						DAO_KbArticle::VIEWS => ++$article->views
+					));
 					$article_list[$id] = $id;
 					$umsession->setProperty(self::SESSION_ARTICLE_LIST, $article_list);
 				}
@@ -277,7 +276,7 @@ class UmScKbController extends Extension_UmScController {
 	}
 	
 	function configure(Model_CommunityTool $instance) {
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 
 		// Knowledgebase
 		
@@ -391,7 +390,7 @@ class UmSc_KbArticleView extends C4_AbstractView {
 	function render() {
 		//$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 

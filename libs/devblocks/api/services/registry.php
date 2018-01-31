@@ -177,35 +177,8 @@ class DAO_DevblocksRegistry extends DevblocksORMHelper {
 	const ENTRY_TYPE = 'entry_type';
 	const ENTRY_VALUE = 'entry_value';
 	
-	private function __construct() {}
-
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// varchar(255)
-		$validation
-			->addField(self::ENTRY_KEY)
-			->string()
-			->setMaxLength(255)
-			;
-		// varchar(32)
-		$validation
-			->addField(self::ENTRY_TYPE)
-			->string()
-			->setMaxLength(32)
-			;
-		// text
-		$validation
-			->addField(self::ENTRY_VALUE)
-			->string()
-			->setMaxLength(65535)
-			;
-
-		return $validation->getFields();
-	}
-	
 	public static function get($key) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$row = $db->GetRowMaster(sprintf("SELECT entry_key, entry_type, entry_value FROM devblocks_registry WHERE entry_key = %s",
 			$db->qstr($key)
@@ -223,7 +196,7 @@ class DAO_DevblocksRegistry extends DevblocksORMHelper {
 	}
 	
 	public static function set($key, $value, $as=DevblocksRegistryEntry::TYPE_STRING, $delta=false) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if($delta && $as == DevblocksRegistryEntry::TYPE_NUMBER) {
 			// Delta update if the row exists

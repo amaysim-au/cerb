@@ -21,13 +21,6 @@
 			<span>{$opt}</span>{if !$smarty.foreach.opts.last}, {/if}
 		{/foreach}
 	</td>
-{elseif $col->type==Model_CustomField::TYPE_LIST}
-	<td data-column="{$column}">
-		{$opts = DevblocksPlatform::parseCrlfString($result.$column)}
-		{foreach from=$opts item=opt name=opts}
-			<span>{$opt}</span>{if !$smarty.foreach.opts.last}, {/if}
-		{/foreach}
-	</td>
 {elseif $col->type==Model_CustomField::TYPE_DATE}
 	<td data-column="{$column}"><abbr title="{$result.$column|devblocks_date}">{$result.$column|devblocks_prettytime}</abbr></td>
 {elseif $col->type==Model_CustomField::TYPE_CHECKBOX}
@@ -39,9 +32,7 @@
 			{if $link_ctx}
 				{$link_ctx_meta = $link_ctx->getMeta($result.$column)}
 				{if $link_ctx_meta}
-					{if $link_ctx->hasOption('cards')}
-						<a href="javascript:;" class="cerb-peek-trigger" data-context="{$col->params.context}" data-context-id="{$result.$column}" data-permalink="{$link_ctx_meta.permalink}">{$link_ctx_meta.name}</a>
-					{elseif $link_ctx_meta.permalink}
+					{if $link_ctx_meta.permalink}
 						<a href="{$link_ctx_meta.permalink}">{$link_ctx_meta.name}</a>
 					{else}
 						{$link_ctx_meta.name}

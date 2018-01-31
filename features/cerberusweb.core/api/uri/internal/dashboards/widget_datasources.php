@@ -11,7 +11,7 @@ class WorkspaceWidgetDatasource_Worklist extends Extension_WorkspaceWidgetDataso
 	}
 	
 	function renderConfig(Model_WorkspaceWidget $widget, $params=array(), $params_prefix=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('widget', $widget);
 		$tpl->assign('params', $params);
@@ -75,11 +75,14 @@ class WorkspaceWidgetDatasource_Worklist extends Extension_WorkspaceWidgetDataso
 		if(null == ($view = Extension_WorkspaceWidget::getViewFromParams($widget, $params, $view_id)))
 			return;
 		
-		if(false == ($context_ext = Extension_DevblocksContext::getByViewClass(get_class($view), true)))
-			return false;
+		@$view_context = $params['worklist_model']['context'];
+
+		if(empty($view_context))
+			return;
 		
-		$view_context = $context_ext->id;
-		
+		if(null == ($context_ext = Extension_DevblocksContext::get($view_context)))
+			return;
+
 		if(false == ($dao_class = $context_ext->getDaoClass()))
 			return false;
 		
@@ -92,7 +95,7 @@ class WorkspaceWidgetDatasource_Worklist extends Extension_WorkspaceWidgetDataso
 		$view->renderPage = 0;
 		$view->renderLimit = 1;
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// We need to know what date fields we have
 		$fields = $view->getFields();
@@ -204,8 +207,8 @@ class WorkspaceWidgetDatasource_Worklist extends Extension_WorkspaceWidgetDataso
 	}
 	
 	private function _getDataSeries(Model_WorkspaceWidget $widget, array $params=array(), $params_prefix=null) {
-		$date = DevblocksPlatform::services()->date();
-		$db = DevblocksPlatform::services()->database();
+		$date = DevblocksPlatform::getDateService();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Use the worker's timezone for MySQL date functions
 		$db->ExecuteSlave(sprintf("SET time_zone = %s", $db->qstr($date->formatTime('P', time()))));
@@ -399,11 +402,10 @@ class WorkspaceWidgetDatasource_Worklist extends Extension_WorkspaceWidgetDataso
 					).
 					str_replace('%','%%',$query_parts['join']).
 					str_replace('%','%%',$query_parts['where']).
-					sprintf("GROUP BY DATE_FORMAT(FROM_UNIXTIME(%s.%s), '%s')%s ",
+					sprintf("GROUP BY DATE_FORMAT(FROM_UNIXTIME(%s.%s), '%s') ",
 						$xaxis_field->db_table,
 						$xaxis_field->db_column,
-						$date_format_mysql,
-						($yaxis_field ? sprintf(", %s.%s", $yaxis_field->db_table, $yaxis_field->db_column) : '')
+						$date_format_mysql
 					).
 					'ORDER BY histo ASC'
 					;
@@ -468,18 +470,12 @@ class WorkspaceWidgetDatasource_Worklist extends Extension_WorkspaceWidgetDataso
 						// var_dump($histo);
 
 						$value = (isset($results[$histo])) ? $results[$histo] : 0;
-						
-						$yaxis_label = ((int) $value != $value) ? sprintf("%0.2f", $value) : sprintf("%d", $value);
-						
-						if(isset($params['yaxis_format'])) {
-							$yaxis_label = DevblocksPlatform::formatNumberAs($yaxis_label, @$params['yaxis_format']);
-						}
-						
+
 						$data[] = array(
 							'x' => $histo,
 							'y' => (float)$value,
 							'x_label' => strftime($date_label, $current_tick),
-							'y_label' => $yaxis_label,
+							'y_label' => ((int) $value != $value) ? sprintf("%0.2f", $value) : sprintf("%d", $value),
 						);
 
 						$current_tick = strtotime(sprintf('+1 %s', $xaxis_tick), $current_tick);
@@ -494,10 +490,7 @@ class WorkspaceWidgetDatasource_Worklist extends Extension_WorkspaceWidgetDataso
 					switch($xaxis_field->token) {
 						case '_id':
 							$order_by = null;
-							$group_by = sprintf("GROUP BY %s.id%s ",
-								str_replace('%','%%',$query_parts['primary_table']),
-								($yaxis_field ? sprintf(", %s.%s", $yaxis_field->db_table, $yaxis_field->db_column) : '')
-							);
+							$group_by = sprintf("GROUP BY %s.id ", str_replace('%','%%',$query_parts['primary_table']));
 							
 							if(empty($order_by))
 								$order_by = sprintf("ORDER BY %s.id ", str_replace('%','%%',$query_parts['primary_table']));
@@ -505,10 +498,9 @@ class WorkspaceWidgetDatasource_Worklist extends Extension_WorkspaceWidgetDataso
 							break;
 
 						default:
-							$group_by = sprintf("GROUP BY %s.%s%s",
+							$group_by = sprintf("GROUP BY %s.%s",
 								$xaxis_field->db_table,
-								$xaxis_field->db_column,
-								($yaxis_field ? sprintf(", %s.%s", $yaxis_field->db_table, $yaxis_field->db_column) : '')
+								$xaxis_field->db_column
 							);
 							
 							$order_by = 'ORDER BY xaxis ASC';
@@ -634,7 +626,7 @@ class WorkspaceWidgetDatasource_Worklist extends Extension_WorkspaceWidgetDataso
 
 class WorkspaceWidgetDatasource_Manual extends Extension_WorkspaceWidgetDatasource {
 	function renderConfig(Model_WorkspaceWidget $widget, $params=array(), $params_prefix=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('widget', $widget);
 		$tpl->assign('params', $params);
@@ -651,67 +643,9 @@ class WorkspaceWidgetDatasource_Manual extends Extension_WorkspaceWidgetDatasour
 	}
 };
 
-class WorkspaceWidgetDatasource_BotBehavior extends Extension_WorkspaceWidgetDatasource {
-	function renderConfig(Model_WorkspaceWidget $widget, $params=array(), $params_prefix=null) {
-		$tpl = DevblocksPlatform::services()->template();
-		
-		$tpl->assign('widget', $widget);
-		$tpl->assign('params', $params);
-		$tpl->assign('params_prefix', $params);
-		
-		$tpl->display('devblocks:cerberusweb.core::internal/workspaces/widgets/datasources/config_bot_behavior.tpl');
-	}
-
-	function getData(Model_WorkspaceWidget $widget, array $params=array(), $params_prefix=null) {
-		@$behavior_id = $widget->params['behavior_id'];
-		
-		if(!$behavior_id 
-			|| false == ($widget_behavior = DAO_TriggerEvent::get($behavior_id))
-			|| $widget_behavior->event_point != Event_DashboardWidgetGetMetric::ID
-			) {
-			return false;
-		}
-		
-		$actions = [];
-		
-		$event_model = new Model_DevblocksEvent(
-			Event_DashboardWidgetGetMetric::ID,
-			array(
-				'widget' => $widget,
-				'actions' => &$actions,
-			)
-		);
-		
-		if(false == ($event = $widget_behavior->getEvent()))
-			return;
-			
-		$event->setEvent($event_model, $widget_behavior);
-		
-		$values = $event->getValues();
-		
-		$dict = DevblocksDictionaryDelegate::instance($values);
-		
-		$result = $widget_behavior->runDecisionTree($dict, false, $event);
-		
-		$metric_value = 0;
-		
-		foreach($actions as $action) {
-			switch($action['_action']) {
-				case 'return_value':
-					$metric_value = @$action['value'];
-					break;
-			}
-		}
-		
-		$metric_value = floatval(str_replace(',','', $metric_value));
-		$params['metric_value'] = $metric_value;
-		return $params;
-	}
-};
-
 class WorkspaceWidgetDatasource_URL extends Extension_WorkspaceWidgetDatasource {
 	function renderConfig(Model_WorkspaceWidget $widget, $params=array(), $params_prefix=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('widget', $widget);
 		$tpl->assign('params', $params);
@@ -721,7 +655,7 @@ class WorkspaceWidgetDatasource_URL extends Extension_WorkspaceWidgetDatasource 
 	}
 	
 	function getData(Model_WorkspaceWidget $widget, array $params=array(), $params_prefix=null) {
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		
 		@$url = $params['url'];
 		

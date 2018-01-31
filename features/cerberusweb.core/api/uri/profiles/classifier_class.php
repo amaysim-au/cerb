@@ -17,7 +17,7 @@
 
 class PageSection_ProfilesClassifierClass extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$visit = CerberusApplication::getVisit();
 		$translate = DevblocksPlatform::getTranslationService();
 		$active_worker = CerberusApplication::getActiveWorker();
@@ -121,6 +121,14 @@ class PageSection_ProfilesClassifierClass extends Extension_PageSection {
 		
 		$tpl->assign('properties', $properties);
 			
+		// Macros
+		
+		$macros = DAO_TriggerEvent::getReadableByActor(
+			$active_worker,
+			'event.macro.classifier_class'
+		);
+		$tpl->assign('macros', $macros);
+
 		// Tabs
 		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_CLASSIFIER_CLASS);
 		$tpl->assign('tab_manifests', $tab_manifests);
@@ -141,9 +149,7 @@ class PageSection_ProfilesClassifierClass extends Extension_PageSection {
 		
 		try {
 			if(!empty($id) && !empty($do_delete)) { // Delete
-				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_CLASSIFIER_CLASS)))
-					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
-				
+				// [TODO] Check ACL
 				DAO_ClassifierClass::delete($id);
 				
 				echo json_encode(array(
@@ -157,24 +163,24 @@ class PageSection_ProfilesClassifierClass extends Extension_PageSection {
 				@$classifier_id = DevblocksPlatform::importGPC($_REQUEST['classifier_id'], 'integer', 0);
 				@$name = DevblocksPlatform::importGPC($_REQUEST['name'], 'string', '');
 				
+				if(empty($name))
+					throw new Exception_DevblocksAjaxValidationError("The 'Name' field is required.", 'name');
+				
 				// [TODO] Attribs
 				
 				if(empty($id)) { // New
+					if(empty($classifier_id))
+						throw new Exception_DevblocksAjaxValidationError("The 'Classifier' field is required.", 'classifier_id');
+					
 					$fields = array(
 						DAO_ClassifierClass::CLASSIFIER_ID => $classifier_id,
+						DAO_ClassifierClass::DICTIONARY_SIZE => 0,
 						DAO_ClassifierClass::NAME => $name,
 						DAO_ClassifierClass::SLOTS_JSON => json_encode([]),
+						DAO_ClassifierClass::TRAINING_COUNT => 0,
 						DAO_ClassifierClass::UPDATED_AT => time(),
 					);
-					
-					if(!DAO_ClassifierClass::validate($fields, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
-					if(!DAO_ClassifierClass::onBeforeUpdateByActor($active_worker, $fields, null, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
 					$id = DAO_ClassifierClass::create($fields);
-					DAO_ClassifierClass::onUpdateByActor($active_worker, $fields, $id);
 					
 					if(!empty($view_id) && !empty($id))
 						C4_AbstractView::setMarqueeContextCreated($view_id, CerberusContexts::CONTEXT_CLASSIFIER_CLASS, $id);
@@ -185,15 +191,8 @@ class PageSection_ProfilesClassifierClass extends Extension_PageSection {
 						DAO_ClassifierClass::SLOTS_JSON => json_encode([]),
 						DAO_ClassifierClass::UPDATED_AT => time(),
 					);
-					
-					if(!DAO_ClassifierClass::validate($fields, $error, $id))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
-					if(!DAO_ClassifierClass::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
 					DAO_ClassifierClass::update($id, $fields);
-					DAO_ClassifierClass::onUpdateByActor($active_worker, $fields, $id);
+					
 				}
 	
 				// Custom fields
@@ -231,7 +230,7 @@ class PageSection_ProfilesClassifierClass extends Extension_PageSection {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		// Generate hash
 		$hash = md5($view_id.$active_worker->id.time());

@@ -17,9 +17,9 @@
 
 class ChReportNewTickets extends Extension_Report {
 	function render() {
-		$db = DevblocksPlatform::services()->database();
-		$tpl = DevblocksPlatform::services()->template();
-		$date = DevblocksPlatform::services()->date();
+		$db = DevblocksPlatform::getDatabaseService();
+		$tpl = DevblocksPlatform::getTemplateService();
+		$date = DevblocksPlatform::getDateService();
 		
 		// Use the worker's timezone for MySQL date functions
 		$db->ExecuteSlave(sprintf("SET time_zone = %s", $db->qstr($date->formatTime('P', time()))));

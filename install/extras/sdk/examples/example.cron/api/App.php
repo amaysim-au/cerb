@@ -1,7 +1,7 @@
 <?php
 class ExCron extends CerberusCronPageExtension {
 	public function run() {
-		$logger = DevblocksPlatform::services()->log();
+		$logger = DevblocksPlatform::getConsoleLog();
 		$logger->info("[Example Plugin] Started");
 			
 		// [TODO] Do something
@@ -10,7 +10,7 @@ class ExCron extends CerberusCronPageExtension {
 	}
 	
 	public function configure($instance) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->cache_lifetime = "0";
 
 		// [TODO] Load settings

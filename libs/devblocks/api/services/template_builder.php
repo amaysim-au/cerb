@@ -72,7 +72,6 @@ class _DevblocksTemplateBuilder {
 				'base64_encode',
 				'base64_decode',
 				'bytes_pretty',
-				'context_name',
 				'date_pretty',
 				'hash_hmac',
 				'json_pretty',
@@ -130,10 +129,8 @@ class _DevblocksTemplateBuilder {
 				'dict_set',
 				'json_decode',
 				'jsonpath_set',
-				'placeholders_list',
 				'random_string',
 				'regexp_match_all',
-				'shuffle',
 				'validate_email',
 				'validate_number',
 				'xml_decode',
@@ -199,14 +196,6 @@ class _DevblocksTemplateBuilder {
 	private function _tearDown() {
 	}
 	
-	function getLexer() {
-		return $this->_twig->getLexer();
-	}
-	
-	function setLexer(Twig_Lexer $lexer) {
-		$this->_twig->setLexer($lexer);
-	}
-	
 	function tokenize($templates) {
 		$tokens = array();
 		
@@ -261,11 +250,7 @@ class _DevblocksTemplateBuilder {
 	 * @param array $vars
 	 * @return string
 	 */
-	function build($template, $dict, $lexer = null) {
-		if($lexer && is_array($lexer)) {
-			$this->setLexer(new Twig_Lexer($this->_twig, $lexer));
-		}
-		
+	function build($template, $dict) {
 		$this->_setUp();
 		
 		if(is_array($dict))
@@ -280,10 +265,6 @@ class _DevblocksTemplateBuilder {
 			$this->_errors[] = $e->getMessage();
 		}
 		$this->_tearDown();
-		
-		if($lexer) {
-			$this->setLexer(new Twig_Lexer($this->_twig));
-		}
 
 		if(!empty($this->_errors))
 			return false;
@@ -292,39 +273,19 @@ class _DevblocksTemplateBuilder {
 	}
 };
 
-class DevblocksDictionaryDelegate implements JsonSerializable {
+class DevblocksDictionaryDelegate {
 	private $_dictionary = null;
 	private $_cached_contexts = null;
 	private $_null = null;
 	
 	function __construct($dictionary) {
-		if(is_array($dictionary))
-		foreach($dictionary as $k => $v) {
-			if(DevblocksPlatform::strStartsWith($k, 'var_') && is_array($v)) {
-				foreach($v as $id => $values) {
-					if(is_array($values) && isset($values['_context'])) {
-						$dictionary[$k][$id] = new DevblocksDictionaryDelegate($values);
-					}
-				}
-			}
-		}
-		
 		$this->_dictionary = $dictionary;
 	}
-	
+
 	public static function instance($values) {
 		return new DevblocksDictionaryDelegate($values);
 	}
 	
-	function __toString() {
-		$dictionary = $this->getDictionary(null, false);
-		return DevblocksPlatform::strFormatJson(json_encode($dictionary));
-	}
-	
-	function jsonSerialize() {
-		return $this->_dictionary;
-	}
-
 	public function __set($name, $value) {
 		$this->_dictionary[$name] = $value;
 	}
@@ -370,10 +331,6 @@ class DevblocksDictionaryDelegate implements JsonSerializable {
 		return array_filter($this->_cached_contexts, function($context) use ($name) {
 			return substr($name, 0, strlen($context['prefix'])) == $context['prefix'];
 		});
-	}
-	
-	public function get($name) {
-		return $this->$name;
 	}
 	
 	public function &__get($name) {
@@ -468,7 +425,7 @@ class DevblocksDictionaryDelegate implements JsonSerializable {
 			$len = strlen($with_prefix);
 			if(0 == strcasecmp($with_prefix, substr($k,0,$len))) {
 				$new_dict[substr($k,$len)] = $v;
-			}
+ 			}
 		}
 		
 		return $new_dict;
@@ -496,62 +453,17 @@ class DevblocksDictionaryDelegate implements JsonSerializable {
 		return DevblocksDictionaryDelegate::instance($values);
 	}
 	
-	public function merge($token_prefix, $label_prefix, $src_labels, $src_values) {
-		$dst_labels =& $this->_dictionary['_labels'];
-		$dst_values =& $this->_dictionary;
-		
-		if(is_array($src_labels))
-		foreach($src_labels as $token => $label) {
-			$dst_labels[$token_prefix.$token] = $label_prefix.$label;
-		}
-
-		if(is_array($src_values))
-		foreach($src_values as $token => $value) {
-			if(in_array($token, array('_labels', '_types'))) {
-
-				switch($token) {
-					case '_labels':
-						if(!isset($dst_values['_labels']))
-							$dst_values['_labels'] = [];
-
-						foreach($value as $key => $label) {
-							$dst_values['_labels'][$token_prefix.$key] = $label_prefix.$label;
-						}
-						break;
-
-					case '_types':
-						if(!isset($dst_values['_types']))
-							$dst_values['_types'] = [];
-
-						foreach($value as $key => $type) {
-							$dst_values['_types'][$token_prefix.$key] = $type;
-						}
-						break;
-				}
-
-			} else {
-				$dst_values[$token_prefix.$token] = $value;
-			}
-		}
-
-		return true;
-	}
-	
-	public static function getDictionariesFromModels(array $models, $context, array $keys=[]) {
-		$dicts = [];
+	public static function getDictionariesFromModels(array $models, $context, array $keys=array()) {
+		$dicts = array();
 		
 		if(empty($models)) {
-			return [];
+			return array();
 		}
 		
 		foreach($models as $model_id => $model) {
-			$labels = $values = [];
-			
-			if($context == CerberusContexts::CONTEXT_APPLICATION) {
-				$values = ['_context' => $context, 'id' => 0, '_label' => 'Cerb'];
-			} else {
-				CerberusContexts::getContext($context, $model, $labels, $values, null, true, true);
-			}
+			$labels = array();
+			$values = array();
+			CerberusContexts::getContext($context, $model, $labels, $values, null, true, true);
 			
 			if(isset($values['id']))
 				$dicts[$model_id] = DevblocksDictionaryDelegate::instance($values);
@@ -655,13 +567,13 @@ class _DevblocksTwigExpressionVisitor implements Twig_NodeVisitorInterface {
 		return $node;
 	}
 	
-	function getPriority() {
-		return 0;
-	}
-	
-	function getFoundTokens() {
-		return array_keys($this->_tokens);
-	}
+ 	function getPriority() {
+ 		return 0;
+ 	}
+ 	
+ 	function getFoundTokens() {
+ 		return array_keys($this->_tokens);
+ 	}
 };
 
 if(class_exists('Twig_Extension', true)):
@@ -680,10 +592,8 @@ class _DevblocksTwigExtensions extends Twig_Extension {
 			new Twig_SimpleFunction('dict_set', [$this, 'function_dict_set']),
 			new Twig_SimpleFunction('json_decode', [$this, 'function_json_decode']),
 			new Twig_SimpleFunction('jsonpath_set', [$this, 'function_jsonpath_set']),
-			new Twig_SimpleFunction('placeholders_list', [$this, 'function_placeholders_list'], ['needs_environment' => true]),
 			new Twig_SimpleFunction('random_string', [$this, 'function_random_string']),
 			new Twig_SimpleFunction('regexp_match_all', [$this, 'function_regexp_match_all']),
-			new Twig_SimpleFunction('shuffle', [$this, 'function_shuffle']),
 			new Twig_SimpleFunction('validate_email', [$this, 'function_validate_email']),
 			new Twig_SimpleFunction('validate_number', [$this, 'function_validate_number']),
 			new Twig_SimpleFunction('xml_decode', [$this, 'function_xml_decode']),
@@ -709,7 +619,7 @@ class _DevblocksTwigExtensions extends Twig_Extension {
 	}
 	
 	function function_cerb_avatar_url($context, $id, $updated=0) {
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		if(false == ($context_ext = Extension_DevblocksContext::getByAlias($context, true)))
 		if(false == ($context_ext = Extension_DevblocksContext::get($id)))
@@ -729,7 +639,7 @@ class _DevblocksTwigExtensions extends Twig_Extension {
 	}
 	
 	function function_cerb_file_url($id) {
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		if(false == ($file = DAO_Attachment::get($id)))
 			return null;
@@ -738,7 +648,7 @@ class _DevblocksTwigExtensions extends Twig_Extension {
 	}
 	
 	function function_cerb_url($url, $full=true, $proxy=true) {
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		return $url_writer->write($url, $full, $proxy);
 	}
 	
@@ -778,23 +688,41 @@ class _DevblocksTwigExtensions extends Twig_Extension {
 		return $var;
 	}
 	
-	function function_placeholders_list(Twig_Environment $env) {
-		if(false == (@$callback = $env->getUndefinedVariableCallbacks()[0]) || !is_array($callback))
-			return [];
-		
-		if(false == (@$dict = $callback[0]))
-			return [];
-		
-		return $dict->getDictionary('', false);
-	}
-	
 	function function_random_string($length=8) {
 		$length = DevblocksPlatform::intClamp($length, 1, 255);
 		return CerberusApplication::generatePassword($length);
 	}
 	
 	function function_dict_set($var, $path, $val) {
-		return DevblocksPlatform::arrayDictSet($var, $path, $val);
+		if(empty($var))
+			$var = is_array($var) ? array() : new stdClass();
+		
+		$parts = explode('.', $path);
+		$ptr =& $var;
+		
+		if(is_array($parts))
+		foreach($parts as $part) {
+			if('[]' == $part) {
+				if(is_array($ptr))
+					$ptr =& $ptr[];
+				
+			} elseif(is_array($ptr)) {
+				if(!isset($ptr[$part]))
+					$ptr[$part] = array();
+
+				$ptr =& $ptr[$part];
+				
+			} elseif(is_object($ptr)) {
+				if(!isset($ptr->$part))
+					$ptr->$part = array();
+				
+				$ptr =& $ptr->$part;
+			}
+		}
+		
+		$ptr = $val;
+		
+		return $var;
 	}
 	
 	function function_regexp_match_all($pattern, $text, $group = 0) {
@@ -856,15 +784,6 @@ class _DevblocksTwigExtensions extends Twig_Extension {
 		return $result;
 	}
 	
-	function function_shuffle($array) {
-		if(!is_array($array))
-			return false;
-		
-		shuffle($array);
-		
-		return $array;
-	}
-	
 	function function_validate_email($string) {
 		if(!is_string($string))
 			return false;
@@ -894,7 +813,6 @@ class _DevblocksTwigExtensions extends Twig_Extension {
 			new Twig_SimpleFilter('base64_encode', [$this, 'filter_base64_encode']),
 			new Twig_SimpleFilter('base64_decode', [$this, 'filter_base64_decode']),
 			new Twig_SimpleFilter('bytes_pretty', [$this, 'filter_bytes_pretty']),
-			new Twig_SimpleFilter('context_name', [$this, 'filter_context_name']),
 			new Twig_SimpleFilter('date_pretty', [$this, 'filter_date_pretty']),
 			new Twig_SimpleFilter('hash_hmac', [$this, 'filter_hash_hmac']),
 			new Twig_SimpleFilter('json_pretty', [$this, 'filter_json_pretty']),
@@ -938,22 +856,6 @@ class _DevblocksTwigExtensions extends Twig_Extension {
 			return '';
 		
 		return DevblocksPlatform::strPrettyBytes($string, $precision);
-	}
-	
-	function filter_context_name($string, $type='plural') {
-		if(!is_string($string))
-			return '';
-		
-		if(false == ($ctx_manifest = Extension_DevblocksContext::get($string, false)))
-			return '';
-		
-		if(false == ($aliases = Extension_DevblocksContext::getAliasesForContext($ctx_manifest)))
-			return '';
-		
-		if(isset($aliases[$type]))
-			return $aliases[$type];
-		
-		return '';
 	}
 	
 	function filter_date_pretty($string, $is_delta=false) {
@@ -1093,7 +995,8 @@ class _DevblocksTwigExtensions extends Twig_Extension {
 		
 		switch(DevblocksPlatform::strLower($as)) {
 			case 'json':
-				$array = DevblocksPlatform::strParseQueryString($string);
+				$array = array();
+				@parse_str($string, $array);
 				return json_encode($array);
 				break;
 			

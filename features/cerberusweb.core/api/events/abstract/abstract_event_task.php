@@ -40,24 +40,6 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 	function setEvent(Model_DevblocksEvent $event_model=null, Model_TriggerEvent $trigger=null) {
 		$labels = array();
 		$values = array();
-		
-		/**
-		 * Behavior
-		 */
-		
-		$merge_labels = array();
-		$merge_values = array();
-		CerberusContexts::getContext(CerberusContexts::CONTEXT_BEHAVIOR, $trigger, $merge_labels, $merge_values, null, true);
-
-			// Merge
-			CerberusContexts::merge(
-				'behavior_',
-				'',
-				$merge_labels,
-				$merge_values,
-				$labels,
-				$values
-			);
 
 		// We can accept a model object or a context_id
 		@$model = $event_model->params['context_model'] ?: $event_model->params['context_id'];
@@ -96,14 +78,6 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 	
 	function getValuesContexts($trigger) {
 		$vals = array(
-			'behavior_id' => array(
-				'label' => 'Behavior',
-				'context' => CerberusContexts::CONTEXT_BEHAVIOR,
-			),
-			'behavior_bot_id' => array(
-				'label' => 'Bot',
-				'context' => CerberusContexts::CONTEXT_BOT,
-			),
 			'task_id' => array(
 				'label' => 'Task',
 				'context' => CerberusContexts::CONTEXT_TASK,
@@ -139,7 +113,7 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 	}
 	
 	function renderConditionExtension($token, $as_token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -248,7 +222,6 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 				'set_due_date' => array('label' => 'Set task due date'),
 				'set_importance' => array('label' => 'Set task importance'),
 				'set_owner' => array('label' => 'Set task owner'),
-				'set_reopen_date' => array('label' => 'Set task reopen date'),
 				'set_status' => array('label' => 'Set task status'),
 				'set_links' => array('label' => 'Set links'),
 			)
@@ -259,7 +232,7 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 	}
 	
 	function renderActionExtension($token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -308,10 +281,6 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 				$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_worker.tpl');
 				break;
 				
-			case 'set_reopen_date':
-				$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_set_date.tpl');
-				break;
-				
 			case 'set_status':
 				$tpl->display('devblocks:cerberusweb.core::events/model/task/action_set_status.tpl');
 				break;
@@ -321,7 +290,7 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 				break;
 				
 			default:
-				if(preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token, $matches)) {
+				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token, $matches)) {
 					$field_id = $matches[2];
 					$custom_field = DAO_CustomField::get($field_id);
 					DevblocksEventHelper::renderActionSetCustomField($custom_field, $trigger);
@@ -377,7 +346,7 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 				break;
 			
 			case 'set_importance':
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				$value = $tpl_builder->build($params['value'], $dict);
 				$value = DevblocksPlatform::intClamp($value, 0, 100);
 				
@@ -428,34 +397,25 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 				return DevblocksEventHelper::simulateActionSetLinks($trigger, $params, $dict);
 				break;
 				
-			case 'set_reopen_date':
-				DevblocksEventHelper::runActionSetDate('task_reopen', $params, $dict);
-				$out = sprintf(">>> Setting task to reopen at:\n".
-					"%s (%d)\n",
-					date('D M d Y h:ia', $dict->task_reopen),
-					$dict->task_reopen
-				);
-				return $out;
-				break;
-				
 			case 'set_status':
-				@$to_status_id = DevblocksPlatform::intClamp(intval($params['status_id']), 0, 2);
-				$dict->task_status_id = $to_status_id;
+				@$to_status = $params['status'];
+				@$current_status = $dict->task_status;
 				
-				$label_map = [
-					0 => 'open',
-					1 => 'closed',
-					2 => 'waiting',
-				];
+				switch($to_status) {
+					case 'active':
+					case 'completed':
+						$dict->task_status = $to_status;
+						break;
+				}
 				
 				$out = sprintf(">>> Setting status to: %s\n",
-					@$label_map[$dict->task_status_id]
+					$dict->task_status
 				);
 				return $out;
 				break;
 				
 			default:
-				if(preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token))
+				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token))
 					return DevblocksEventHelper::simulateActionSetCustomField($token, $params, $dict);
 				break;
 		}
@@ -516,36 +476,22 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 				));
 				break;
 				
-			case 'set_reopen_date':
-				DevblocksEventHelper::runActionSetDate('task_reopen', $params, $dict);
-				
-				DAO_Task::update($task_id, array(
-					DAO_Task::REOPEN_AT => intval($dict->task_reopen),
-				));
-				break;
-				
 			case 'set_status':
 				$this->simulateAction($token, $trigger, $params, $dict);
 				
 				$fields = array();
 					
-				switch($dict->task_status_id) {
-					case 0:
+				switch($dict->task_status) {
+					case 'active':
 						$fields = array(
-							DAO_Task::STATUS_ID => 0,
+							DAO_Task::IS_COMPLETED => 0,
 							DAO_Task::COMPLETED_DATE => 0,
 						);
 						break;
-					case 1:
+					case 'completed':
 						$fields = array(
-							DAO_Task::STATUS_ID => 1,
+							DAO_Task::IS_COMPLETED => 1,
 							DAO_Task::COMPLETED_DATE => time(),
-						);
-						break;
-					case 2:
-						$fields = array(
-							DAO_Task::STATUS_ID => 2,
-							DAO_Task::COMPLETED_DATE => 0,
 						);
 						break;
 				}
@@ -560,7 +506,7 @@ abstract class AbstractEvent_Task extends Extension_DevblocksEvent {
 				break;
 				
 			default:
-				if(preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token))
+				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token))
 					return DevblocksEventHelper::runActionSetCustomField($token, $params, $dict);
 				break;
 		}

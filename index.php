@@ -40,13 +40,13 @@
  *	 Founders at Webgroup Media LLC; Developers of Cerb
  */
 
-if(version_compare(PHP_VERSION, "7.0", "<")) {
-	http_response_code(500);
-	die("Cerb requires PHP 7.0 or later.");
+if(version_compare(PHP_VERSION, "5.5", "<")) {
+	header('Status: 500');
+	die("Cerb requires PHP 5.5 or later.");
 }
 
 if(!extension_loaded('mysqli')) {
-	http_response_code(500);
+	header('Status: 500');
 	die("Cerb requires the 'mysqli' PHP extension.  Please enable it.");
 }
 
@@ -58,7 +58,7 @@ if('' == APP_DB_HOST
 	|| '' == APP_DB_DATABASE
 	|| DevblocksPlatform::isDatabaseEmpty()) {
 		DevblocksPlatform::init();
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		$base_url = rtrim(preg_replace("/index\.php\/$/i",'',$url_writer->write('',true)),"/");
 		header('Location: '.$base_url.'/install/index.php');
 		exit;
@@ -69,16 +69,7 @@ require(APP_PATH . '/api/Application.class.php');
 DevblocksPlatform::init();
 DevblocksPlatform::setHandlerSession('Cerb_DevblocksSessionHandler');
 
-// Request
-
 $request = DevblocksPlatform::readRequest();
-DevblocksPlatform::setStateless(in_array(@$request->path[0], ['cron','portal','resource']));
-
-if(DevblocksPlatform::isStateless()) {
-	$_SESSION = [];
-} else {
-	$session = DevblocksPlatform::services()->session();
-}
 
 // Do we need an update first?
 if(!DevblocksPlatform::versionConsistencyCheck()) {
@@ -87,6 +78,10 @@ if(!DevblocksPlatform::versionConsistencyCheck()) {
 		exit;
 	}
 }
+
+// Request
+
+$session = DevblocksPlatform::getSessionService();
 
 // Localization
 
@@ -104,11 +99,13 @@ if(isset($_SESSION['time_format']))
 
 // Initialize Logging
 
-$timeout = ini_get('max_execution_time');
-$logger = DevblocksPlatform::services()->log();
-$logger->info("[Devblocks] ** Platform starting (".date("r").") **");
-$logger->info('[Devblocks] Time Limit: '. (($timeout) ? $timeout : 'unlimited') ." secs");
-$logger->info('[Devblocks] Memory Limit: '. ini_get('memory_limit'));
+if(method_exists('DevblocksPlatform','getConsoleLog')) {
+	$timeout = ini_get('max_execution_time');
+	$logger = DevblocksPlatform::getConsoleLog();
+	$logger->info("[Devblocks] ** Platform starting (".date("r").") **");
+	$logger->info('[Devblocks] Time Limit: '. (($timeout) ? $timeout : 'unlimited') ." secs");
+	$logger->info('[Devblocks] Memory Limit: '. ini_get('memory_limit'));
+}
 
 // [JAS]: HTTP Request (App->Platform)
 CerberusApplication::processRequest($request);

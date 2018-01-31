@@ -76,7 +76,7 @@ $input.focus();
 
 $input.keypress(
 	function(e) {
-		var code = e.keyCode || e.which;
+		code = (e.keyCode ? e.keyCode : e.which);
 		if(code == 13) {
 			e.preventDefault();
 			e.stopPropagation();

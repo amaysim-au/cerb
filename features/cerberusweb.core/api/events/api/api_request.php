@@ -32,7 +32,7 @@ class Event_ApiRequest extends AbstractEvent_ApiRequest {
 		if(false == ($va = $behavior->getBot()))
 			return;
 
-		$events = DevblocksPlatform::services()->event();
+		$events = DevblocksPlatform::getEventService();
 		return $events->trigger(
 			new Model_DevblocksEvent(
 				self::ID,

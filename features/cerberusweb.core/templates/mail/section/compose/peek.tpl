@@ -1,6 +1,7 @@
 {$mail_reply_html = DAO_WorkerPref::get($active_worker->id, 'mail_reply_html', 0)}
 
-<form action="{devblocks_url}{/devblocks_url}" method="POST" id="frmComposePeek{$popup_uniqid}" onsubmit="return false;">
+{$random = uniqid()}
+<form action="{devblocks_url}{/devblocks_url}" method="POST" id="frmComposePeek{$random}" onsubmit="return false;">
 <input type="hidden" name="c" value="tickets">
 <input type="hidden" name="a" value="saveComposePeek">
 <input type="hidden" name="view_id" value="{$view_id}">
@@ -43,11 +44,11 @@
 			</td>
 		</tr>
 		<tr>
-			<td width="0%" nowrap="nowrap" valign="top" align="right"><a href="javascript:;" class="cerb-recipient-chooser" data-context="{CerberusContexts::CONTEXT_ADDRESS}" data-query="">{'message.header.to'|devblocks_translate|capitalize}</a>:&nbsp;</td>
+			<td width="0%" nowrap="nowrap" valign="top" align="right">{'message.header.to'|devblocks_translate|capitalize}:&nbsp;</td>
 			<td width="100%">
-				<input type="text" name="to" id="emailinput{$popup_uniqid}" value="{if !empty($to)}{$to}{else}{$draft->params.to}{/if}" style="border:1px solid rgb(180,180,180);padding:2px;width:98%;" placeholder="These recipients will automatically be included in all future correspondence">
+				<input type="text" name="to" id="emailinput{$random}" value="{if !empty($to)}{$to}{else}{$draft->params.to}{/if}" style="border:1px solid rgb(180,180,180);padding:2px;width:98%;" placeholder="These recipients will automatically be included in all future correspondence">
 				
-				<div id="compose_suggested{$popup_uniqid}" style="display:none;">
+				<div id="compose_suggested{$random}" style="display:none;">
 					<a href="javascript:;" onclick="$(this).closest('div').hide();">x</a>
 					<b>Consider adding these recipients:</b>
 					<ul class="bubbles"></ul> 
@@ -55,13 +56,13 @@
 			</td>
 		</tr>
 		<tr>
-			<td width="0%" nowrap="nowrap" valign="top" align="right"><a href="javascript:;" class="cerb-recipient-chooser" data-context="{CerberusContexts::CONTEXT_ADDRESS}" data-query="">{'message.header.cc'|devblocks_translate|capitalize}</a>:&nbsp;</td>
+			<td width="0%" nowrap="nowrap" valign="top" align="right">{'message.header.cc'|devblocks_translate|capitalize}:&nbsp;</td>
 			<td width="100%">
 				<input type="text" name="cc" style="width:98%;border:1px solid rgb(180,180,180);padding:2px;" value="{$draft->params.cc}" placeholder="These recipients will publicly receive a copy of this message" autocomplete="off">
 			</td>
 		</tr>
 		<tr>
-			<td width="0%" nowrap="nowrap" valign="top" align="right"><a href="javascript:;" class="cerb-recipient-chooser" data-context="{CerberusContexts::CONTEXT_ADDRESS}" data-query="">{'message.header.bcc'|devblocks_translate|capitalize}</a>:&nbsp;</td>
+			<td width="0%" nowrap="nowrap" valign="top" align="right">{'message.header.bcc'|devblocks_translate|capitalize}:&nbsp;</td>
 			<td width="100%">
 				<input type="text" name="bcc" style="width:98%;border:1px solid rgb(180,180,180);padding:2px;" value="{$draft->params.bcc}" placeholder="These recipients will secretly receive a copy of this message" autocomplete="off">
 			</td>
@@ -69,38 +70,33 @@
 		<tr>
 			<td width="0%" nowrap="nowrap" valign="top" align="right"><b>{'message.header.subject'|devblocks_translate|capitalize}:</b>&nbsp;</td>
 			<td width="100%">
-				<input type="text" name="subject" style="width:98%;border:1px solid rgb(180,180,180);padding:2px;" value="{$draft->subject}" autocomplete="off">
+				<input type="text" name="subject" style="width:98%;border:1px solid rgb(180,180,180);padding:2px;" value="{$draft->subject}" autocomplete="off" required>
 			</td>
 		</tr>
 		<tr>
 			<td width="100%" colspan="2">
-				<div id="divDraftStatus{$popup_uniqid}"></div>
+				<div id="divDraftStatus{$random}"></div>
 				
 				<div>
 					<fieldset style="display:inline-block;">
 						<legend>Actions</legend>
 						
-						<div id="divComposeInteractions{$popup_uniqid}" style="display:inline-block;">
-						{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.tpl"}
-						</div>
-						
-						<button id="btnComposeSaveDraft{$popup_uniqid}" class="toolbar-item" type="button"><span class="glyphicons glyphicons-circle-ok"></span> Save Draft</button>
-						<button id="btnComposeInsertSig{$popup_uniqid}" class="toolbar-item" type="button" {if $pref_keyboard_shortcuts}title="(Ctrl+Shift+G)"{/if}"><span class="glyphicons glyphicons-edit"></span> Insert Signature</button>
+						<button id="btnComposeSaveDraft{$random}" class="toolbar-item" type="button"><span class="glyphicons glyphicons-circle-ok"></span> Save Draft</button>
+						<button id="btnComposeInsertSig{$random}" class="toolbar-item" type="button" {if $pref_keyboard_shortcuts}title="(Ctrl+Shift+G)"{/if}"><span class="glyphicons glyphicons-edit"></span> Insert Signature</button>
 					</fieldset>
 				
 					<fieldset style="display:inline-block;">
 						<legend>{'common.snippets'|devblocks_translate|capitalize}</legend>
 						<div>
-							<div class="cerb-snippet-insert" style="display:inline-block;">
-								<button type="button" class="cerb-chooser-trigger" data-field-name="snippet_id" data-context="{CerberusContexts::CONTEXT_SNIPPET}" data-placeholder="(Ctrl+Shift+I)" data-query="" data-query-required="type:[plaintext,worker]" data-single="true" data-autocomplete="type:[plaintext,worker]"><span class="glyphicons glyphicons-search"></span></button>
-								<ul class="bubbles chooser-container"></ul>
-							</div>
-							<button type="button" onclick="var txt = encodeURIComponent($('#divComposeContent{$popup_uniqid}').selection('get')); genericAjaxPopup('add_snippet','c=internal&a=showPeekPopup&context={CerberusContexts::CONTEXT_SNIPPET}&context_id=0&edit=1&text=' + txt,null,false,'50%');"><span class="glyphicons glyphicons-circle-plus"></span></button>
+							Insert: 
+							<input type="text" size="25" class="context-snippet autocomplete" {if $pref_keyboard_shortcuts}placeholder="(Ctrl+Shift+I)"{/if}>
+							<button type="button" onclick="ajax.chooserSnippet('snippets',$('#divComposeContent{$random}'), { '{CerberusContexts::CONTEXT_WORKER}':'{$active_worker->id}' });"><span class="glyphicons glyphicons-search"></span></button>
+							<button type="button" onclick="var txt = encodeURIComponent($('#divComposeContent{$random}').selection('get')); genericAjaxPopup('add_snippet','c=internal&a=showPeekPopup&context={CerberusContexts::CONTEXT_SNIPPET}&context_id=0&edit=1&text=' + txt,null,false,'50%');"><span class="glyphicons glyphicons-circle-plus"></span></button>
 						</div>
 					</fieldset>
 				</div>
 				
-				<textarea id="divComposeContent{$popup_uniqid}" name="content" style="width:98%;height:150px;border:1px solid rgb(180,180,180);padding:2px;">{if !empty($draft)}{$draft->body}{else}{if $defaults.signature_pos}
+				<textarea id="divComposeContent{$random}" name="content" style="width:98%;height:150px;border:1px solid rgb(180,180,180);padding:2px;">{if !empty($draft)}{$draft->body}{else}{if $defaults.signature_pos}
 
 
 
@@ -113,34 +109,6 @@
 	</table>
 </fieldset>
 
-<fieldset class="peek compose-attachments">
-	<legend>{'common.attachments'|devblocks_translate|capitalize}</legend>
-	<button type="button" class="chooser_file"><span class="glyphicons glyphicons-paperclip"></span></button>
-	<ul class="bubbles chooser-container">
-	{if $draft->params.file_ids}
-	{foreach from=$draft->params.file_ids item=file_id}
-		{$file = DAO_Attachment::get($file_id)}
-		{if !empty($file)}
-			<li><input type="hidden" name="file_ids[]" value="{$file_id}">{$file->name} ({$file->storage_size} bytes) <a href="javascript:;" onclick="$(this).parent().remove();"><span class="glyphicons glyphicons-circle-remove"></span></a></li>
-		{/if} 
-	{/foreach}
-	{/if}
-	</ul>
-</fieldset>
-
-{if $gpg && $gpg->isEnabled()}
-<fieldset class="peek">
-	<legend>{'common.encryption'|devblocks_translate|capitalize}</legend>
-	
-	<div>
-		<label style="margin-right:10px;">
-		<input type="checkbox" name="options_gpg_encrypt" value="1" {if $draft->params.options_gpg_encrypt}checked="checked"{/if}> 
-		Encrypt message using recipient public keys
-		</label>
-	</div>
-</fieldset>
-{/if}
-
 <fieldset class="peek">
 	<legend>{'common.properties'|devblocks_translate|capitalize}</legend>
 	
@@ -152,11 +120,11 @@
 	</div>
 	
 	<div style="margin-top:10px;">
-		<label {if $pref_keyboard_shortcuts}title="(Ctrl+Shift+O)"{/if}><input type="radio" name="status_id" value="{Model_Ticket::STATUS_OPEN}" class="status_open" {if (empty($draft) && 'open'==$defaults.status) || (!empty($draft) && $draft->params.status_id==Model_Ticket::STATUS_OPEN)}checked="checked"{/if} onclick="toggleDiv('divComposeClosed{$popup_uniqid}','none');"> {'status.open'|devblocks_translate}</label>
-		<label {if $pref_keyboard_shortcuts}title="(Ctrl+Shift+W)"{/if}><input type="radio" name="status_id" value="{Model_Ticket::STATUS_WAITING}" class="status_waiting" {if (empty($draft) && 'waiting'==$defaults.status) || (!empty($draft) && $draft->params.status_id==Model_Ticket::STATUS_WAITING)}checked="checked"{/if} onclick="toggleDiv('divComposeClosed{$popup_uniqid}','block');"> {'status.waiting'|devblocks_translate}</label>
-		{if $active_worker->hasPriv('core.ticket.actions.close')}<label {if $pref_keyboard_shortcuts}title="(Ctrl+Shift+C)"{/if}><input type="radio" name="status_id" value="{Model_Ticket::STATUS_CLOSED}" class="status_closed" {if (empty($draft) && 'closed'==$defaults.status) || (!empty($draft) && $draft->params.status_id==Model_Ticket::STATUS_CLOSED)}checked="checked"{/if} onclick="toggleDiv('divComposeClosed{$popup_uniqid}','block');"> {'status.closed'|devblocks_translate}</label>{/if}
+		<label {if $pref_keyboard_shortcuts}title="(Ctrl+Shift+O)"{/if}><input type="radio" name="status_id" value="{Model_Ticket::STATUS_OPEN}" class="status_open" {if (empty($draft) && 'open'==$defaults.status) || (!empty($draft) && $draft->params.status_id==Model_Ticket::STATUS_OPEN)}checked="checked"{/if} onclick="toggleDiv('divComposeClosed{$random}','none');"> {'status.open'|devblocks_translate}</label>
+		<label {if $pref_keyboard_shortcuts}title="(Ctrl+Shift+W)"{/if}><input type="radio" name="status_id" value="{Model_Ticket::STATUS_WAITING}" class="status_waiting" {if (empty($draft) && 'waiting'==$defaults.status) || (!empty($draft) && $draft->params.status_id==Model_Ticket::STATUS_WAITING)}checked="checked"{/if} onclick="toggleDiv('divComposeClosed{$random}','block');"> {'status.waiting'|devblocks_translate}</label>
+		{if $active_worker->hasPriv('core.ticket.actions.close')}<label {if $pref_keyboard_shortcuts}title="(Ctrl+Shift+C)"{/if}><input type="radio" name="status_id" value="{Model_Ticket::STATUS_CLOSED}" class="status_closed" {if (empty($draft) && 'closed'==$defaults.status) || (!empty($draft) && $draft->params.status_id==Model_Ticket::STATUS_CLOSED)}checked="checked"{/if} onclick="toggleDiv('divComposeClosed{$random}','block');"> {'status.closed'|devblocks_translate}</label>{/if}
 		
-		<div id="divComposeClosed{$popup_uniqid}" style="display:{if (empty($draft) && 'open'==$defaults.status) || (!empty($draft) && $draft->params.status_id==Model_Ticket::STATUS_OPEN)}none{else}block{/if};margin:5px 0px 0px 20px;">
+		<div id="divComposeClosed{$random}" style="display:{if (empty($draft) && 'open'==$defaults.status) || (!empty($draft) && $draft->params.status_id==Model_Ticket::STATUS_OPEN)}none{else}block{/if};margin-top:5px;margin-left:10px;">
 			<b>{'display.reply.next.resume'|devblocks_translate}</b><br>
 			{'display.reply.next.resume_eg'|devblocks_translate}<br> 
 			<input type="text" name="ticket_reopen" size="64" class="input_date" value="{$draft->params.ticket_reopen}"><br>
@@ -209,7 +177,7 @@
 	</table>
 </fieldset>
 
-<fieldset class="peek" style="{if empty($custom_fields) && empty($group_fields)}display:none;{/if}" id="compose_cfields{$popup_uniqid}">
+<fieldset class="peek" style="{if empty($custom_fields) && empty($group_fields)}display:none;{/if}" id="compose_cfields{$random}">
 	<legend>{'common.custom_fields'|devblocks_translate|capitalize}</legend>
 	
 	{$custom_field_values = $draft->params.custom_fields}
@@ -221,99 +189,41 @@
 
 {include file="devblocks:cerberusweb.core::internal/custom_fieldsets/peek_custom_fieldsets.tpl" context=CerberusContexts::CONTEXT_TICKET bulk=false}
 
+<fieldset class="peek compose-attachments">
+	<legend>{'common.attachments'|devblocks_translate|capitalize}</legend>
+	<button type="button" class="chooser_file"><span class="glyphicons glyphicons-paperclip"></span></button>
+	<ul class="bubbles chooser-container">
+	{if $draft->params.file_ids}
+	{foreach from=$draft->params.file_ids item=file_id}
+		{$file = DAO_Attachment::get($file_id)}
+		{if !empty($file)}
+			<li><input type="hidden" name="file_ids[]" value="{$file_id}">{$file->name} ({$file->storage_size} bytes) <a href="javascript:;" onclick="$(this).parent().remove();"><span class="glyphicons glyphicons-circle-remove"></span></a></li>
+		{/if} 
+	{/foreach}
+	{/if}
+	</ul>
+</fieldset>
+
 <div class="status"></div>
 
-<div class="help-box submit-no-recipients" style="display:none;">
-	<h1>You haven't specified any recipients.</h1>
-	<p>
-		A new ticket will be created without sending any email.
-		This is normal if you're working on an issue and you plan to add an email address later (e.g. phone call).
-	</p>
-	<p>
-		If this isn't what you meant to do, add a recipient in the <b>To:</b> field above.
-	</p>
-	<div>
-		<button type="button" class="submit" title="{if $pref_keyboard_shortcuts}(Ctrl+Shift+Enter){/if}"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> Create a ticket without recipients</button>
-	</div>
-</div>
-
-<div class="submit-normal" style="display:none;">
-	<button type="button" class="submit" title="{if $pref_keyboard_shortcuts}(Ctrl+Shift+Enter){/if}"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'display.ui.send_message'|devblocks_translate}</button>
-</div>
+<button type="button" class="submit" title="{if $pref_keyboard_shortcuts}(Ctrl+Shift+Enter){/if}"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'display.ui.send_message'|devblocks_translate}</button>
 </form>
 
 <script type="text/javascript">
 	if(draftComposeAutoSaveInterval == undefined)
 		var draftComposeAutoSaveInterval = null;
 
-	var $popup = genericAjaxPopupFind('#frmComposePeek{$popup_uniqid}');
+	var $popup = genericAjaxPopupFind('#frmComposePeek{$random}');
 	$popup.one('popup_open',function(event,ui) {
 		$(this).dialog('option','title','{'mail.send_mail'|devblocks_translate|capitalize|escape:'javascript' nofilter}');
 		
-		var $frm = $('#frmComposePeek{$popup_uniqid}');
-		
-		// Close confirmation
-		
-		$popup.on('dialogbeforeclose', function(e, ui) {
-			var keycode = e.keyCode || e.which;
-			if(keycode == 27)
-				return confirm('{'warning.core.editor.close'|devblocks_translate}');
-		});
-		
-		// Autocompletes
+		var $frm = $('#frmComposePeek{$random}');
 
-		ajax.emailAutoComplete('#frmComposePeek{$popup_uniqid} input[name=to]', { multiple: true } );
-		ajax.emailAutoComplete('#frmComposePeek{$popup_uniqid} input[name=cc]', { multiple: true } );
-		ajax.emailAutoComplete('#frmComposePeek{$popup_uniqid} input[name=bcc]', { multiple: true } );
+		ajax.emailAutoComplete('#frmComposePeek{$random} input[name=to]', { multiple: true } );
+		ajax.emailAutoComplete('#frmComposePeek{$random} input[name=cc]', { multiple: true } );
+		ajax.emailAutoComplete('#frmComposePeek{$random} input[name=bcc]', { multiple: true } );
 
-		ajax.orgAutoComplete('#frmComposePeek{$popup_uniqid} input:text[name=org_name]');
-		
-		// Date helpers
-		
-		$frm.find('input[name=ticket_reopen]')
-			.cerbDateInputHelper()
-			;
-		
-		// Chooser for To/Cc/Bcc recipients
-		$frm.find('a.cerb-recipient-chooser')
-			.click(function(e) {
-				e.stopPropagation();
-				var $trigger = $(this);
-				var $input = $trigger.closest('tr').find('td:nth(1) input:text');
-				
-				var context = $trigger.attr('data-context');
-				var query = $trigger.attr('data-query');
-				var query_req = $trigger.attr('data-query-required');
-				var chooser_url = 'c=internal&a=chooserOpen&context=' + encodeURIComponent(context);
-				
-				if(typeof query == 'string' && query.length > 0) {
-					chooser_url += '&q=' + encodeURIComponent(query);
-				}
-				
-				if(typeof query_req == 'string' && query_req.length > 0) {
-					chooser_url += '&qr=' + encodeURIComponent(query_req);
-				}
-				
-				$input.focus();
-				
-				var $chooser = genericAjaxPopup(Devblocks.uniqueId(), chooser_url, null, true, '90%');
-				
-				$chooser.one('chooser_save', function(event) {
-					event.stopPropagation();
-					
-					if(typeof event.values == "object" && event.values.length > 0) {
-						var val = $input.val();
-						if(val.length > 0 && val.trim().substr(-1) != ',') {
-							var new_val = val + ', ' + event.labels.join(', ');
-							$input.val(new_val);
-						} else {
-							var new_val = val + (val.length == 0 || val.substr(-1) == ' ' ? '' : ' ') + event.labels.join(', ');
-							$input.val(new_val);
-						}
-					}
-				});
-			})
-		;
+		ajax.orgAutoComplete('#frmComposePeek{$random} input:text[name=org_name]');
 		
 		$frm.find('button.chooser-abstract').cerbChooserTrigger();
 		
@@ -397,7 +307,7 @@
 		
 		markitupParsedownSettings.previewParser = function(content) {
 			genericAjaxPost(
-				'frmComposePeek{$popup_uniqid}',
+				'frmComposePeek{$random}',
 				'',
 				'c=display&a=getReplyMarkdownPreview',
 				function(o) {
@@ -449,6 +359,8 @@
 			if(window.console)
 				console.log(e);
 		}
+		
+		$frm.validate();
 		
 		// @who and #command
 		
@@ -520,27 +432,13 @@
 			$bucket.focus();
 		});
 		
-		$frm.find('input:text[name=to]').on('change keyup', function(event) {
-			var $input = $(this);
-			
-			if($input.val().length > 0) {
-				$frm.find('div.submit-normal').show();
-				$frm.find('div.submit-no-recipients').hide();
-				
-			} else {
-				$frm.find('div.submit-normal').hide();
-				$frm.find('div.submit-no-recipients').show();
-				
-			}
-		}).trigger('change');
-		
 		$frm.find('input:text[name=to], input:text[name=cc], input:text[name=bcc]').focus(function(event) {
-			$('#compose_suggested{$popup_uniqid}').appendTo($(this).closest('td'));
+			$('#compose_suggested{$random}').appendTo($(this).closest('td'));
 		});
 		
 		$frm.find('input:text[name=org_name]').bind('autocompletechange',function(event, ui) {
 			genericAjaxGet('', 'c=contacts&a=getTopContactsByOrgJson&org_name=' + $(this).val(), function(json) {
-				var $sug = $('#compose_suggested{$popup_uniqid}');
+				var $sug = $('#compose_suggested{$random}');
 				
 				$sug.find('ul.bubbles li').remove();
 				
@@ -585,8 +483,6 @@
 					$this.closest('li').remove();
 					if(0==$ul.find('li').length)
 						$ul.closest('div').remove();
-					
-					$to.trigger('change');
 				});
 				
 				$sug.show();
@@ -599,14 +495,14 @@
 		
 		// Insert Sig
 		
-		$('#btnComposeInsertSig{$popup_uniqid}').click(function(e) {
-			var $textarea = $('#divComposeContent{$popup_uniqid}');
+		$('#btnComposeInsertSig{$random}').click(function(e) {
+			var $textarea = $('#divComposeContent{$random}');
 			$textarea.insertAtCursor('#signature\n').focus();
 		});
 		
 		// Drafts
 		
-		$('#btnComposeSaveDraft{$popup_uniqid}').click(function(e) {
+		$('#btnComposeSaveDraft{$random}').click(function(e) {
 			var $this = $(this);
 			
 			if(!$this.is(':visible')) {
@@ -621,7 +517,7 @@
 			$this.attr('disabled','disabled');
 			
 			genericAjaxPost(
-				'frmComposePeek{$popup_uniqid}',
+				'frmComposePeek{$random}',
 				null,
 				'c=profiles&a=handleSectionAction&section=draft&action=saveDraft&type=compose',
 				function(json) { 
@@ -630,11 +526,11 @@
 					if(!obj || !obj.html || !obj.draft_id)
 						return;
 				
-					$('#divDraftStatus{$popup_uniqid}').html(obj.html);
+					$('#divDraftStatus{$random}').html(obj.html);
 					
-					$('#frmComposePeek{$popup_uniqid} input[name=draft_id]').val(obj.draft_id);
+					$('#frmComposePeek{$random} input[name=draft_id]').val(obj.draft_id);
 					
-					$('#btnComposeSaveDraft{$popup_uniqid}').removeAttr('disabled');
+					$('#btnComposeSaveDraft{$random}').removeAttr('disabled');
 				}
 			);
 		});
@@ -644,37 +540,39 @@
 			draftComposeAutoSaveInterval = null;
 		}
 		
-		draftComposeAutoSaveInterval = setInterval("$('#btnComposeSaveDraft{$popup_uniqid}').click();", 30000); // and every 30 sec
+		draftComposeAutoSaveInterval = setInterval("$('#btnComposeSaveDraft{$random}').click();", 30000); // and every 30 sec
 		
-		// Snippet insert menu
-		$frm.find('.cerb-snippet-insert button.cerb-chooser-trigger')
-			.cerbChooserTrigger()
-			.on('cerb-chooser-saved', function(e) {
-				e.stopPropagation();
+		// Snippet chooser shortcut
+		
+		$frm.find('input:text.context-snippet').autocomplete({
+			delay: 300,
+			source: DevblocksAppPath+'ajax.php?c=internal&a=autocomplete&context=cerberusweb.contexts.snippet&contexts[]=cerberusweb.contexts.worker&_csrf_token=' + $('meta[name="_csrf_token"]').attr('content'),
+			minLength: 1,
+			focus:function(event, ui) {
+				return false;
+			},
+			autoFocus:true,
+			select:function(event, ui) {
 				var $this = $(this);
-				var $ul = $this.siblings('ul.chooser-container');
-				var $search = $ul.prev('input[type=search]');
-				var $textarea = $('#divComposeContent{$popup_uniqid}');
+				var $textarea = $('#divComposeContent{$random}');
 				
-				// Find the snippet_id
-				var snippet_id = $ul.find('input[name=snippet_id]').val();
-				
-				if(null == snippet_id)
-					return;
-				
-				// Remove the selection
-				$ul.find('> li').find('span.glyphicons-circle-remove').click();
+				var $label = ui.item.label.replace("<","&lt;").replace(">","&gt;");
+				var $value = ui.item.value;
 				
 				// Now we need to read in each snippet as either 'raw' or 'parsed' via Ajax
-				var url = 'c=internal&a=snippetPaste&id=' + snippet_id;
-				url += "&context_ids[cerberusweb.contexts.worker]={$active_worker->id}";
-				
+				var url = 'c=internal&a=snippetPaste&id=' + $value;
+
+				// Context-dependent arguments
+				if ('cerberusweb.contexts.worker'==ui.item.context) {
+					url += "&context_id={$active_worker->id}";
+				}
+
 				genericAjaxGet('',url,function(json) {
 					// If the content has placeholders, use that popup instead
 					if(json.has_custom_placeholders) {
 						$textarea.focus();
 						
-						var $popup_paste = genericAjaxPopup('snippet_paste', 'c=internal&a=snippetPlaceholders&id=' + encodeURIComponent(json.id) + '&context_id=' + encodeURIComponent(json.context_id),null,false,'50%');
+						var $popup_paste = genericAjaxPopup('snippet_paste', 'c=internal&a=snippetPlaceholders&id=' + encodeURIComponent(json.id) + '&context_id=' + encodeURIComponent(json.context_id), null, false, '600');
 					
 						$popup_paste.bind('snippet_paste', function(event) {
 							if(null == event.text)
@@ -687,21 +585,19 @@
 						$textarea.insertAtCursor(json.text).focus();
 					}
 					
-					$search.val('');
-				});
-			})
-		;
-		
-		// Interactions
-		var $interaction_container = $('#divComposeInteractions{$popup_uniqid}');
-		{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.js.tpl"}
+				}, { async: false });
+
+				$this.val('');
+				return false;
+			}
+		});
 		
 		// Shortcuts
 		
 		{if $pref_keyboard_shortcuts}
 		
 		// Reply textbox
-		$('#divComposeContent{$popup_uniqid}').keydown(function(event) {
+		$('#divComposeContent{$random}').keydown(function(event) {
 			if(!$(this).is(':focus'))
 				return;
 			
@@ -753,13 +649,13 @@
 				case 71: // (G) Insert Signature
 					try {
 						event.preventDefault();
-						$('#btnComposeInsertSig{$popup_uniqid}').click();
+						$('#btnComposeInsertSig{$random}').click();
 					} catch(ex) { } 
 					break;
 				case 73: // (I) Insert Snippet
 					try {
 						event.preventDefault();
-						$('#frmComposePeek{$popup_uniqid}').find('.cerb-snippet-insert input[type=search]').focus();
+						$('#frmComposePeek{$random}').find('INPUT:text.context-snippet').focus();
 					} catch(ex) { } 
 					break;
 				case 81: // (Q) Reformat quotes
@@ -853,45 +749,34 @@
 		
 		$frm.find(':input:text:first').focus().select();
 		
-		$popup.on('popup_saved', function() {
-			hideLoadingPanel();
-		});
-		
 		$frm.find('button.submit').click(function() {
+			var $frm = $(this).closest('form');
+			var $input = $frm.find('input#emailinput{$random}');
 			var $status = $frm.find('div.status').html('').hide();
-			$status.text('').hide();
 			
-			showLoadingPanel();
+			var $to = $frm.find('input[name=to]');
+			var $cc = $frm.find('input[name=cc]');
+			var $bcc = $frm.find('input[name=bcc]');
 			
-			// Validate via Ajax before sending
-			genericAjaxPost($frm, '', 'c=tickets&a=validateComposeJson', function(json) {
-				if(json && json.status) {
-					if(null != draftComposeAutoSaveInterval) { 
-						clearTimeout(draftComposeAutoSaveInterval);
-						draftComposeAutoSaveInterval = null;
-					}
-					
-					genericAjaxPopupPostCloseReloadView(null,'frmComposePeek{$popup_uniqid}','{$view_id}',false,'compose_save');
-					
-				} else {
-					hideLoadingPanel();
-					$status.text(json.message).addClass('error').fadeIn();
+			// If we have a Cc:/Bcc: but no To:
+			if($to.val().length == 0 && ($cc.val().length > 0 || $bcc.val().length > 0)) {
+				$status.text("A 'To:' address is required when using 'Cc:' and 'Bcc:'.").addClass('error').fadeIn();
+				return false;
+			}
+			
+			if($frm.validate().form()) {
+				if(null != draftComposeAutoSaveInterval) { 
+					clearTimeout(draftComposeAutoSaveInterval);
+					draftComposeAutoSaveInterval = null;
 				}
-			});
+				
+				genericAjaxPopupPostCloseReloadView(null,'frmComposePeek{$random}','{$view_id}',false,'compose_save');
+			}
 		});
 		
 		{if $org}
 		$frm.find('input:text[name=org_name]').trigger('autocompletechange');
 		{/if}
 
-		{* Run custom jQuery scripts from VA behavior *}
-		
-		{if !empty($jquery_scripts)}
-		{foreach from=$jquery_scripts item=jquery_script}
-		try {
-			{$jquery_script nofilter}
-		} catch(e) { }
-		{/foreach}
-		{/if}
 	});
 </script>

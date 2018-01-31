@@ -108,10 +108,6 @@ class PageSection_ProfilesDraft extends Extension_PageSection {
 			DAO_MailQueue::update($draft_id, $fields);
 		}
 		
-		// If there are attachments, link them to this draft record
-		if(isset($params['file_ids']) && is_array($params['file_ids']))
-			DAO_Attachment::setLinks(CerberusContexts::CONTEXT_DRAFT, $draft_id, $params['file_ids']);
-		
 		return $draft_id;
 	}
 	
@@ -121,7 +117,7 @@ class PageSection_ProfilesDraft extends Extension_PageSection {
 			return;
 		}
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('timestamp', time());
 		$html = $tpl->fetch('devblocks:cerberusweb.core::mail/queue/saved.tpl');
 		
@@ -138,7 +134,7 @@ class PageSection_ProfilesDraft extends Extension_PageSection {
 			&&
 				(
 					$active_worker->id == $draft->worker_id
-					|| $active_worker->hasPriv('contexts.cerberusweb.contexts.draft.delete')
+					|| $active_worker->hasPriv('core.mail.draft.delete_all')
 				)
 			) {
 			DAO_MailQueue::delete($draft_id);
@@ -151,7 +147,7 @@ class PageSection_ProfilesDraft extends Extension_PageSection {
 		
 		@$active_worker = CerberusApplication::getActiveWorker();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('view_id', $view_id);
 		
 		if(null != ($draft = DAO_MailQueue::get($id)))
@@ -165,7 +161,7 @@ class PageSection_ProfilesDraft extends Extension_PageSection {
 		@$id_csv = DevblocksPlatform::importGPC($_REQUEST['ids']);
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id']);
 
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('view_id', $view_id);
 
 		if(!empty($id_csv)) {

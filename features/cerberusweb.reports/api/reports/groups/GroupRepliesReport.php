@@ -17,9 +17,9 @@
 
 class ChReportGroupReplies extends Extension_Report {
 	function render() {
-		$db = DevblocksPlatform::services()->database();
-		$tpl = DevblocksPlatform::services()->template();
-		$date = DevblocksPlatform::services()->date();
+		$db = DevblocksPlatform::getDatabaseService();
+		$tpl = DevblocksPlatform::getTemplateService();
+		$date = DevblocksPlatform::getDateService();
 		
 		// Use the worker's timezone for MySQL date functions
 		$db->ExecuteSlave(sprintf("SET time_zone = %s", $db->qstr($date->formatTime('P', time()))));
@@ -161,15 +161,9 @@ class ChReportGroupReplies extends Extension_Report {
 			);
 			
 			if(!empty($filter_group_ids)) {
-				$params[] = new DevblocksSearchCriteria(
-					SearchFields_Message::VIRTUAL_TICKET_SEARCH,
-					DevblocksSearchCriteria::OPER_CUSTOM,
-					sprintf('group:(id:[%s])',
-						implode(',', DevblocksPlatform::sanitizeArray($filter_group_ids, 'int'))
-					)
-				);
+				$params[] = new DevblocksSearchCriteria(SearchFields_Message::TICKET_GROUP_ID,DevblocksSearchCriteria::OPER_IN, $filter_group_ids);
 			}
-			
+
 			$view->addParamsRequired($params, true);
 			
 			$view->renderPage = 0;
@@ -180,11 +174,8 @@ class ChReportGroupReplies extends Extension_Report {
 		}
 		
 		// Chart
-		
-		$params = $view->getParams();
-		$params[uniqid()] = new DevblocksSearchCriteria(SearchFields_Message::TICKET_GROUP_ID, DevblocksSearchCriteria::OPER_IS_NOT_NULL, true);
-		
-		$query_parts = DAO_Message::getSearchQueryComponents($view->view_columns, $params);
+				
+		$query_parts = DAO_Message::getSearchQueryComponents($view->view_columns, $view->getParams());
 		
 		$sql = sprintf("SELECT t.group_id as group_id, DATE_FORMAT(FROM_UNIXTIME(m.created_date),'%s') as date_plot, ".
 			"count(DISTINCT m.id) AS hits ".

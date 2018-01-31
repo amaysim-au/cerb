@@ -24,7 +24,7 @@ class Event_CommentOnTicketInGroup extends AbstractEvent_Ticket {
 	}
 	
 	static function trigger($comment_id, $context_id, $group_id) {
-		$events = DevblocksPlatform::services()->event();
+		$events = DevblocksPlatform::getEventService();
 		return $events->trigger(
 			new Model_DevblocksEvent(
 				self::ID,

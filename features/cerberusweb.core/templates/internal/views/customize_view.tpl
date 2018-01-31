@@ -42,12 +42,8 @@
 		{'dashboard.num_rows'|devblocks_translate}: <input type="text" name="num_rows" size="3" maxlength="3" value="{$view->renderLimit}">
 	</div>
 	
-	{if $is_custom}
+	{if $view->isCustom()}
 	<div>
-		{'common.color'|devblocks_translate|capitalize}: 
-		<input type="text" name="view_options[header_color]" value="{$view->options.header_color|default:'#6A87DB'}" class="color-picker">
-	</div>
-	<div style="margin-top:1em;">
 		<label><input type="checkbox" name="view_options[disable_sorting]" value="1" {if $view->options.disable_sorting}checked="checked"{/if}> Prevent workers from changing the sort column</label>
 	</div>
 	{/if}
@@ -59,8 +55,7 @@
 
 {if $is_custom}
 <fieldset class="peek peek-noborder black" style="margin-bottom:0;">
-	<legend>Require these filters on the worklist:</legend>
-	
+	<legend>Always apply these filters to the worklist:</legend>
 	<div id="viewCustom{if $is_custom}Req{/if}Filters{$view->id}" style="margin-top:5px;">
 	{include file="devblocks:cerberusweb.core::internal/views/customize_view_criteria.tpl" is_custom=true}
 	</div>
@@ -74,11 +69,6 @@
 
 <script type="text/javascript">
 $(function() {
-	var $container =$('#customize{$view->id}'); 
-	$container.sortable({ items: 'DIV.column', placeholder:'ui-state-highlight' });
-	$container.find('input:text.color-picker').minicolors({
-		swatches: ['#6A87DB','#CF2C1D','#FEAF03','#57970A','#9669DB','#ADADAD','#34434E']
-	});
-
+	$('#customize{$view->id}').sortable({ items: 'DIV.column', placeholder:'ui-state-highlight' });
 });
 </script>

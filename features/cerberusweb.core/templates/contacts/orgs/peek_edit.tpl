@@ -1,5 +1,5 @@
-{$peek_context = CerberusContexts::CONTEXT_ORG}
 {$form_id = "peek{uniqid()}"}
+
 <form action="{devblocks_url}{/devblocks_url}" method="POST" id="{$form_id}" onsubmit="return false;">
 <input type="hidden" name="c" value="profiles">
 <input type="hidden" name="a" value="handleSectionAction">
@@ -98,14 +98,12 @@
 
 {include file="devblocks:cerberusweb.core::internal/custom_fieldsets/peek_custom_fieldsets.tpl" context=CerberusContexts::CONTEXT_ORG context_id=$org->id}
 
-{if $active_worker->hasPriv("contexts.{$peek_context}.comment")}
 <fieldset class="peek">
 	<legend>{'common.comment'|devblocks_translate|capitalize}</legend>
 	<textarea name="comment" rows="2" cols="45" style="width:98%;" placeholder="{'comment.notify.at_mention'|devblocks_translate}"></textarea>
 </fieldset>
-{/if}
 
-{if !empty($org->id) && $active_worker->hasPriv("contexts.{$peek_context}.delete")}
+{if !empty($org->id)}
 <fieldset style="display:none;" class="delete">
 	<legend>{'common.delete'|devblocks_translate|capitalize}</legend>
 	
@@ -121,10 +119,12 @@
 <div class="status"></div>
 
 <div class="buttons">
-	{if (!$org->id && $active_worker->hasPriv("contexts.{$peek_context}.create")) || ($org->id && $active_worker->hasPriv("contexts.{$peek_context}.update"))}
-	<button type="button" class="submit"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate|capitalize}</button>
+	{if $active_worker->hasPriv('core.addybook.org.actions.update')}
+		<button type="button" class="submit"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate|capitalize}</button>
+		{if $active_worker->hasPriv('core.addybook.org.actions.delete') && !empty($org->id)}<button type="button" onclick="$(this).parent().siblings('fieldset.delete').fadeIn();$(this).closest('div').fadeOut();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
+	{else}
+		<div class="error">{'error.core.no_acl.edit'|devblocks_translate}</div>
 	{/if}
-	{if $active_worker->hasPriv("contexts.{$peek_context}.delete") && !empty($org->id)}<button type="button" onclick="$(this).parent().siblings('fieldset.delete').fadeIn();$(this).closest('div').fadeOut();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
 </div>
 </form>
 

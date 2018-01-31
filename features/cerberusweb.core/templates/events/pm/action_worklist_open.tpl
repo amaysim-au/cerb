@@ -9,7 +9,7 @@
 	{/foreach}
 </select>
 
-data using 
+ data using 
 
 <div id="popup{$div_popup_worklist}" class="badge badge-lightgray" style="font-weight:bold;color:rgb(80,80,80);cursor:pointer;display:inline;"><span class="name">Worklist</span> &#x25be;</div>
 
@@ -25,7 +25,7 @@ data using
 
 <script type="text/javascript">
 $(function() {
-	var $action = $('#{$namePrefix}_{$nonce}');
+	var $action = $('fieldset#{$namePrefix}');
 	
 	$action.find('select.context').change(function(e) {
 		var ctx = $(this).val();
@@ -65,6 +65,8 @@ $(function() {
 	var $div = $('#popup{$uniq_id}');
 	var $parent = $div.parent();
 	var $popup = $div.closest('.ui-dialog');
+	
+	$parent.find('textarea').autosize();
 	
 	$div.click(function(e) {
 		var width = $(window).width()-100;

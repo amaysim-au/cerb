@@ -16,105 +16,21 @@
 ***********************************************************************/
 
 class DAO_MailQueue extends Cerb_ORMHelper {
-	const BODY = 'body';
-	const HINT_TO = 'hint_to';
 	const ID = 'id';
-	const IS_QUEUED = 'is_queued';
-	const PARAMS_JSON = 'params_json';
-	const QUEUE_DELIVERY_DATE = 'queue_delivery_date';
-	const QUEUE_FAILS = 'queue_fails';
-	const SUBJECT = 'subject';
-	const TICKET_ID = 'ticket_id';
-	const TYPE = 'type';
-	const UPDATED = 'updated';
 	const WORKER_ID = 'worker_id';
-	
-	private function __construct() {}
+	const UPDATED = 'updated';
+	const TYPE = 'type';
+	const TICKET_ID = 'ticket_id';
+	const HINT_TO = 'hint_to';
+	const SUBJECT = 'subject';
+	const BODY = 'body';
+	const PARAMS_JSON = 'params_json';
+	const IS_QUEUED = 'is_queued';
+	const QUEUE_FAILS = 'queue_fails';
+	const QUEUE_DELIVERY_DATE = 'queue_delivery_date';
 
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		// longtext
-		$validation
-			->addField(self::BODY)
-			->string()
-			->setMaxLength('32 bits')
-			;
-		// text
-		$validation
-			->addField(self::HINT_TO)
-			->string()
-			->setMaxLength(65535)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		// tinyint(3) unsigned
-		$validation
-			->addField(self::IS_QUEUED)
-			->uint(1)
-			;
-		// longtext
-		$validation
-			->addField(self::PARAMS_JSON)
-			->string()
-			->setMaxLength('32 bits')
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::QUEUE_DELIVERY_DATE)
-			->uint(4)
-			;
-		// tinyint(3) unsigned
-		$validation
-			->addField(self::QUEUE_FAILS)
-			->uint(1)
-			;
-		// varchar(255)
-		$validation
-			->addField(self::SUBJECT)
-			->string()
-			->setMaxLength(255)
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::TICKET_ID)
-			->id()
-			;
-		// varchar(255)
-		$validation
-			->addField(self::TYPE)
-			->string()
-			->setMaxLength(255)
-			->setRequired(true)
-			->setPossibleValues(['mail.compose', 'ticket.reply'])
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::UPDATED)
-			->timestamp()
-			;
-		// int(10) unsigned
-		$validation
-			->addField(self::WORKER_ID)
-			->id()
-			->setRequired(true)
-			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_WORKER))
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
-	
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "INSERT INTO mail_queue () VALUES ()";
 		$db->ExecuteMaster($sql);
@@ -126,42 +42,11 @@ class DAO_MailQueue extends Cerb_ORMHelper {
 	}
 	
 	static function update($ids, $fields) {
-		$context = CerberusContexts::CONTEXT_DRAFT;
-		self::_updateAbstract($context, $ids, $fields);
-		
 		parent::_update($ids, 'mail_queue', $fields);
 	}
 	
 	static function updateWhere($fields, $where) {
 		parent::_updateWhere('mail_queue', $fields, $where);
-	}
-	
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		$context = CerberusContexts::CONTEXT_DRAFT;
-		
-		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
-			return false;
-		
-		if(!$id && !isset($fields[self::WORKER_ID])) {
-			$error = "A 'worker_id' is required.";
-			return false;
-		}
-		
-		if(isset($fields[self::WORKER_ID])) {
-			@$worker_id = $fields[self::WORKER_ID];
-			
-			if(!$worker_id) {
-				$error = "Invalid 'worker_id' value.";
-				return false;
-			}
-			
-			if(!CerberusContexts::isOwnableBy(CerberusContexts::CONTEXT_WORKER, $worker_id, $actor)) {
-				$error = "You do not have permission to create drafts for this worker.";
-				return false;
-			}
-		}
-		
-		return true;
 	}
 	
 	/**
@@ -226,7 +111,7 @@ class DAO_MailQueue extends Cerb_ORMHelper {
 	 * @return Model_MailQueue[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -345,7 +230,7 @@ class DAO_MailQueue extends Cerb_ORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -353,18 +238,6 @@ class DAO_MailQueue extends Cerb_ORMHelper {
 		$ids_list = implode(',', $ids);
 		
 		$db->ExecuteMaster(sprintf("DELETE FROM mail_queue WHERE id IN (%s)", $ids_list));
-		
-		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
-		$eventMgr->trigger(
-			new Model_DevblocksEvent(
-				'context.delete',
-				array(
-					'context' => CerberusContexts::CONTEXT_DRAFT,
-					'context_ids' => $ids
-				)
-			)
-		);
 		
 		return true;
 	}
@@ -416,6 +289,7 @@ class DAO_MailQueue extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -427,7 +301,7 @@ class DAO_MailQueue extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -479,27 +353,6 @@ class DAO_MailQueue extends Cerb_ORMHelper {
 		mysqli_free_result($rs);
 		
 		return array($results,$total);
-	}
-	
-	static function maint() {
-		$db = DevblocksPlatform::services()->database();
-		$logger = DevblocksPlatform::services()->log();
-		
-		$db->ExecuteMaster("DELETE FROM attachment_link WHERE context = 'cerberusweb.contexts.mail.draft' AND context_id NOT IN (SELECT id FROM mail_queue)");
-		$logger->info('[Maint] Purged ' . $db->Affected_Rows() . ' draft attachment_link records.');
-
-		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
-		$eventMgr->trigger(
-			new Model_DevblocksEvent(
-				'context.maint',
-				array(
-					'context' => CerberusContexts::CONTEXT_DRAFT,
-					'context_table' => 'mail_queue',
-					'context_key' => 'id',
-				)
-			)
-		);
 	}
 };
 
@@ -856,7 +709,7 @@ class View_MailQueue extends C4_AbstractView implements IAbstractView_Subtotals,
 					
 				// Valid custom fields
 				default:
-					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
+					if('cf_' == substr($field_key,0,3))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -980,7 +833,7 @@ class View_MailQueue extends C4_AbstractView implements IAbstractView_Subtotals,
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
@@ -996,7 +849,7 @@ class View_MailQueue extends C4_AbstractView implements IAbstractView_Subtotals,
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1115,7 +968,7 @@ class View_MailQueue extends C4_AbstractView implements IAbstractView_Subtotals,
 class Context_Draft extends Extension_DevblocksContext {
 	static function isReadableByActor($models, $actor) {
 		// Everyone can read
-		return CerberusContexts::allowEverything($models);
+		return CerberusContexts::allowEveryone($models);
 	}
 	
 	static function isWriteableByActor($models, $actor) {
@@ -1285,29 +1138,6 @@ class Context_Draft extends Extension_DevblocksContext {
 			$token_labels,
 			$token_values
 		);
-		
-		return true;
-	}
-	
-	function getKeyToDaoFieldMap() {
-		return [
-			'content' => DAO_MailQueue::BODY,
-			'id' => DAO_MailQueue::ID,
-			'links' => '_links',
-			'subject' => DAO_MailQueue::SUBJECT,
-			'to' => DAO_MailQueue::HINT_TO,
-			'type' => DAO_MailQueue::TYPE,
-			'updated' => DAO_MailQueue::UPDATED,
-			'worker_id' => DAO_MailQueue::WORKER_ID,
-		];
-	}
-	
-	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
-		switch(DevblocksPlatform::strLower($key)) {
-			case 'links':
-				$this->_getDaoFieldsLinks($value, $out_fields, $error);
-				break;
-		}
 		
 		return true;
 	}

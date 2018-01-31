@@ -37,7 +37,7 @@ class Page_Search extends CerberusPageExtension {
 	}
 	
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$response = DevblocksPlatform::getHttpResponse();
 		$active_worker = CerberusApplication::getActiveWorker();
 		
@@ -67,7 +67,6 @@ class Page_Search extends CerberusPageExtension {
 		
 		if(!empty($query)) {
 			$view->addParamsWithQuickSearch($query, true);
-			$view->renderPage = 0;
 			$tpl->assign('quick_search_query', $query);
 		}
 		
@@ -92,7 +91,6 @@ class Page_Search extends CerberusPageExtension {
 	function openSearchPopupAction() {
 		@$context = DevblocksPlatform::importGPC($_REQUEST['context'],'string','');
 		@$query = DevblocksPlatform::importGPC($_REQUEST['q'],'string','');
-		@$id = DevblocksPlatform::importGPC($_REQUEST['id'],'string',null);
 
 		if(false == ($context_ext = Extension_DevblocksContext::get($context)))
 			return;
@@ -101,21 +99,16 @@ class Page_Search extends CerberusPageExtension {
 		if(!$context_ext->hasOption('workspace'))
 			return;
 		
-		if(false == ($view = $context_ext->getSearchView($id)) || !($view instanceof IAbstractView_QuickSearch))
+		if(false == ($view = $context_ext->getSearchView()) || !($view instanceof IAbstractView_QuickSearch))
 			return;
 		
-		if($id)
-			$view->is_ephemeral = true;
-		
-		if(isset($_REQUEST['q'])) {
+		if(isset($_REQUEST['q']))
 			$view->addParamsWithQuickSearch($query, true);
-			$view->renderPage = 0;
-		}
 		
 		$aliases = Extension_DevblocksContext::getAliasesForContext($context_ext->manifest);
 		$label = @$aliases['plural'] ?: $context_ext->manifest->name;
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('context_ext', $context_ext);
 		$tpl->assign('popup_title', DevblocksPlatform::translateCapitalized('common.search') . ': ' . mb_convert_case($label, MB_CASE_TITLE));
 		$tpl->assign('quick_search_query', $query);
@@ -144,9 +137,8 @@ class Page_Search extends CerberusPageExtension {
 		}
 		
 		$view->addParamsWithQuickSearch($query, $replace_params);
-		$view->renderPage = 0;
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('view', $view);
 		
 		$html = $tpl->fetch('devblocks:cerberusweb.core::internal/views/customize_view_criteria.tpl');

@@ -20,8 +20,8 @@ class DevblocksPlatformTest extends PHPUnit_Framework_TestCase {
 	
 	public function testRequirements() {
 		// Version
-		$actual = version_compare(PHP_VERSION, "7.0", ">=");
-		$this->assertEquals(true, $actual, sprintf('Cerb requires a PHP version of 7.0+, currently %s', PHP_VERSION));
+		$actual = version_compare(PHP_VERSION, "5.5", ">=");
+		$this->assertEquals(true, $actual, sprintf('Cerb requires a PHP version of 5.5+, currently %s', PHP_VERSION));
 
 		// File Uploads
 		$ini_file_uploads = ini_get("file_uploads");
@@ -339,30 +339,6 @@ class DevblocksPlatformTest extends PHPUnit_Framework_TestCase {
 		$this->assertEquals(1.0, $actual);
 	}
 	
-	public function testIsIpAuthorized() {
-		$authorized_ips = ['192.168.1.1','127.0.','::1'];
-		
-		// Exact match
-		$actual = DevblocksPlatform::isIpAuthorized('192.168.1.1', $authorized_ips);
-		$this->assertTrue($actual);
-		
-		// Blocked IP
-		$actual = DevblocksPlatform::isIpAuthorized('8.8.8.8', $authorized_ips);
-		$this->assertFalse($actual);
-		
-		// IPv6 loopback
-		$actual = DevblocksPlatform::isIpAuthorized('::1', $authorized_ips);
-		$this->assertTrue($actual);
-		
-		// strStartsWith collision without wildcard (doesn't end with dot)
-		$actual = DevblocksPlatform::isIpAuthorized('192.168.1.100', $authorized_ips);
-		$this->assertFalse($actual);
-		
-		// Localhost subnet wildcard
-		$actual = DevblocksPlatform::isIpAuthorized('127.0.0.1', $authorized_ips);
-		$this->assertTrue($actual);
-	}
-	
 	public function testObjectsToStrings() {
 		// Objects (__toString)
 		$objects = array(
@@ -641,26 +617,6 @@ class DevblocksPlatformTest extends PHPUnit_Framework_TestCase {
 		
 	}
 	
-	public function testParseHttpHeaderAttributes() {
-		// Lowercase attribute names
-		$expected = ['charset' => 'utf-8'];
-		$header_value = "CHARSET=utf-8";
-		$actual = DevblocksPlatform::parseHttpHeaderAttributes($header_value);
-		$this->assertEquals($expected, $actual);
-		
-		// Multiple attributes
-		$expected = ['charset' => 'ISO-8859-1', 'boundary' => 'a1b2c3de'];
-		$header_value = "charset=ISO-8859-1; boundary=a1b2c3de";
-		$actual = DevblocksPlatform::parseHttpHeaderAttributes($header_value);
-		$this->assertEquals($expected, $actual);
-		
-		// Whitespace in the header value
-		$expected = ['charset' => 'ISO-8859-1', 'boundary' => 'a1b2c3de'];
-		$header_value = "charset = ISO-8859-1 ; boundary = a1b2c3de";
-		$actual = DevblocksPlatform::parseHttpHeaderAttributes($header_value);
-		$this->assertEquals($expected, $actual);
-	}
-	
 	public function testParseMarkdown() {
 		// Bold
 		$expected = '<p><strong>Bold</strong></p>'; 
@@ -679,29 +635,9 @@ class DevblocksPlatformTest extends PHPUnit_Framework_TestCase {
 	}
 	
 	public function testParseStringAsRegExp() {
-		// Wildcard prefix substring
-		$expected = '/(.*?)wildcard/i';
-		$actual = DevblocksPlatform::parseStringAsRegExp('*wildcard', true);
-		$this->assertEquals($expected, $actual);
-		
-		// Wildcard prefix non-substring
-		$expected = '/^(.*?)wildcard$/i';
-		$actual = DevblocksPlatform::parseStringAsRegExp('*wildcard');
-		$this->assertEquals($expected, $actual);
-		
-		// Wildcard suffix substring
+		// Wildcards
 		$expected = '/wildcard(.*?)/i';
-		$actual = DevblocksPlatform::parseStringAsRegExp('wildcard*', true);
-		$this->assertEquals($expected, $actual);
-		
-		// Test substring
-		$expected = '/text/i';
-		$actual = DevblocksPlatform::parseStringAsRegExp('text', true);
-		$this->assertEquals($expected, $actual);
-		
-		// Test non-substring
-		$expected = '/^text$/i';
-		$actual = DevblocksPlatform::parseStringAsRegExp('text');
+		$actual = DevblocksPlatform::parseStringAsRegExp('wildcard*');
 		$this->assertEquals($expected, $actual);
 	}
 	
@@ -965,55 +901,17 @@ class DevblocksPlatformTest extends PHPUnit_Framework_TestCase {
 		$this->assertEquals($expected, $actual);
 	}
 	
-	public function testStrBitsToInt() {
-		// Test 4 bits as int == 2^4=16
-		$expected = 16;
-		$actual = DevblocksPlatform::strBitsToInt(4);
-		$this->assertEquals($expected, $actual);
-		
-		// Test 4 bits as string == 2^4=16
-		$expected = 16;
-		$actual = DevblocksPlatform::strBitsToInt('4');
-		$this->assertEquals($expected, $actual);
-		
-		// Test 2 bytes as string == 2^16=65,536
-		$expected = pow(2,16);
-		$actual = DevblocksPlatform::strBitsToInt('2 bytes');
-		$this->assertEquals($expected, $actual);
-
-		// Test 32-bit overflow
-		if(4 == PHP_INT_SIZE) {
-			$expected = pow(2,31);
-			$actual = DevblocksPlatform::strBitsToInt(32);
-			$this->assertEquals($expected, $actual);
-			
-		// Test 32 bits as int == 2^32=4,294,967,296
-		} else {
-			$expected = pow(2,32);
-			$actual = DevblocksPlatform::strBitsToInt(32);
-			$this->assertEquals($expected, $actual);
-		}
-		
-		// Test negative bits as number
-		$expected = 0;
-		$actual = DevblocksPlatform::strBitsToInt(-8);
-		$this->assertEquals($expected, $actual);
-		
-		// Test overflow on PHP_INT_MAX
-		$expected = PHP_INT_MAX;
-		$actual = DevblocksPlatform::strBitsToInt(512);
-		$this->assertEquals($expected, $actual);
-	}
-	
 	public function testStrFormatJson() {
-		$expected = 
-		"[\n".
-		"    {\n".
-		"        \"name\": \"Jeff\",\n".
-		"        \"title\": \"Software Architect\",\n".
-		"        \"org\": \"Webgroup Media LLC\"\n".
-		"    }\n".
-		"]";
+		
+		$expected = <<< END
+[
+    {
+        "name": "Jeff",
+        "title": "Software Architect",
+        "org": "Webgroup Media LLC"
+    }
+]
+END;
 		
 		// Test array input
 		
@@ -1095,95 +993,6 @@ class DevblocksPlatformTest extends PHPUnit_Framework_TestCase {
 		$html = "this<br><br><br>had<br>multiple<br><div>linefeeds</div><br>";
 		$expected = "this\n\nhad\nmultiple\n\nlinefeeds\n\n\n";
 		$actual = DevblocksPlatform::stripHTML($html, true, false);
-		$this->assertEquals($expected, $actual);
-	}
-	
-	public function testArrayDictSet() {
-		// Nested dot notation
-		
-		$expected = [
-			'person' => [
-				'name' => [
-					'first' => 'Bob'
-				]
-			]
-		];
-		$actual = [];
-		$key = "person.name.first";
-		$val = "Bob";
-		
-		$actual = DevblocksPlatform::arrayDictSet($actual, $key, $val);
-		$this->assertEquals($expected, $actual);
-		
-		// Using {DOT} escaping
-		
-		$expected = [
-			'person' => [
-				'name.first' => 'Bob'
-			]
-		];
-		$actual = [];
-		$key = "person.name{DOT}first";
-		$val = "Bob";
-		
-		$actual = DevblocksPlatform::arrayDictSet($actual, $key, $val);
-		$this->assertEquals($expected, $actual);
-	}
-	
-	public function testStrParseQueryString() {
-		// Bracket fields
-		
-		$query = "expand=custom_&fields%5Bcustom_54%5D%5B%5D=MySQL&fields%5Bcustom_54%5D%5B%5D=PHP";
-
-		$expected = [
-			'expand' => 'custom_',
-			'fields' => [
-				'custom_54' => [
-					'MySQL',
-					'PHP',
-				]
-			]
-		];
-		
-		$args = DevblocksPlatform::strParseQueryString($query);
-		$this->assertEquals($expected, $args);
-		
-		// Multiple values
-		
-		$query = "field1=value1&field2=value2&field3=value3";
-		
-		$expected = [
-			'field1' => 'value1',
-			'field2' => 'value2',
-			'field3' => 'value3',
-		];
-		
-		$actual = DevblocksPlatform::strParseQueryString($query);
-		$this->assertEquals($expected, $actual);
-		
-		// Nested fields
-		
-		$expected = [
-			'fields' => [
-				'title' => 'This is the title',
-			]
-		];
-		
-		$raw_body = DevblocksPlatform::arrayBuildQueryString($expected);
-		
-		$actual = DevblocksPlatform::strParseQueryString($raw_body);
-		$this->assertEquals($expected, $actual);
-		
-		// Dots in field names (nested)
-		
-		$expected = [
-			'record.id' => 'id',
-			'record.name' => 'name',
-		];
-		
-		$raw_body = DevblocksPlatform::arrayBuildQueryString($expected);
-		
-		$actual = DevblocksPlatform::strParseQueryString($raw_body);
 		$this->assertEquals($expected, $actual);
 	}
 	

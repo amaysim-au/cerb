@@ -8,7 +8,62 @@
 				<seg/>
 			</tuv>
 		</tu>
+		<tu tuid="acl.calls.actions.update_all">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
 		<tu tuid="acl.calls.actions.update_nobody">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.calls.view.actions.export">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.addybook.addy.actions.update">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.addybook.addy.view.actions.broadcast">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.addybook.addy.view.actions.export">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.addybook.org.actions.delete">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.addybook.org.actions.merge">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.addybook.org.actions.update">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.addybook.org.view.actions.export">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.addybook.person.actions.delete">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.addybook.person.actions.update">
 			<tuv xml:lang="it_IT">
 				<seg/>
 			</tuv>
@@ -23,6 +78,11 @@
 				<seg/>
 			</tuv>
 		</tu>
+		<tu tuid="acl.core.display.actions.note">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
 		<tu tuid="acl.core.display.actions.reply">
 			<tuv xml:lang="it_IT">
 				<seg/>
@@ -33,12 +93,172 @@
 				<seg/>
 			</tuv>
 		</tu>
+		<tu tuid="acl.core.display.message.actions.delete">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.kb.articles.modify">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.kb.categories.modify">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.mail.draft.delete_all">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.mail.save_without_sending">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.mail.send">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.snippets.actions.create">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.tasks.actions.create">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.tasks.actions.delete">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.tasks.actions.update_all">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.tasks.view.actions.export">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.ticket.actions.assign">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
 		<tu tuid="acl.core.ticket.actions.close">
 			<tuv xml:lang="it_IT">
 				<seg/>
 			</tuv>
 		</tu>
+		<tu tuid="acl.core.ticket.actions.delete">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.ticket.actions.move">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
 		<tu tuid="acl.core.ticket.actions.spam">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.ticket.view.actions.broadcast_reply">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.ticket.view.actions.bulk_update">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.ticket.view.actions.export">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.ticket.view.actions.merge">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.watchers.assign">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.core.watchers.unassign">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.crm.opp.actions.create">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.crm.opp.actions.delete">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.crm.opp.actions.import">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.crm.opp.actions.update_all">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.crm.opp.view.actions.broadcast">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.crm.opp.view.actions.export">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.datacenter.domains.actions.delete">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.feedback.actions.create">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.feedback.actions.delete_all">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.feedback.actions.update_all">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.feedback.view.actions.export">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.kb.articles.actions.update_all">
 			<tuv xml:lang="it_IT">
 				<seg/>
 			</tuv>
@@ -83,7 +303,22 @@
 				<seg/>
 			</tuv>
 		</tu>
+		<tu tuid="acl.timetracking.actions.create">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.timetracking.actions.update_all">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
 		<tu tuid="acl.timetracking.report.group.time">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="acl.timetracking.view.actions.export">
 			<tuv xml:lang="it_IT">
 				<seg/>
 			</tuv>
@@ -1243,16 +1478,6 @@
 				<seg>Ri-apri</seg>
 			</tuv>
 		</tu>
-		<tu tuid="common.reopen_at">
-			<tuv xml:lang="it_IT">
-				<seg>Ri-apri</seg>
-			</tuv>
-		</tu>
-		<tu tuid="common.reply">
-			<tuv xml:lang="it_IT">
-				<seg>Rispondi</seg>
-			</tuv>
-		</tu>
 		<tu tuid="common.reset">
 			<tuv xml:lang="it_IT">
 				<seg>reset</seg>
@@ -1814,6 +2039,11 @@
 			</tuv>
 		</tu>
 		<tu tuid="dao.decision_node.node_type">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="dao.decision_node.parent_id">
 			<tuv xml:lang="it_IT">
 				<seg/>
 			</tuv>
@@ -2471,6 +2701,11 @@
 		<tu tuid="display.ui.forward">
 			<tuv xml:lang="it_IT">
 				<seg>Inoltra</seg>
+			</tuv>
+		</tu>
+		<tu tuid="display.ui.reply">
+			<tuv xml:lang="it_IT">
+				<seg>Rispondi</seg>
 			</tuv>
 		</tu>
 		<tu tuid="display.ui.save_nosend">
@@ -4178,11 +4413,6 @@
 				<seg>Parola</seg>
 			</tuv>
 		</tu>
-		<tu tuid="status.active">
-			<tuv xml:lang="it_IT">
-				<seg/>
-			</tuv>
-		</tu>
 		<tu tuid="status.closed">
 			<tuv xml:lang="it_IT">
 				<seg>Chiuso</seg>
@@ -4190,7 +4420,7 @@
 		</tu>
 		<tu tuid="status.completed">
 			<tuv xml:lang="it_IT">
-				<seg>Completato</seg>
+				<seg/>
 			</tuv>
 		</tu>
 		<tu tuid="status.deleted">
@@ -4216,6 +4446,16 @@
 		<tu tuid="task.due_date">
 			<tuv xml:lang="it_IT">
 				<seg>Data Dovuta</seg>
+			</tuv>
+		</tu>
+		<tu tuid="task.is_completed">
+			<tuv xml:lang="it_IT">
+				<seg>Completato</seg>
+			</tuv>
+		</tu>
+		<tu tuid="task.status.active">
+			<tuv xml:lang="it_IT">
+				<seg/>
 			</tuv>
 		</tu>
 		<tu tuid="task.worker_id">
@@ -4319,6 +4559,11 @@
 			</tuv>
 		</tu>
 		<tu tuid="ticket.recipients.empty">
+			<tuv xml:lang="it_IT">
+				<seg/>
+			</tuv>
+		</tu>
+		<tu tuid="ticket.reopen_at">
 			<tuv xml:lang="it_IT">
 				<seg/>
 			</tuv>

@@ -1,12 +1,6 @@
 {$fieldset_domid = "peek_fieldset_{uniqid()}"}
 <fieldset class="peek" id="{$fieldset_domid}">
-	{$owner = $custom_fieldset->getOwnerDictionary()}
-	<legend>
-		{$custom_fieldset->name}
-		{if $owner->_context != CerberusContexts::CONTEXT_APPLICATION}
-		<small>({$owner->_label})</small>
-		{/if}
-	</legend>
+	<legend>{$custom_fieldset->name}</legend>
 	<span class="glyphicons glyphicons-circle-remove delete" style="font-size:16px;cursor:pointer;float:right;margin-top:-20px;display:none;"></span>
 	
 	{if empty($field_wrapper)}

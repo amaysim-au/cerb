@@ -19,7 +19,7 @@ class Event_NotificationReceivedByWorker extends Extension_DevblocksEvent {
 	const ID = 'event.notification.received.worker';
 	
 	static function trigger($notification_id, $worker_id) {
-		$events = DevblocksPlatform::services()->event();
+		$events = DevblocksPlatform::getEventService();
 		return $events->trigger(
 			new Model_DevblocksEvent(
 				self::ID,
@@ -79,25 +79,6 @@ class Event_NotificationReceivedByWorker extends Extension_DevblocksEvent {
 		
 		$labels = array();
 		$values = array();
-		
-		/**
-		 * Behavior
-		 */
-		
-		$merge_labels = array();
-		$merge_values = array();
-		CerberusContexts::getContext(CerberusContexts::CONTEXT_BEHAVIOR, $trigger, $merge_labels, $merge_values, null, true);
-
-			// Merge
-			CerberusContexts::merge(
-				'behavior_',
-				'',
-				$merge_labels,
-				$merge_values,
-				$labels,
-				$values
-			);
-		
 		CerberusContexts::getContext(CerberusContexts::CONTEXT_NOTIFICATION, $notification_id, $labels, $values, null, true);
 		
 		$this->setLabels($labels);
@@ -112,14 +93,6 @@ class Event_NotificationReceivedByWorker extends Extension_DevblocksEvent {
 	
 	function getValuesContexts($trigger) {
 		$vals = array(
-			'behavior_id' => array(
-				'label' => 'Behavior',
-				'context' => CerberusContexts::CONTEXT_BEHAVIOR,
-			),
-			'behavior_bot_id' => array(
-				'label' => 'Bot',
-				'context' => CerberusContexts::CONTEXT_BOT,
-			),
 			'id' => array(
 				'label' => 'Notification',
 				'context' => CerberusContexts::CONTEXT_NOTIFICATION,
@@ -156,11 +129,15 @@ class Event_NotificationReceivedByWorker extends Extension_DevblocksEvent {
 	}
 	
 	function renderConditionExtension($token, $as_token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$conditions = $this->getConditions($trigger);
+		
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
 			$tpl->assign('namePrefix','condition'.$seq);
+		
+		//$tpl->display('devblocks:cerberusweb.core::internal/decisions/conditions/_bool.tpl');
 	}
 	
 	function runConditionExtension($token, $as_token, $trigger, $params, DevblocksDictionaryDelegate $dict) {
@@ -186,7 +163,7 @@ class Event_NotificationReceivedByWorker extends Extension_DevblocksEvent {
 	}
 	
 	function renderActionExtension($token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -253,7 +230,7 @@ class Event_NotificationReceivedByWorker extends Extension_DevblocksEvent {
 					break;
 				
 				// Translate message tokens
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				$subject = strtr($tpl_builder->build($params['subject'], $dict), "\r\n", ' '); // no CRLF
 				$content = $tpl_builder->build($params['content'], $dict);
 
@@ -317,7 +294,7 @@ class Event_NotificationReceivedByWorker extends Extension_DevblocksEvent {
 					break;
 				
 				// Translate message tokens
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				$subject = strtr($tpl_builder->build($params['subject'], $dict), "\r\n", ' '); // no CRLF
 				$content = $tpl_builder->build($params['content'], $dict);
 

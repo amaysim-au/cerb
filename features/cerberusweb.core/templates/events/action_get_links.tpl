@@ -57,7 +57,7 @@
 
 <script type="text/javascript">
 // Show variables dependent on the context of the links
-var $action = $('#{$namePrefix}_{$nonce}');
+var $action = $('fieldset#{$namePrefix}');
 
 $action
 	.find('select[name="{$namePrefix}[links_context]"]')

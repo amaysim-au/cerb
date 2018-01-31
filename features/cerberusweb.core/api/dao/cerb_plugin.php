@@ -16,65 +16,15 @@
  ***********************************************************************/
 
 class DAO_CerbPlugin extends Cerb_ORMHelper {
-	const AUTHOR = 'author';
-	const DESCRIPTION = 'description';
-	const DIR = 'dir';
-	const ENABLED = 'enabled';
 	const ID = 'id';
+	const ENABLED = 'enabled';
+	const NAME = 'name';
+	const DESCRIPTION = 'description';
+	const AUTHOR = 'author';
+	const VERSION = 'version';
+	const DIR = 'dir';
 	const LINK = 'link';
 	const MANIFEST_CACHE_JSON = 'manifest_cache_json';
-	const NAME = 'name';
-	const VERSION = 'version';
-	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-
-		$validation
-			->addField(self::AUTHOR)
-			->string()
-			->setMaxLength(64)
-			;
-		$validation
-			->addField(self::DESCRIPTION)
-			->string()
-			->setMaxLength(16777215)
-			;
-		$validation
-			->addField(self::DIR)
-			->string()
-			;
-		$validation
-			->addField(self::ENABLED)
-			->bit()
-			;
-		$validation
-			->addField(self::ID)
-			->string()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::LINK)
-			->string()
-			->setMaxLength(128)
-			;
-		$validation
-			->addField(self::MANIFEST_CACHE_JSON)
-			->string()
-			->setMaxLength(65535)
-			;
-		$validation
-			->addField(self::NAME)
-			->string()
-			;
-		$validation
-			->addField(self::VERSION)
-			->uint()
-			;
-		
-		return $validation->getFields();
-	}
 
 	/**
 	 * @param string $where
@@ -84,7 +34,7 @@ class DAO_CerbPlugin extends Cerb_ORMHelper {
 	 * @return Model_CerbPlugin[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -194,6 +144,7 @@ class DAO_CerbPlugin extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -205,7 +156,7 @@ class DAO_CerbPlugin extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -541,7 +492,7 @@ class View_CerbPlugin extends C4_AbstractView implements IAbstractView_Subtotals
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -553,7 +504,7 @@ class View_CerbPlugin extends C4_AbstractView implements IAbstractView_Subtotals
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {

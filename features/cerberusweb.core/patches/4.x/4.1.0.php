@@ -1,5 +1,5 @@
 <?php
-$db = DevblocksPlatform::services()->database();
+$db = DevblocksPlatform::getDatabaseService();
 $tables = $db->metaTables();
 
 // Drop the Service Level fields on address

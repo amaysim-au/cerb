@@ -57,7 +57,7 @@ abstract class Extension_PluginSetup extends DevblocksExtension {
 	const POINT = 'cerberusweb.plugin.setup';
 
 	static function getByPlugin($plugin_id, $as_instances=true) {
-		$results = [];
+		$results = array();
 
 		// Include disabled extensions
 		$all_extensions = DevblocksPlatform::getExtensionRegistry(true, true);
@@ -83,7 +83,7 @@ abstract class Extension_PageSection extends DevblocksExtension {
 		if(empty($page_id))
 			return DevblocksPlatform::getExtensions(self::POINT, $as_instances);
 
-		$results = [];
+		$results = array();
 		
 		$exts = DevblocksPlatform::getExtensions(self::POINT, false);
 		foreach($exts as $ext_id => $ext) {
@@ -102,39 +102,9 @@ abstract class Extension_PageSection extends DevblocksExtension {
 	static function getExtensionByPageUri($page_id, $uri, $as_instance=true) {
 		$manifests = self::getExtensions(false, $page_id);
 		
-		// Check plugins
 		foreach($manifests as $mft) { /* @var $mft DevblocksExtensionManifest */
 			if(0==strcasecmp($uri, $mft->params['uri']))
 				return $as_instance ? $mft->createInstance() : $mft;
-		}
-		
-		// Check custom records
-		switch($page_id) {
-			case 'core.page.profiles':
-				if(false == ($custom_record = DAO_CustomRecord::getByUri($uri)))
-					break;
-					
-				// Return a synthetic subpage extension
-				
-				$ext_id = sprintf('profile.custom_record.%d', $custom_record->id);
-				$manifest = new DevblocksExtensionManifest();
-				$manifest->id = $ext_id;
-				$manifest->plugin_id = 'cerberusweb.core';
-				$manifest->point = Extension_PageSection::POINT;
-				$manifest->name = $custom_record->name;
-				$manifest->file = 'api/uri/profiles/abstract_custom_record.php';
-				$manifest->class = 'Profile_AbstractCustomRecord_' . $custom_record->id;
-				$manifest->params = [
-					'page_id' => 'core.page.profiles',
-					'uri' => $custom_record->uri,
-				];
-				
-				if($as_instance) {
-					return $manifest->createInstance();
-				} else {
-					return $manifest;
-				}
-				break;
 		}
 		
 		return null;
@@ -153,7 +123,7 @@ abstract class Extension_PageMenu extends DevblocksExtension {
 		if(empty($page_id))
 			return DevblocksPlatform::getExtensions(self::POINT, $as_instances);
 
-		$results = [];
+		$results = array();
 		
 		$exts = DevblocksPlatform::getExtensions(self::POINT, false);
 		foreach($exts as $ext_id => $ext) {
@@ -183,7 +153,7 @@ abstract class Extension_PageMenuItem extends DevblocksExtension {
 		if(empty($page_id) && empty($menu_id))
 			return DevblocksPlatform::getExtensions(self::POINT, $as_instances);
 
-		$results = [];
+		$results = array();
 		
 		$exts = DevblocksPlatform::getExtensions(self::POINT, false);
 		foreach($exts as $ext_id => $ext) {
@@ -230,7 +200,7 @@ abstract class Extension_ExplorerToolbar extends DevblocksExtension {
 abstract class Extension_MailTransport extends DevblocksExtension {
 	const POINT = 'cerberusweb.mail.transport';
 	
-	static $_registry = [];
+	static $_registry = array();
 	
 	/**
 	 * @return DevblocksExtensionManifest[]|Extension_MailTransport[]
@@ -277,7 +247,7 @@ abstract class Extension_ContextProfileTab extends DevblocksExtension {
 		if(empty($context))
 			return DevblocksPlatform::getExtensions(self::POINT, $as_instances);
 	
-		$results = [];
+		$results = array();
 	
 		$exts = DevblocksPlatform::getExtensions(self::POINT, false);
 		
@@ -313,7 +283,7 @@ abstract class Extension_ContextProfileScript extends DevblocksExtension {
 		if(empty($context))
 			return DevblocksPlatform::getExtensions(self::POINT, $as_instances);
 	
-		$results = [];
+		$results = array();
 	
 		$exts = DevblocksPlatform::getExtensions(self::POINT, false);
 
@@ -342,7 +312,7 @@ abstract class Extension_ContextProfileScript extends DevblocksExtension {
 abstract class Extension_CalendarDatasource extends DevblocksExtension {
 	const POINT = 'cerberusweb.calendar.datasource';
 	
-	static $_registry = [];
+	static $_registry = array();
 	
 	/**
 	 * @return DevblocksExtensionManifest[]|Extension_WorkspacePage[]
@@ -374,13 +344,13 @@ abstract class Extension_CalendarDatasource extends DevblocksExtension {
 	}
 	
 	abstract function renderConfig(Model_Calendar $calendar, $params, $series_prefix);
-	abstract function getData(Model_Calendar $calendar, array $params=[], $params_prefix=null, $date_range_from, $date_range_to);
+	abstract function getData(Model_Calendar $calendar, array $params=array(), $params_prefix=null, $date_range_from, $date_range_to);
 };
 
 abstract class Extension_WorkspacePage extends DevblocksExtension {
 	const POINT = 'cerberusweb.ui.workspace.page';
 	
-	static $_registry = [];
+	static $_registry = array();
 	
 	/**
 	 * @return DevblocksExtensionManifest[]|Extension_WorkspacePage[]
@@ -414,7 +384,6 @@ abstract class Extension_WorkspacePage extends DevblocksExtension {
 	function exportPageConfigJson(Model_WorkspacePage $page) {
 		$json_array = array(
 			'page' => array(
-				'uid' => 'workspace_page_' . $page->id,
 				'name' => $page->name,
 				'extension_id' => $page->extension_id,
 			),
@@ -436,7 +405,7 @@ abstract class Extension_WorkspacePage extends DevblocksExtension {
 abstract class Extension_WorkspaceTab extends DevblocksExtension {
 	const POINT = 'cerberusweb.ui.workspace.tab';
 	
-	static $_registry = [];
+	static $_registry = array();
 	
 	/**
 	 * @return DevblocksExtensionManifest[]|Extension_WorkspaceTab[]
@@ -475,13 +444,13 @@ abstract class Extension_WorkspaceTab extends DevblocksExtension {
 };
 
 abstract class Extension_WorkspaceWidgetDatasource extends DevblocksExtension {
-	static $_registry = [];
+	static $_registry = array();
 	
 	static function getAll($as_instances=false, $only_for_widget=null) {
 		$extensions = DevblocksPlatform::getExtensions('cerberusweb.ui.workspace.widget.datasource', false);
 		
 		if(!empty($only_for_widget)) {
-			$results = [];
+			$results = array();
 			
 			foreach($extensions as $id => $ext) {
 				if(in_array($only_for_widget, array_keys($ext->params['widgets'][0])))
@@ -514,8 +483,8 @@ abstract class Extension_WorkspaceWidgetDatasource extends DevblocksExtension {
 		return null;
 	}
 	
-	abstract function renderConfig(Model_WorkspaceWidget $widget, $params=[], $params_prefix=null);
-	abstract function getData(Model_WorkspaceWidget $widget, array $params=[], $params_prefix=null);
+	abstract function renderConfig(Model_WorkspaceWidget $widget, $params=array(), $params_prefix=null);
+	abstract function getData(Model_WorkspaceWidget $widget, array $params=array(), $params_prefix=null);
 };
 
 interface ICerbWorkspaceWidget_ExportData {
@@ -523,7 +492,7 @@ interface ICerbWorkspaceWidget_ExportData {
 };
 
 abstract class Extension_WorkspaceWidget extends DevblocksExtension {
-	static $_registry = [];
+	static $_registry = array();
 	
 	static function getAll($as_instances=false) {
 		$extensions = DevblocksPlatform::getExtensions('cerberusweb.ui.workspace.widget', $as_instances);
@@ -536,11 +505,6 @@ abstract class Extension_WorkspaceWidget extends DevblocksExtension {
 		return $extensions;
 	}
 
-	/**
-	 * 
-	 * @param string $extension_id
-	 * @return Extension_WorkspaceWidget|NULL
-	 */
 	static function get($extension_id) {
 		if(isset(self::$_registry[$extension_id]))
 			return self::$_registry[$extension_id];
@@ -567,7 +531,7 @@ abstract class Extension_WorkspaceWidget extends DevblocksExtension {
 			$widget = null;
 		}
 		
-		$cache = DevblocksPlatform::services()->cache();
+		$cache = DevblocksPlatform::getCacheService();
 		$is_cached = false;
 				
 		if($widget && $widget instanceof Model_WorkspaceWidget) {
@@ -576,7 +540,7 @@ abstract class Extension_WorkspaceWidget extends DevblocksExtension {
 			// Fetch and cache
 			if($nocache || empty($widget->cache_ttl) || null === ($widget_contents = $cache->load($cache_key))) {
 				if($autoload) {
-					$tpl = DevblocksPlatform::services()->template();
+					$tpl = DevblocksPlatform::getTemplateService();
 					$tpl->assign('widget', $widget);
 					
 					if(false !== ($widget_contents = $tpl->fetch('devblocks:cerberusweb.core::internal/workspaces/widgets/render.tpl')))
@@ -621,7 +585,6 @@ abstract class Extension_WorkspaceWidget extends DevblocksExtension {
 };
 
 abstract class Extension_LoginAuthenticator extends DevblocksExtension {
-	const POINT = 'cerberusweb.login';
 
 	static function getAll($as_instances=false) {
 		$extensions = DevblocksPlatform::getExtensions('cerberusweb.login', $as_instances);
@@ -773,7 +736,7 @@ abstract class CerberusCronPageExtension extends DevblocksExtension {
 	public function saveConfigurationAction() {}
 };
 
-abstract class Extension_CommunityPortal extends DevblocksExtension implements DevblocksHttpRequestHandler {
+abstract class Extension_UsermeetTool extends DevblocksExtension implements DevblocksHttpRequestHandler {
 	private $portal = '';
 	
 	/*
@@ -801,7 +764,7 @@ abstract class Extension_CommunityPortal extends DevblocksExtension implements D
 			case NULL:
 				// [TODO] Index/page render
 				break;
-
+//
 			default:
 				// Default action, call arg as a method suffixed with Action
 				if(method_exists($this,$action)) {
@@ -828,7 +791,7 @@ abstract class Extension_CommunityPortal extends DevblocksExtension implements D
 abstract class Extension_ServiceProvider extends DevblocksExtension {
 	const POINT = 'cerb.service.provider';
 	
-	static $_registry = [];
+	static $_registry = array();
 	
 	/**
 	 * @return DevblocksExtensionManifest[]|Extension_ServiceProvider[]
@@ -859,6 +822,25 @@ abstract class Extension_ServiceProvider extends DevblocksExtension {
 		return null;
 	}
 	
-	abstract function renderConfigForm(Model_ConnectedAccount $account);
-	abstract function saveConfigForm(Model_ConnectedAccount $account, array &$params);
+	protected function _renderPopupAuthForm() {
+		if(!($this instanceof IServiceProvider_Popup))
+			return false;
+		
+		$tpl = DevblocksPlatform::getTemplateService();
+		$session = DevblocksPlatform::getSessionService();
+		$settings = DevblocksPlatform::getPluginSettingsService();
+		$active_worker = CerberusApplication::getActiveWorker();
+
+		$visit = $session->getVisit();
+		
+		$tpl->assign('ext', $this);
+		$tpl->assign('active_worker', $active_worker);
+		$tpl->assign('settings', $settings);
+		$tpl->assign('session', $_SESSION);
+		$tpl->assign('visit', $visit);
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/connected_account/popup_shell.tpl');
+	}
+	
+	abstract function renderPopup();
 };

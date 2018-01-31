@@ -29,11 +29,6 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 	function generateSampleEventModel(Model_TriggerEvent $trigger, $properties=null, $message_id=null, $ticket_id=null, $group_id=null) {
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$message_id = 0;
-		$ticket_id = 0;
-		$group_id = 0;
-		$bucket_id = 0;
-		
 		if(empty($message_id)) {
 			// Pull the latest ticket
 			list($results) = DAO_Ticket::search(
@@ -55,26 +50,21 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 			$message_id = $result[SearchFields_Ticket::TICKET_LAST_MESSAGE_ID];
 			$ticket_id = $result[SearchFields_Ticket::TICKET_ID];
 			$group_id = $result[SearchFields_Ticket::TICKET_GROUP_ID];
-			$bucket_id = $result[SearchFields_Ticket::TICKET_BUCKET_ID];
 		}
 		
-		$properties = [
+		$properties = array(
 			'to' => 'customer@example.com',
 			'cc' => 'boss@example.com',
 			'bcc' => 'secret@example.com',
 			'subject' => 'This is the subject',
-			'outgoing_message_id' => '<abcdefg.012345678@example.mail>',
 			'ticket_reopen' => "+2 hours",
 			'status_id' => Model_Ticket::STATUS_WAITING,
 			'content' => "This is the message body\r\nOn more than one line.\r\n",
 			'content_format' => 0,
-			'headers' => [],
-			'group_id' => $group_id,
-			'bucket_id' => $bucket_id,
+			'headers' => array(),
 			'worker_id' => $active_worker->id,
-		];
+		);
 		
-		$dict->_properties =& $properties;
 		$dict->content =& $properties['content'];
 		$dict->content_format =& $properties['content_format'];
 		$dict->headers =& $properties['headers'];
@@ -82,7 +72,6 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 		$values['cc'] =& $properties['cc'];
 		$values['bcc'] =& $properties['bcc'];
 		$values['subject'] =& $properties['subject'];
-		$values['message_id'] =& $properties['outgoing-message-id'];
 		$values['waiting_until'] =& $properties['ticket_reopen'];
 		$values['status_id'] =& $properties['status_id'];
 		$values['worker_id'] =& $properties['worker_id'];
@@ -99,44 +88,24 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 	}
 	
 	function setEvent(Model_DevblocksEvent $event_model=null, Model_TriggerEvent $trigger=null) {
-		$labels = [];
-		$values = [];
-		
-		/**
-		 * Behavior
-		 */
-		
-		$merge_labels = [];
-		$merge_values = [];
-		CerberusContexts::getContext(CerberusContexts::CONTEXT_BEHAVIOR, $trigger, $merge_labels, $merge_values, null, true);
-
-			// Merge
-			CerberusContexts::merge(
-				'behavior_',
-				'',
-				$merge_labels,
-				$merge_values,
-				$labels,
-				$values
-			);
+		$labels = array();
+		$values = array();
 		
 		/**
 		 * Properties
 		 */
 		
 		@$properties =& $event_model->params['properties'];
-		$values['_properties'] =& $properties;
-		
 		$prefix = 'Sent message ';
 		
 		$labels['content'] = $prefix.'content';
 		$values['content'] =& $properties['content'];
 		
 		$labels['content_format'] = $prefix.'content is HTML';
-		$values['content_format'] = (@$properties['content_format'] == 'parsedown') ? 1 : 0;
+		$values['content_format'] = ($properties['content_format'] == 'parsedown') ? 1 : 0;
 		
 		if(!isset($properties['headers']))
-			$properties['headers'] = [];
+			$properties['headers'] = array();
 			
 		$labels['headers'] = $prefix.'headers';
 		$values['headers'] =& $properties['headers'];
@@ -153,9 +122,6 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 		$labels['subject'] = $prefix.'subject';
 		$values['subject'] =& $properties['subject'];
 		
-		$labels['message_id'] = $prefix.'ID';
-		$values['message_id'] =& $properties['outgoing_message_id'];
-		
 		$values['waiting_until'] =& $properties['ticket_reopen'];
 		
 		$values['status_id'] =& $properties['status_id'];
@@ -169,8 +135,8 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 
 		@$ticket_id = $event_model->params['ticket_id'];
 		
-		$ticket_labels = [];
-		$ticket_values = [];
+		$ticket_labels = array();
+		$ticket_values = array();
 		CerberusContexts::getContext(CerberusContexts::CONTEXT_TICKET, $ticket_id, $ticket_labels, $ticket_values, null, true);
 		
 			// Fill some custom values
@@ -179,10 +145,10 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 			CerberusContexts::scrubTokensWithRegexp(
 				$ticket_labels,
 				$ticket_values,
-				[
+				array(
 					"#^group_#",
 					//"#^id$#",
-				]
+				)
 			);
 			
 			// Merge
@@ -198,9 +164,9 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 		/**
 		 * Group
 		 */
-		@$group_id = $properties['group_id'];
-		$group_labels = [];
-		$group_values = [];
+		@$group_id = $event_model->params['group_id'];
+		$group_labels = array();
+		$group_values = array();
 		CerberusContexts::getContext(CerberusContexts::CONTEXT_GROUP, $group_id, $group_labels, $group_values, null, true);
 				
 			// Merge
@@ -217,17 +183,17 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 		 * Worker
 		 */
 		@$worker_id = $properties['worker_id'];
-		$worker_labels = [];
-		$worker_values = [];
+		$worker_labels = array();
+		$worker_values = array();
 		CerberusContexts::getContext(CerberusContexts::CONTEXT_WORKER, $worker_id, $worker_labels, $worker_values, '', true);
 				
 			// Clear dupe content
 			CerberusContexts::scrubTokensWithRegexp(
 				$worker_labels,
 				$worker_values,
-				[
+				array(
 					"#^address_org_#",
-				]
+				)
 			);
 		
 			// Merge
@@ -263,22 +229,12 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 	
 	function getValuesContexts($trigger) {
 		$vals = array(
-			'behavior_id' => array(
-				'label' => 'Behavior',
-				'context' => CerberusContexts::CONTEXT_BEHAVIOR,
-			),
-			'behavior_bot_id' => array(
-				'label' => 'Bot',
-				'context' => CerberusContexts::CONTEXT_BOT,
-			),
+			/*
 			'group_id' => array(
 				'label' => 'Group',
 				'context' => CerberusContexts::CONTEXT_GROUP,
 			),
-			'ticket_bucket_id' => array(
-				'label' => 'Ticket bucket',
-				'context' => CerberusContexts::CONTEXT_BUCKET,
-			),
+			*/
 			'ticket_id' => array(
 				'label' => 'Ticket',
 				'context' => CerberusContexts::CONTEXT_TICKET,
@@ -331,7 +287,6 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 		$types['content'] = Model_CustomField::TYPE_MULTI_LINE;
 		$types['content_format'] = Model_CustomField::TYPE_CHECKBOX;
 		$types['subject'] = Model_CustomField::TYPE_SINGLE_LINE;
-		$types['message_id'] = Model_CustomField::TYPE_SINGLE_LINE;
 		$types['to'] = Model_CustomField::TYPE_SINGLE_LINE;
 	
 		$types['ticket_org_watcher_count'] = null;
@@ -343,7 +298,7 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 	}
 	
 	function renderConditionExtension($token, $as_token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -472,7 +427,7 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 	}
 	
 	function renderActionExtension($token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -484,7 +439,6 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 		switch($token) {
 			case 'append_to_content':
 			case 'prepend_to_content':
-				$tpl->assign('is_sent', true);
 				$tpl->display('devblocks:cerberusweb.core::events/mail_before_sent_by_group/action_add_content.tpl');
 				break;
 				
@@ -501,7 +455,7 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 				break;
 
 			default:
-				if(preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token, $matches)) {
+				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token, $matches)) {
 					$field_id = $matches[2];
 					$custom_field = DAO_CustomField::get($field_id);
 					DevblocksEventHelper::renderActionSetCustomField($custom_field, $trigger);
@@ -519,77 +473,37 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 
 		switch($token) {
 			case 'append_to_content':
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-				@$mode = $params['mode'];
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				$content = $tpl_builder->build($params['content'], $dict);
+				$dict->content .= "\r\n" . $content;
 				
-				if(!isset($dict->_properties['content_appends']))
-					$dict->_properties['content_appends'] = [
-						'sent' => [],
-						'saved' => [],
-					];
-					
-				$label = '';
-				
-				switch($mode) {
-					case 'saved':
-					case 'sent':
-						$label = $mode . ' ';
-						$dict->_properties['content_appends'][$mode][] = $content;
-						break;
-						
-					default:
-						$dict->_properties['content_appends']['saved'][] = $content;
-						$dict->__properties['content_appends']['sent'][] = $content;
-						break;
-				}
-				
-				$out = sprintf(">>> Appending text to %smessage content\n".
-					"%s\n",
-					$label,
-					$content
+				$out = sprintf(">>> Appending text to message content\n".
+					"Text:\n%s\n".
+					"Message:\n%s\n",
+					$content,
+					$dict->content
 				);
 				
 				return $out;
 				break;
 				
 			case 'prepend_to_content':
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-				@$mode = $params['mode'];
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				$content = $tpl_builder->build($params['content'], $dict);
+				$dict->content = $content . "\r\n" . $dict->content;
 				
-				if(!isset($dict->_properties['content_prepends']))
-					$dict->_properties['content_prepends'] = [
-						'sent' => [],
-						'saved' => [],
-					];
-					
-				$label = '';
-				
-				switch($mode) {
-					case 'saved':
-					case 'sent':
-						$label = $mode . ' ';
-						$dict->_properties['content_prepends'][$mode][] = $content;
-						break;
-						
-					default:
-						$dict->_properties['content_prepends']['saved'][] = $content;
-						$dict->_properties['content_prepends']['sent'][] = $content;
-						break;
-				}
-				
-				$out = sprintf(">>> Prepending text to %smessage content\n".
-					"%s\n",
-					$label,
-					$content
+				$out = sprintf(">>> Prepending text to message content\n".
+					"Text:\n%s\n".
+					"Message:\n%s\n",
+					$content,
+					$dict->content
 				);
 				
 				return $out;
 				break;
 				
 			case 'replace_content':
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				$replace = $tpl_builder->build($params['replace'], $dict);
 				$with = $tpl_builder->build($params['with'], $dict);
 				
@@ -599,7 +513,7 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 					$value = str_replace($replace, $with, $dict->content);
 				}
 				
-				$before = $dict->content;
+				$before = $dict->body;
 				
 				if(!empty($value)) {
 					$dict->content = trim($value,"\r\n");
@@ -609,14 +523,14 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 					"Before:\n%s\n".
 					"After:\n%s\n",
 					$before,
-					$dict->content
+					$dict->body
 				);
 				
 				return $out;
 				break;
 				
 			case 'set_header':
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				
 				$header = $tpl_builder->build($params['header'], $dict);
 				$value = $tpl_builder->build($params['value'], $dict);
@@ -654,7 +568,7 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 				break;
 
 			default:
-				if(preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token))
+				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token))
 					return DevblocksEventHelper::simulateActionSetCustomField($token, $params, $dict);
 				break;
 		}
@@ -665,61 +579,17 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 
 		switch($token) {
 			case 'append_to_content':
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-				@$mode = $params['mode'];
-				@$content = $tpl_builder->build($params['content'], $dict);
-				
-				if(!isset($dict->_properties['content_appends']))
-					$dict->_properties['content_appends'] = [
-						'sent' => [],
-						'saved' => [],
-					];
-					
-				$label = '';
-				
-				switch($mode) {
-					case 'saved':
-					case 'sent':
-						$label = $mode . ' ';
-						$dict->_properties['content_appends'][$mode][] = $content;
-						break;
-						
-					default:
-						$dict->_properties['content_appends']['saved'][] = $content;
-						$dict->_properties['content_appends']['sent'][] = $content;
-						break;
-				}
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+				$dict->content .= "\r\n" . $tpl_builder->build($params['content'], $dict);
 				break;
 				
 			case 'prepend_to_content':
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
-				@$mode = $params['mode'];
-				@$content = $tpl_builder->build($params['content'], $dict);
-				
-				if(!isset($dict->_properties['content_prepends']))
-					$dict->_properties['content_prepends'] = [
-						'sent' => [],
-						'saved' => [],
-					];
-					
-				$label = '';
-				
-				switch($mode) {
-					case 'saved':
-					case 'sent':
-						$label = $mode . ' ';
-						$dict->_properties['content_prepends'][$mode][] = $content;
-						break;
-						
-					default:
-						$dict->_properties['content_prepends']['saved'][] = $content;
-						$dict->_properties['content_prepends']['sent'][] = $content;
-						break;
-				}
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+				$dict->content = $tpl_builder->build($params['content'], $dict) . "\r\n" . $dict->content;
 				break;
 				
 			case 'replace_content':
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				$replace = $tpl_builder->build($params['replace'], $dict);
 				$with = $tpl_builder->build($params['with'], $dict);
 				
@@ -735,7 +605,7 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 				break;
 				
 			case 'set_header':
-				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
 				
 				$header = $tpl_builder->build($params['header'], $dict);
 				$value = $tpl_builder->build($params['value'], $dict);
@@ -765,7 +635,7 @@ abstract class AbstractEvent_MailBeforeSent extends Extension_DevblocksEvent {
 				break;
 
 			default:
-				if(preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token))
+				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token))
 					return DevblocksEventHelper::runActionSetCustomField($token, $params, $dict);
 				break;
 		}

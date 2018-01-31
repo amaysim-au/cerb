@@ -1,4 +1,4 @@
-<textarea name="{$namePrefix}[tpl]" class="placeholders">{$params.tpl}</textarea>
+<textarea name="{$namePrefix}[tpl]" cols="45" rows="5" style="width:100%;height:75px;" class="placeholders" spellcheck="false">{$params.tpl}</textarea>
 
 <select name="{$namePrefix}[oper]">
 	<option value="is" {if $params.oper=='is'}selected="selected"{/if}>is</option>
@@ -16,6 +16,13 @@
 
 <script type="text/javascript">
 $(function() {
-	var $condition = $('#{$namePrefix}_{$nonce}');
+	var $condition = $('li#{$namePrefix}');
+	var $textarea = $condition.find('textarea');
+	$textarea.autosize();
+	
+	// Snippet syntax
+	$textarea
+		.cerbTwigCodeCompletion()
+		;
 })
 </script>

@@ -17,8 +17,8 @@
 
 class ChReportBotUsage extends Extension_Report {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
-		$db = DevblocksPlatform::services()->database();
+		$tpl = DevblocksPlatform::getTemplateService();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// Filter: Start + End
 		

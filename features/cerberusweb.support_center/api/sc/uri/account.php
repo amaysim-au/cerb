@@ -7,13 +7,13 @@ class UmScAccountController extends Extension_UmScController {
 	}
 	
 	function renderSidebar(DevblocksHttpResponse $response) {
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 		
 		$tpl->display("devblocks:cerberusweb.support_center:portal_".ChPortalHelper::getCode() . ":support_center/account/sidebar_menu.tpl");
 	}
 	
 	function writeResponse(DevblocksHttpResponse $response) {
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 		$path = $response->path;
 		
 		@array_shift($path); // account
@@ -123,7 +123,7 @@ class UmScAccountController extends Extension_UmScController {
 	}
 	
 	function doProfileUpdateAction() {
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 		$umsession = ChPortalHelper::getSession();
 		$active_contact = $umsession->getProperty('sc_login', null);
 		
@@ -223,7 +223,7 @@ class UmScAccountController extends Extension_UmScController {
 	}
 
 	function doEmailUpdateAction() {
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 		$umsession = ChPortalHelper::getSession();
 		$active_contact = $umsession->getProperty('sc_login', null);
 		
@@ -354,7 +354,7 @@ class UmScAccountController extends Extension_UmScController {
 	}
 	
 	function doShareUpdateAction() {
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 		$umsession = ChPortalHelper::getSession();
 		$active_contact = $umsession->getProperty('sc_login', null);
 		$contact_addresses = $active_contact->getEmails();
@@ -447,7 +447,7 @@ class UmScAccountController extends Extension_UmScController {
 				$tpl->assign('error', implode('<br>', $errors));
 			
 		} catch(Exception $e) {
-			$tpl = DevblocksPlatform::services()->templateSandbox();
+			$tpl = DevblocksPlatform::getTemplateSandboxService();
 			$tpl->assign('error', $e->getMessage());
 			
 		}
@@ -461,8 +461,8 @@ class UmScAccountController extends Extension_UmScController {
 		
 		$umsession = ChPortalHelper::getSession();
 		$active_contact = $umsession->getProperty('sc_login', null);
-		$url_writer = DevblocksPlatform::services()->url();
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$url_writer = DevblocksPlatform::getUrlService();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 
 		try {
 			if(empty($active_contact) || empty($active_contact->id))
@@ -485,7 +485,7 @@ class UmScAccountController extends Extension_UmScController {
 			$tpl->assign('success', true);
 			
 		} catch(Exception $e) {
-			$tpl = DevblocksPlatform::services()->templateSandbox();
+			$tpl = DevblocksPlatform::getTemplateSandboxService();
 			$tpl->assign('error', $e->getMessage());
 			
 		}
@@ -496,8 +496,8 @@ class UmScAccountController extends Extension_UmScController {
 	function doEmailAddAction() {
 		$umsession = ChPortalHelper::getSession();
 		$active_contact = $umsession->getProperty('sc_login', null);
-		$tpl = DevblocksPlatform::services()->templateSandbox();
-		$url_writer = DevblocksPlatform::services()->url();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		try {
 			if(null == $active_contact)
@@ -594,7 +594,7 @@ class UmScAccountController extends Extension_UmScController {
 			return;
 			
 		} catch(Exception $e) {
-			$tpl = DevblocksPlatform::services()->templateSandbox();
+			$tpl = DevblocksPlatform::getTemplateSandboxService();
 			$tpl->assign('error', $e->getMessage());
 
 			DevblocksPlatform::setHttpResponse(new DevblocksHttpResponse(array('portal',ChPortalHelper::getCode(),'account','email','confirm')));
@@ -609,8 +609,8 @@ class UmScAccountController extends Extension_UmScController {
 		
 		$umsession = ChPortalHelper::getSession();
 		$active_contact = $umsession->getProperty('sc_login', null);
-		$tpl = DevblocksPlatform::services()->templateSandbox();
-		$url_writer = DevblocksPlatform::services()->url();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		try {
 			// Load the contact account
@@ -641,7 +641,7 @@ class UmScAccountController extends Extension_UmScController {
 	}
 	
 	function configure(Model_CommunityTool $instance) {
-		$tpl = DevblocksPlatform::services()->templateSandbox();
+		$tpl = DevblocksPlatform::getTemplateSandboxService();
 
 		if(null != ($show_fields = DAO_CommunityToolProperty::get($instance->code, 'account.fields', null))) {
 			$tpl->assign('show_fields', @json_decode($show_fields, true));

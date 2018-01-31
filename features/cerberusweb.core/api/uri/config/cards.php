@@ -17,7 +17,7 @@
 
 class PageSection_SetupCards extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$visit = CerberusApplication::getVisit();
 		
 		$visit->set(ChConfigurationPage::ID, 'cards');
@@ -29,7 +29,7 @@ class PageSection_SetupCards extends Extension_PageSection {
 	}
 	
 	private function _getRecordType($ext_id) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('ext_id', $ext_id);
 

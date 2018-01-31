@@ -50,7 +50,7 @@
 					<input type="text" name="params[metric_suffix]" value="{$widget->params.metric_suffix}" size="10">
 				</td>
 				<td>
-					<input type="text" name="params[color]" value="{$widget->params.color|default:'#34434E'}" style="width:100%;" class="color-picker">
+					<input type="hidden" name="params[color]" value="{$widget->params.color|default:'#34434E'}" style="width:100%;" class="color-picker">
 				</td>
 			</tr>
 		</table>
@@ -58,11 +58,10 @@
 </fieldset>
 
 <script type="text/javascript">
-$(function() {
 	var $config = $('#widget{$widget->id}Config');
 	
-	$config.find('input:text.color-picker').minicolors({
-		swatches: ['#CF2C1D','#FEAF03','#57970A','#007CBD','#7047BA','#D5D5D5','#ADADAD','#34434E']
+	$config.find('input:hidden.color-picker').miniColors({
+		color_favorites: ['#CF2C1D','#FEAF03','#57970A','#007CBD','#7047BA','#D5D5D5','#ADADAD','#34434E']
 	});
 	
 	$config.find('select.datasource-selector').change(function() {
@@ -75,5 +74,4 @@ $(function() {
 			genericAjaxGet($div_params, 'c=internal&a=handleSectionAction&section=dashboards&action=getWidgetDatasourceConfig&widget_id={$widget->id}&ext_id=' + datasource);
 		}
 	});
-});
 </script>

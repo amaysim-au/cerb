@@ -1,5 +1,5 @@
 <?php
-$db = DevblocksPlatform::services()->database();
+$db = DevblocksPlatform::getDatabaseService();
 $tables = $db->metaTables();
 
 $prefix = (APP_DB_PREFIX != '') ? APP_DB_PREFIX.'_' : '';

@@ -33,10 +33,13 @@
 
 <script type="text/javascript">
 $(function() {
-	var $action = $('#{$namePrefix}_{$nonce}');
+	var $action = $('fieldset#{$namePrefix}');
+	
+	$action.find('textarea').autosize();
 	
 	$action.find('div.set-date-mode input:radio').change(function() {
 		var $radio = $(this);
+		var $action = $('fieldset#{$namePrefix}');
 	
 		$action.find('div.date-mode').hide();
 		

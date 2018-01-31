@@ -1,4 +1,3 @@
-{$peek_context = CerberusContexts::CONTEXT_BEHAVIOR}
 <form id="frmDecisionBehavior{$model->id}" onsubmit="return false;">
 <input type="hidden" name="c" value="profiles">
 <input type="hidden" name="a" value="handleSectionAction">
@@ -53,22 +52,19 @@
 		
 		<tbody class="behavior-build">
 			<tr class="behavior-event">
-				<td width="1%" nowrap="nowrap" valign="top">
-					<b>{'common.event'|devblocks_translate|capitalize}:</b>
-				</td>
+				<td width="1%" valign="top" nowrap="nowrap"><b>{'common.event'|devblocks_translate|capitalize}:</b></td>
 				<td width="99%">
-					{if $ext}
-						<ul class="bubbles">
+					{if empty($ext)}
+						<select name="event_point">
+							{foreach from=$events item=available_event key=available_event_id name=available_events}
+							<option value="{$available_event_id}" {if $available_event->params.macro_context}is_macro="true"{/if}>{$available_event->name}</option>
+							{/foreach}
+						</select>
+						<br>
+					{else}
+						<ul class="bubbles chooser-container">
 							<li>{$ext->manifest->name}</li>
 						</ul>
-					{else}
-					<div class="events-widget" style="display:none;">
-						{if $events_menu}
-							{include file="devblocks:cerberusweb.core::internal/peek/menu_behavior_event.tpl"}
-						{else}
-							(choose a bot to see available events)
-						{/if}
-					</div>
 					{/if}
 					
 					<div class="event-params">
@@ -101,6 +97,14 @@
 				</td>
 			</tr>
 			
+			<tr style="margin-top:10px;">
+				<td width="1%" nowrap="nowrap"><b>Visibility:</b></td>
+				<td width="99%">
+					<label><input type="radio" name="is_private" value="0" {if empty($model->is_private)}checked="checked"{/if}> {'common.everyone'|devblocks_translate|capitalize}</label>
+					<label><input type="radio" name="is_private" value="1" {if !empty($model->is_private)}checked="checked"{/if}> {'common.bots'|devblocks_translate|capitalize}</label>
+				</td>
+			</tr>
+			
 		</tbody>
 		
 	</table>
@@ -119,34 +123,16 @@
 	<div style="margin:5px 0px 10px 20px;">
 		<button type="button" class="add-variable cerb-popupmenu-trigger">{'common.add'|devblocks_translate|capitalize} &#x25be;</button>
 		
-		{function menu level=0}
-			{foreach from=$keys item=data key=idx}
-				{if is_array($data->children) && !empty($data->children)}
-					<li {if $data->key}data-token="{$data->key}" data-label="{$data->label}"{/if}>
-						{if $data->key}
-							<div style="font-weight:bold;">{$data->l|capitalize}</div>
-						{else}
-							<div>{$idx|capitalize}</div>
-						{/if}
-						<ul style="">
-							{menu keys=$data->children level=$level+1}
-						</ul>
-					</li>
-				{elseif $data->key}
-					{$item_context = explode(':', $data->key)}
-					<li data-token="{$data->key}" data-label="{$data->label}">
-						<div style="font-weight:bold;">
-							{$data->l|capitalize}
-						</div>
-					</li>
-				{/if}
+		<ul class="cerb-popupmenu add-variable-menu" style="border:0;">
+			<li><a href="javascript:;" field_type="S">Text</a></li>
+			<li><a href="javascript:;" field_type="D">Picklist</a></li>
+			<li><a href="javascript:;" field_type="N">Number</a></li>
+			<li><a href="javascript:;" field_type="E">Date</a></li>
+			<li><a href="javascript:;" field_type="C">Yes/No</a></li>
+			<li><a href="javascript:;" field_type="W">Worker</a></li>
+			{foreach from=$list_contexts item=list_context key=list_context_id}
+			<li><a href="javascript:;" field_type="ctx_{$list_context_id}">(List) {$list_context->name}</a></li>
 			{/foreach}
-		{/function}
-		
-		<ul class="chooser-container bubbles"></ul>
-		
-		<ul class="add-variable-menu" style="width:150px;{if $model->event_point}display:none;{/if}">
-		{menu keys=$variables_menu}
 		</ul>
 	</div>
 </fieldset>
@@ -165,8 +151,8 @@
 	<legend>Delete this behavior?</legend>
 	<p>Are you sure you want to permanently delete this behavior and all of its effects?</p>
 	
-	<button type="button" class="delete red">{'common.yes'|devblocks_translate|capitalize}</button>
-	<button type="button" onclick="$(this).closest('form').find('div.buttons').fadeIn();$(this).closest('fieldset.delete').fadeOut();">{'common.no'|devblocks_translate|capitalize}</button>
+	<button type="button" class="delete red"></span> {'common.yes'|devblocks_translate|capitalize}</button>
+	<button type="button" onclick="$(this).closest('form').find('div.buttons').fadeIn();$(this).closest('fieldset.delete').fadeOut();"></span> {'common.no'|devblocks_translate|capitalize}</button>
 </fieldset>
 {/if}
 
@@ -176,7 +162,7 @@
 
 <div class="buttons">
 	<button type="button" class="submit"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate|capitalize}</button>
-	{if $model->id && $active_worker->hasPriv("contexts.{$peek_context}.delete")}<button type="button" onclick="$(this).parent().siblings('fieldset.delete').fadeIn();$(this).closest('div').fadeOut();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
+	{if $model->id}<button type="button" onclick="$(this).parent().siblings('fieldset.delete').fadeIn();$(this).closest('div').fadeOut();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
 </div>
 
 </form>
@@ -185,18 +171,10 @@
 $(function() {
 	var $frm = $('#frmDecisionBehavior{$model->id}');
 	var $popup = genericAjaxPopupFind($frm);
+	var $events = $popup.find('select[name=event_point]');
 	
 	$popup.one('popup_open', function(event,ui) {
 		$popup.dialog('option','title',"{'common.behavior'|devblocks_translate|capitalize|escape:'javascript'}");
-		$popup.css('overflow', 'inherit');
-		
-		// Close confirmation
-		
-		$popup.on('dialogbeforeclose', function(e, ui) {
-			var keycode = e.keyCode || e.which;
-			if(keycode == 27)
-				return confirm('{'warning.core.editor.close'|devblocks_translate}');
-		});
 		
 		$popup.find('.chooser-abstract')
 			.cerbChooserTrigger()
@@ -204,22 +182,21 @@ $(function() {
 				var $btn = $(e.target);
 				var $ul = $btn.siblings('ul.chooser-container');
 				
-				// We're adding or swapping bots
+				$events.closest('tr').hide();
+				$events.find('option').remove();
+				
 				if($ul.find('li').length > 0) {
 					// Load the events from Ajax by bot ID
 					var $hidden = $ul.find('li input[name=bot_id]');
 					var bot_id = $hidden.val();
 					
-					genericAjaxGet('', 'c=profiles&a=handleSectionAction&section=behavior&action=getEventsMenuByBot&bot_id=' + bot_id, function(html) {
-						$popup.find('div.events-widget').html(html).fadeIn();
-						$popup.trigger('events-menu-refresh');
+					genericAjaxGet('', 'c=profiles&a=handleSectionAction&section=behavior&action=getEventsByBotJson&bot_id=' + bot_id, function(json) {
+						for(k in json) {
+							$('<option/>').attr('value',k).text(json[k]).appendTo($events);
+						}
 					});
-				
-				// We removed all bots
-				} else {
-					var $events_menu = $popup.find('ul.events-menu').hide();
-					$events_menu.siblings('ul.chooser-container').hide();
-					$frm.find('div.event-params').hide();
+					
+					$events.closest('tr').fadeIn();
 				}
 			})
 			;
@@ -240,26 +217,32 @@ $(function() {
 			.sortable({ 'items':'FIELDSET', 'placeholder':'ui-state-highlight', 'handle':'legend' })
 			;
 		
-		var $variables = $('#divBehaviorVariables{$model->id}');
-		
-		var $menu_variables = $popup.find('ul.add-variable-menu')
-			.menu({
-				'select': function(event, ui) {
-					var $li = $(ui.item);
-					var field_type = $li.attr('data-token');
-					
-					if(null != field_type) {
-						genericAjaxGet('', 'c=internal&a=addTriggerVariable&type=' +  encodeURIComponent(field_type), function(o) {
-							var $html = $(o).appendTo($variables);
-						});
-					}
-				}
-			})
-		;
+		$events.change(function() {
+			var $select = $(this);
+			var $li = $select.find('option:selected');
+			var $frm = $select.closest('form');
+			
+			genericAjaxGet('', 'c=internal&a=getTriggerEventParams&id=' + encodeURIComponent($select.val()), function(o) {
+				var $params = $frm.find('div.event-params');
+				$params.html(o);
+			});
+		});
 		
 		$popup.find('BUTTON.add-variable').click(function() {
 			var $button = $(this);
-			$menu_variables.toggle();
+			$button.next('ul.add-variable-menu').toggle();
+		});
+		
+		$popup.find('UL.add-variable-menu LI').click(function(e) {
+			var $menu = $(this).closest('ul.add-variable-menu');
+			var field_type = $(this).find('a').attr('field_type');
+			
+			genericAjaxGet('', 'c=internal&a=addTriggerVariable&type=' +  encodeURIComponent(field_type), function(o) {
+				var $container = $('#divBehaviorVariables{$model->id}');
+				var $html = $(o).appendTo($container);
+			});
+			
+			$menu.hide();
 		});
 		
 		$popup.find('input:radio[name=mode]').change(function() {
@@ -277,59 +260,7 @@ $(function() {
 			}
 		});
 
-		// Events
-
-		$popup.on('events-bubble-remove', function(e, ui) {
-			var $events_menu = $popup.find('ul.events-menu');
-			var $events_ul = $events_menu.siblings('ul.chooser-container');
-			
-			e.stopPropagation();
-			$(e.target).closest('li').remove();
-			$events_ul.hide();
-			$events_menu.show();
-			$frm.find('div.event-params').hide();
-		});
-		
-		$popup.on('events-menu-refresh', function(e, ui) {
-			var $events_menu = $popup.find('ul.events-menu');
-			var $events_ul = $events_menu.siblings('ul.chooser-container');
-			
-			$events_menu.menu({
-				select: function(event, ui) {
-					var token = ui.item.attr('data-token');
-					var label = ui.item.attr('data-label');
-					
-					if(undefined == token || undefined == label)
-						return;
-					
-					$events_menu.hide();
-					
-					// Build bubble
-					
-					var $li = $('<li/>');
-					var $label = $('<span/>').attr('data-event',token).text(label);
-					$label.appendTo($li);
-					var $hidden = $('<input type="hidden">').attr('name', 'event_point').attr('value',token).appendTo($li);
-					var $a = $('<a href="javascript:;" onclick="$(this).trigger(\'events-bubble-remove\');"><span class="glyphicons glyphicons-circle-remove"></span></a>').appendTo($li);
-					
-					$events_ul.find('> *').remove();
-					$events_ul.append($li);
-					$events_ul.show();
-					
-					genericAjaxGet('', 'c=internal&a=getTriggerEventParams&id=' + encodeURIComponent(token), function(o) {
-						var $params = $frm.find('div.event-params');
-						$params.html(o).fadeIn();
-					});
-				}
-			})
-			.fadeIn()
-			;
-		});
-		
-		{if $events_menu}
-		$popup.trigger('events-menu-refresh');
-		$popup.find('div.events-widget').fadeIn();
-		{/if}
 	});
+	
 });
 </script>

@@ -875,8 +875,9 @@ DIV.message_note {
 
 DIV.block {
 	padding: 5px;
-	@include linear-gradient(rgb(245,245,245) 25px, rgb(255,255,255) 75px);
-	background-color: white;
+	background-image: url(bg_block.jpg?v=#{$timestamp});
+	background-repeat: repeat-x;
+	background-color: rgb(255, 255, 255);
 	border: 1px solid rgb(230, 230, 230);
 
 	@include border-radius(5px);
@@ -1180,8 +1181,8 @@ DIV.cerb-properties {
 // Property fieldsets
 
 FIELDSET.properties {
-	border-width:1px 0px 0px 0px;
-	background-color: white;
+	margin:0px 10px 0px 10px;
+	border-width:2px 0px 0px 0px;
 
 	LEGEND {
 		color:rgb(50,50,50);
@@ -1235,7 +1236,7 @@ DIV.cerb-properties-grid {
 // Peek fieldsets
 
 FIELDSET.peek {
-	border-width:1px 0px 0px 0px;
+	border-width:2px 0px 0px 0px;
 
 	LEGEND {
 		color:$green;
@@ -1290,7 +1291,7 @@ DIV.cerb-profile-header span.glyphicons-male {
 }
 
 DIV.cerb-profile-header span.glyphicons-female {
-	color:rgb(243,80,157);
+ 	color:rgb(243,80,157);
 	vertical-align:middle;
 }
 
@@ -1398,12 +1399,7 @@ UL.cerb-popupmenu {
 // Subpage
 
 .cerb-subpage {
-	H1 {
-		color:rgb(0,0,0);
-		margin-bottom:5px;
-	}
-	
-	H2 {
+	> H2 {
 		color:rgb(74,110,158);
 		margin-bottom:5px;
 	}

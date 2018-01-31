@@ -34,7 +34,7 @@
 	<legend>Add a new tab:</legend>
 
 	<label><input type="radio" name="mode" value="build" checked="checked"> Build</label>
-	{if $active_worker->hasPriv("contexts.{CerberusContexts::CONTEXT_WORKSPACE_TAB}.import")}<label><input type="radio" name="mode" value="import"> Import</label>{/if}
+	<label><input type="radio" name="mode" value="import"> Import</label>
 	
 	<table cellpadding="2" cellspacing="0" border="0" width="100%">
 		<tbody class="build">
@@ -62,7 +62,6 @@
 		</tr>
 		</tbody>
 
-		{if $active_worker->hasPriv("contexts.{CerberusContexts::CONTEXT_WORKSPACE_TAB}.import")}
 		<tbody class="import" style="display:none;">
 		<tr>
 			<td valign="top" width="1%" nowrap="nowrap">
@@ -73,7 +72,6 @@
 			</td>
 		</tr>
 		</tbody>
-		{/if}
 		
 		<tr>
 			<td valign="top" width="1%" nowrap="nowrap">

@@ -31,10 +31,9 @@
 			<span id="badgeNotifications"><a href="javascript:;"></a></span>
 			
 			<ul id="menuSignedIn" class="cerb-popupmenu cerb-float">
-				<li><a href="javascript:;" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_WORKER}" data-context-id="{$active_worker->id}">{'header.my_card'|devblocks_translate|lower}</a></li>
 				<li><a href="{devblocks_url}c=profiles&w=worker&me=me{/devblocks_url}">{'header.my_profile'|devblocks_translate|lower}</a></li>
 				<li><a href="{devblocks_url}c=preferences{/devblocks_url}">{'common.settings'|devblocks_translate|lower}</a></li>
-				<li><a href="javascript:;" class="cerb-search-trigger" data-context="{CerberusContexts::CONTEXT_NOTIFICATION}" data-query="isRead:n worker.id:{$active_worker->id}">{'home.tab.my_notifications'|devblocks_translate|lower}</a></li>
+				<li><a href="{devblocks_url}c=search&w=notification{/devblocks_url}?q=worker.id:{$active_worker->id}%20isRead:n">{'home.tab.my_notifications'|devblocks_translate|lower}</a></li>
 				<li><a href="{devblocks_url}c=profiles&w=worker&me=me&tab=activity{/devblocks_url}">{'common.activity_log'|devblocks_translate|lower}</a></li>
 				<li><a href="{devblocks_url}c=login&a=signout{/devblocks_url}">{'header.signoff'|devblocks_translate|lower}</a></li>
 				<li><a href="{devblocks_url}c=login&a=signout&w=all{/devblocks_url}">{'header.signoff.all.my'|devblocks_translate|lower}</a></li>
@@ -45,7 +44,7 @@
 </table>
 
 <script type="text/javascript">
-$(function(e) {
+$().ready(function(e) {
 	{if !empty($visit) && $visit->isImposter()}
 	$('#aImposter').click(function(e) {
 		genericAjaxGet('','c=internal&a=suRevert',function(o) {
@@ -54,28 +53,25 @@ $(function(e) {
 	});
 	{/if}
 	
-	var $menu = $('#menuSignedIn');
+	$menu = $('#menuSignedIn');
 	$menu.appendTo('body');
 	$menu.find('> li')
 		.click(function(e) {
 			e.stopPropagation();
-			
 			if(!$(e.target).is('li'))
 				return;
 
-			var $link = $(this).find('a:first');
+			$link = $(this).find('a:first');
 			
-			if($link.attr('href') != 'javascript:;') {
+			if($link.length > 0)
 				window.location.href = $link.attr('href');
-			} else {
-				$link.click();
-				$menu.hide();
-			}
 		})
 		;
 	
 	$('#lnkSignedIn')
 		.click(function(e) {
+			$menu = $('#menuSignedIn');
+
 			if($menu.is(':visible'))
 				return;
 			
@@ -98,9 +94,6 @@ $(function(e) {
 			}
 		)
 		;
-	
-	$menu.find('.cerb-peek-trigger').cerbPeekTrigger();
-	$menu.find('.cerb-search-trigger').cerbSearchTrigger();
 });
 </script>
 

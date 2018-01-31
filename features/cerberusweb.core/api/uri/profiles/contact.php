@@ -17,11 +17,9 @@
 
 class PageSection_ProfilesContact extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$visit = CerberusApplication::getVisit();
 		$translate = DevblocksPlatform::getTranslationService();
-		
-		$context = CerberusContexts::CONTEXT_CONTACT;
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		$response = DevblocksPlatform::getHttpResponse();
@@ -36,14 +34,7 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 			return;
 		}
 		$tpl->assign('contact', $contact);
-		
-		// Dictionary
-		$labels = array();
-		$values = array();
-		CerberusContexts::getContext($context, $contact, $labels, $values, '', true, false);
-		$dict = DevblocksDictionaryDelegate::instance($values);
-		$tpl->assign('dict', $dict);
-		
+	
 		// Tab persistence
 		
 		$point = 'profiles.contact.tab';
@@ -99,20 +90,6 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 				'type' => Model_CustomField::TYPE_SINGLE_LINE,
 				'value' => $contact->timezone,
 			);
-			
-		if(!empty($contact->phone))
-			$properties['phone'] = array(
-				'label' => mb_ucfirst($translate->_('common.phone')),
-				'type' => Model_CustomField::TYPE_SINGLE_LINE,
-				'value' => $contact->phone,
-			);
-			
-		if(!empty($contact->mobile))
-			$properties['mobile'] = array(
-				'label' => mb_ucfirst($translate->_('common.mobile')),
-				'type' => Model_CustomField::TYPE_SINGLE_LINE,
-				'value' => $contact->mobile,
-			);
 		
 		$properties['created'] = array(
 			'label' => mb_ucfirst($translate->_('common.created')),
@@ -135,26 +112,26 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 	
 		// Custom Fields
 
-		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds($context, $contact->id)) or array();
+		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_CONTACT, $contact->id)) or array();
 		$tpl->assign('custom_field_values', $values);
 		
-		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields($context, $values);
+		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields(CerberusContexts::CONTEXT_CONTACT, $values);
 		
 		if(!empty($properties_cfields))
 			$properties = array_merge($properties, $properties_cfields);
 		
 		// Custom Fieldsets
 
-		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets($context, $contact->id, $values);
+		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets(CerberusContexts::CONTEXT_CONTACT, $contact->id, $values);
 		$tpl->assign('properties_custom_fieldsets', $properties_custom_fieldsets);
 		
 		// Link counts
 		
 		$properties_links = array(
-			$context => array(
+			CerberusContexts::CONTEXT_CONTACT => array(
 				$contact->id => 
 					DAO_ContextLink::getContextLinkCounts(
-						$context,
+						CerberusContexts::CONTEXT_CONTACT,
 						$contact->id,
 						array(CerberusContexts::CONTEXT_CUSTOM_FIELDSET)
 					),
@@ -182,15 +159,18 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 		// Properties
 		
 		$tpl->assign('properties', $properties);
+			
+		// Macros
 		
+		$macros = DAO_TriggerEvent::getReadableByActor(
+			$active_worker,
+			'event.macro.contact'
+		);
+		$tpl->assign('macros', $macros);
+
 		// Tabs
-		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, $context);
+		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_CONTACT);
 		$tpl->assign('tab_manifests', $tab_manifests);
-		
-		// Interactions
-		$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
-		$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
-		$tpl->assign('interactions_menu', $interactions_menu);
 		
 		// Template
 		$tpl->display('devblocks:cerberusweb.core::profiles/contact.tpl');
@@ -209,8 +189,7 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 		try {
 		
 			if(!empty($id) && !empty($do_delete)) { // Delete
-				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_CONTACT)))
-					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
+				// [TODO] [ACL] Check delete permission
 				
 				DAO_Contact::delete($id);
 				
@@ -240,12 +219,26 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 				
 				// Defaults
 				
+				if(!in_array($gender, array('M','F','')))
+					$gender = '';
+				
 				$dob_ts = null;
+				
+				// Validation
+				
+				if(empty($first_name))
+					throw new Exception_DevblocksAjaxValidationError("The 'First Name' field is required.", 'first_name');
+				
+				if(!empty($primary_email_id) && false == (DAO_Address::get($primary_email_id)))
+					throw new Exception_DevblocksAjaxValidationError("The specified email address is invalid.", 'primary_email_id');
+
+				if(!empty($dob) && false == ($dob_ts = strtotime($dob . ' 00:00 GMT')))
+					throw new Exception_DevblocksAjaxValidationError("The specified date of birth is invalid.", 'dob');
 				
 				// Insert/Update
 				
 				if(empty($id)) { // New
-					$fields = [
+					$fields = array(
 						DAO_Contact::FIRST_NAME => $first_name,
 						DAO_Contact::LAST_NAME => $last_name,
 						DAO_Contact::TITLE => $title,
@@ -261,28 +254,21 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 						DAO_Contact::MOBILE => $mobile,
 						DAO_Contact::CREATED_AT => time(),
 						DAO_Contact::UPDATED_AT => time(),
-					];
-					
+					);
+
 					if(!empty($password)) {
 						$salt = CerberusApplication::generatePassword(8);
 						$fields[DAO_Contact::AUTH_SALT] = $salt;
 						$fields[DAO_Contact::AUTH_PASSWORD] = md5($salt.md5($password));
 					}
 					
-					if(!DAO_Contact::validate($fields, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
-					if(!DAO_Contact::onBeforeUpdateByActor($active_worker, $fields, null, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
 					$id = DAO_Contact::create($fields);
-					DAO_Contact::onUpdateByActor($active_worker, $fields, $id);
 					
 					if(!empty($view_id) && !empty($id))
 						C4_AbstractView::setMarqueeContextCreated($view_id, CerberusContexts::CONTEXT_CONTACT, $id);
 					
 				} else { // Edit
-					$fields = [
+					$fields = array(
 						DAO_Contact::FIRST_NAME => $first_name,
 						DAO_Contact::LAST_NAME => $last_name,
 						DAO_Contact::TITLE => $title,
@@ -297,13 +283,7 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 						DAO_Contact::PHONE => $phone,
 						DAO_Contact::MOBILE => $mobile,
 						DAO_Contact::UPDATED_AT => time(),
-					];
-					
-					if(!DAO_Contact::validate($fields, $error, $id))
-						throw new Exception_DevblocksAjaxValidationError($error);
-					
-					if(!DAO_Contact::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
-						throw new Exception_DevblocksAjaxValidationError($error);
+					);
 					
 					if(!empty($password)) {
 						$salt = CerberusApplication::generatePassword(8);
@@ -312,7 +292,6 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 					}
 					
 					DAO_Contact::update($id, $fields);
-					DAO_Contact::onUpdateByActor($active_worker, $fields, $id);
 				}
 				
 				if($id) {
@@ -363,7 +342,7 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		// Generate hash
 		$hash = md5($view_id.$active_worker->id.time());
@@ -443,7 +422,7 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('view_id', $view_id);
 
 		if(!empty($ids)) {
@@ -462,7 +441,7 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 		$tpl->assign('languages', $locales);
 		
 		// Timezones
-		$date = DevblocksPlatform::services()->date();
+		$date = DevblocksPlatform::getDateService();
 		$tpl->assign('timezones', $date->getTimezones());
 		
 		// Broadcast
@@ -477,6 +456,14 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 		
 		$html_templates = DAO_MailHtmlTemplate::getAll();
 		$tpl->assign('html_templates', $html_templates);
+		
+		// Macros
+		
+		$macros = DAO_TriggerEvent::getReadableByActor(
+			$active_worker,
+			'event.macro.contact'
+		);
+		$tpl->assign('macros', $macros);
 		
 		$tpl->display('devblocks:cerberusweb.core::internal/contact/bulk.tpl');
 	}
@@ -569,7 +556,7 @@ class PageSection_ProfilesContact extends Extension_PageSection {
 		$do = DAO_CustomFieldValue::handleBulkPost($do);
 		
 		// Broadcast: Compose
-		if($active_worker->hasPriv('contexts.cerberusweb.contexts.contact.broadcast')) {
+		if($active_worker->hasPriv('context.contact.worklist.broadcast')) {
 			@$do_broadcast = DevblocksPlatform::importGPC($_REQUEST['do_broadcast'],'string',null);
 			@$broadcast_group_id = DevblocksPlatform::importGPC($_REQUEST['broadcast_group_id'],'integer',0);
 			@$broadcast_subject = DevblocksPlatform::importGPC($_REQUEST['broadcast_subject'],'string',null);

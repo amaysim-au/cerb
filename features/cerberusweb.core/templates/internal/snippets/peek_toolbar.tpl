@@ -49,26 +49,12 @@ $(function() {
 			if(undefined == token || undefined == label)
 				return;
 			
-			var $field = $content.next('pre.ace_editor');
-			
-			if(0 == $field.length) {
-				if(token.match(/^\(\(__(.*?)__\)\)$/)) {
-					$content.insertAtCursor(token);
-				} else {
-					{literal}$content.insertAtCursor('{{'+token+'}}');{/literal}
-				}
-				
-			} else if($field.is('.ace_editor')) {
-				var evt = new jQuery.Event('cerb.insertAtCursor');
-				
-				if(token.match(/^\(\(__(.*?)__\)\)$/)) {
-					evt.content = token;
-				} else {
-					evt.content = '{literal}{{{/literal}' + token + '{literal}}}{/literal}';
-				}
-				
-				$field.trigger(evt);
+			if(token.match(/^\(\(__(.*?)__\)\)$/)) {
+				$content.insertAtCursor(token);
+			} else {
+				{literal}$content.insertAtCursor('{{'+token+'}}');{/literal}
 			}
+			$content.focus();
 		}
 	});
 });

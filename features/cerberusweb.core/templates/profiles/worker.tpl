@@ -1,30 +1,31 @@
 {$page_context = CerberusContexts::CONTEXT_WORKER}
-{$page_context_id = $dict->id}
-{$is_writeable = Context_Worker::isWriteableByActor($dict, $active_worker)}
+{$page_context_id = $worker->id}
+
+{$memberships = $worker->getMemberships()}
 
 <div style="float:left;margin-right:10px;position:relative;">
-	<img src="{devblocks_url}c=avatars&context=worker&context_id={$dict->id}{/devblocks_url}?v={$dict->updated}" style="height:75px;width:75px;border-radius:5px;">
-	{if $dict->is_disabled}<span class="plugin_icon_overlay_disabled" style="background-size:75px 75px;"></span>{/if}
+	<img src="{devblocks_url}c=avatars&context=worker&context_id={$worker->id}{/devblocks_url}?v={$worker->updated}" style="height:75px;width:75px;border-radius:5px;">
+	{if $worker->is_disabled}<span class="plugin_icon_overlay_disabled" style="background-size:75px 75px;"></span>{/if}
 </div>
 
-<div class="cerb-profile-header">
+<div style="float:left;" class="cerb-profile-header">
 	<h1>
-	{$dict->_label}
+	{$worker->getName()}
 	
-	{if $dict->gender == 'M'}
+	{if $worker->gender == 'M'}
 	<span class="glyphicons glyphicons-male"></span>
-	{elseif $dict->gender == 'F'}
+	{elseif $worker->gender == 'F'}
 	<span class="glyphicons glyphicons-female"></span>
 	{/if}
 	
-	{if $dict->at_mention_name}
-	<small>@{$dict->at_mention_name}</small>
+	{if $worker->at_mention_name}
+	<small>@{$worker->at_mention_name}</small>
 	{/if}
 	</h1>
 	
-	{if $dict->title}
+	{if $worker->title}
 	<div>
-		{$dict->title}
+		{$worker->title}
 	</div>
 	{/if}
 	
@@ -32,31 +33,36 @@
 		<form class="toolbar" action="javascript:;" method="POST" style="margin:0px 0px 5px 0px;" onsubmit="return false;">
 			<input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
 			
-			<span id="spanInteractions" style="position:relative;">
-			{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.tpl"}
-			</span>
-			
-			<!-- Card -->
-			<button type="button" id="btnProfileCard" title="{'common.card'|devblocks_translate|capitalize}" data-context="{$dict->_context}" data-context-id="{$dict->id}"><span class="glyphicons glyphicons-nameplate"></span></button>
-			
-			{if $active_worker->is_superuser && $dict->id != $active_worker->id}<button type="button" id="btnProfileWorkerPossess"><span class="glyphicons glyphicons-user"></span> Impersonate</button>{/if}
-			
-			{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
-			<button type="button" id="btnProfileWorkerEdit" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_WORKER}" data-context-id="{$dict->id}" data-edit="true" title="{'common.edit'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-cogwheel"></span></button>
+			<!-- Macros -->
+			{if $active_worker->is_superuser || $worker->id == $active_worker->id}
+				{if !empty($page_context) && !empty($page_context_id) && !empty($macros)}
+					{devblocks_url assign=return_url full=true}c=profiles&tab=worker&id={$page_context_id}-{$worker->getName()|devblocks_permalink}{/devblocks_url}
+					{include file="devblocks:cerberusweb.core::internal/macros/display/button.tpl" context=$page_context context_id=$page_context_id macros=$macros return_url=$return_url}
+				{/if}
 			{/if}
-			
-			{if !$active_worker->is_superuser && $dict->id == $active_worker->id}<button type="button" id="btnProfileWorkerSettings" title="{'common.settings'|devblocks_translate|capitalize}" onclick="document.location='{devblocks_url}c=preferences{/devblocks_url}';"><span class="glyphicons glyphicons-cogwheel"></span></button>{/if}
+		
+			{if $active_worker->is_superuser && $worker->id != $active_worker->id}<button type="button" id="btnProfileWorkerPossess"><span class="glyphicons glyphicons-user"></span> Impersonate</button>{/if}
+			{if $active_worker->is_superuser}<button type="button" id="btnProfileWorkerEdit" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_WORKER}" data-context-id="{$worker->id}" data-edit="true" title="{'common.edit'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-cogwheel"></span></button>{/if}
+			{if !$active_worker->is_superuser && $worker->id == $active_worker->id}<button type="button" id="btnProfileWorkerSettings" title="{'common.settings'|devblocks_translate|capitalize}" onclick="document.location='{devblocks_url}c=preferences{/devblocks_url}';"><span class="glyphicons glyphicons-cogwheel"></span></button>{/if}
 		</form>
 		
 		{if $pref_keyboard_shortcuts}
 			<small>
 			{$translate->_('common.keyboard')|lower}:
 			{if $active_worker->is_superuser}(<b>e</b>) {'common.edit'|devblocks_translate|lower}{/if}
+			{if !empty($macros)}(<b>m</b>) {'common.macros'|devblocks_translate|lower} {/if}
 			(<b>1-9</b>) change tab
 			</small>
 		{/if}
 	</div>
 </div>
+
+<div style="float:right;">
+	{$ctx = Extension_DevblocksContext::get($page_context)}
+	{include file="devblocks:cerberusweb.core::search/quick_search.tpl" view=$ctx->getSearchView() return_url="{devblocks_url}c=search&context={$ctx->manifest->params.alias}{/devblocks_url}"}
+</div>
+
+<div style="clear:both;padding-top:5px;"></div>
 
 <fieldset class="properties">
 	<legend>{'common.worker'|devblocks_translate|capitalize}</legend>
@@ -96,9 +102,9 @@
 <div id="profileWorkerTabs">
 	<ul>
 		{$tabs = []}
-		{$point = "cerberusweb.profiles.worker.{$dict->id}"}
+		{$point = "cerberusweb.profiles.worker.{$worker->id}"}
 		
-		{if !$dict->is_disabled}
+		{if !$worker->is_disabled}
 			{$tabs[] = 'responsibilities'}
 			<li data-alias="responsibilities"><a href="{devblocks_url}ajax.php?c=internal&a=handleSectionAction&section=responsibilities&action=showResponsibilitiesTab&point={$point}&context={$page_context}&context_id={$page_context_id}{/devblocks_url}">{'common.responsibilities'|devblocks_translate|capitalize}</a></li>
 		
@@ -108,10 +114,10 @@
 			{/if}
 			
 			{$tabs[] = 'calendar'}
-			<li data-alias="calendar"><a href="{devblocks_url}ajax.php?c=internal&a=handleSectionAction&section=calendars&action=showCalendarTab&point={$point}&context={$page_context}&context_id={$page_context_id}&id={$dict->calendar_id}{/devblocks_url}">{'common.calendar'|devblocks_translate|capitalize}</a></li>
+			<li data-alias="calendar"><a href="{devblocks_url}ajax.php?c=internal&a=handleSectionAction&section=calendars&action=showCalendarTab&point={$point}&context={$page_context}&context_id={$page_context_id}&id={$worker->calendar_id}{/devblocks_url}">{'common.calendar'|devblocks_translate|capitalize}</a></li>
 	
 			{$tabs[] = 'availability'}
-			<li data-alias="availability"><a href="{devblocks_url}ajax.php?c=internal&a=handleSectionAction&section=calendars&action=showCalendarAvailabilityTab&point={$point}&context={$page_context}&context_id={$page_context_id}&id={$dict->calendar_id}{/devblocks_url}">{'common.availability'|devblocks_translate|capitalize}</a></li>
+			<li data-alias="availability"><a href="{devblocks_url}ajax.php?c=internal&a=handleSectionAction&section=calendars&action=showCalendarAvailabilityTab&point={$point}&context={$page_context}&context_id={$page_context_id}&id={$worker->calendar_id}{/devblocks_url}">{'common.availability'|devblocks_translate|capitalize}</a></li>
 		{/if}
 		
 		{$tabs[] = 'activity'}
@@ -120,12 +126,12 @@
 		{$tabs[] = 'comments'}
 		<li data-alias="comments"><a href="{devblocks_url}ajax.php?c=internal&a=showTabContextComments&context={$page_context}&id={$page_context_id}{/devblocks_url}">{'common.comments'|devblocks_translate|capitalize} <div class="tab-badge">{DAO_Comment::count($page_context, $page_context_id)|default:0}</div></a></li>
 
-		{if $active_worker->is_superuser || $dict->id == $active_worker->id}
+		{if $active_worker->is_superuser || $worker->id == $active_worker->id}
 		{$tabs[] = 'attendants'}
 		<li data-alias="attendants"><a href="{devblocks_url}ajax.php?c=internal&a=showAttendantsTab&point={$point}&context={$page_context}&context_id={$page_context_id}{/devblocks_url}">{'common.bots'|devblocks_translate|capitalize}</a></li>
 		{/if}
 		
-		{if $active_worker->is_superuser || $dict->id == $active_worker->id}
+		{if $active_worker->is_superuser || $worker->id == $active_worker->id}
 		{$tabs[] = 'snippets'}
 		<li data-alias="snippets"><a href="{devblocks_url}ajax.php?c=internal&a=showTabSnippets&point={$point}&context={$page_context}&context_id={$page_context_id}{/devblocks_url}">{'common.snippets'|devblocks_translate|capitalize}</a></li>
 		{/if}
@@ -144,15 +150,6 @@ $(function() {
 	tabOptions.active = Devblocks.getjQueryUiTabSelected('profileWorkerTabs', '{$tab}');
 	
 	var tabs = $("#profileWorkerTabs").tabs(tabOptions);
-	
-	// Interactions
-	var $interaction_container = $('#spanInteractions');
-	{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.js.tpl"}
-	
-	// Card
-	$('#btnProfileCard')
-		.cerbPeekTrigger()
-	;
 	
 	// Edit
 	
@@ -177,11 +174,13 @@ $(function() {
 	// Impersonate
 	
 	$('#btnProfileWorkerPossess').click(function() {
-		genericAjaxGet('','c=internal&a=su&worker_id={$dict->id}',function(o) {
+		genericAjaxGet('','c=internal&a=su&worker_id={$worker->id}',function(o) {
 			window.location = window.location;
 		});
 	});
 });
+
+{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_button=null selector_menu=null}
 </script>
 
 <script type="text/javascript">

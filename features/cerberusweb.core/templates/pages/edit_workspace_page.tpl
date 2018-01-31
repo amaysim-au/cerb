@@ -1,4 +1,3 @@
-{$peek_context = CerberusContexts::CONTEXT_WORKSPACE_PAGE}
 {* Capture the form, since we might drop it inside a tab set if this is a new page *}
 {capture name=workspace_page_build}
 <form action="#" method="post" id="frmEditWorkspacePage" onsubmit="return false;">
@@ -70,7 +69,6 @@
 </fieldset>
 {/if}
 
-{if !empty($workspace_page) && $active_worker->hasPriv("contexts.{$peek_context}.delete")}
 <fieldset class="delete" style="display:none;">
 	<legend>Are you sure you want to permanently delete this workspace page?</legend>
 	
@@ -81,11 +79,10 @@
 	<button type="button" class="red" onclick="$('#frmEditWorkspacePage').find('input:hidden[name=do_delete]').val('1');genericAjaxPopupPostCloseReloadView(null,'frmEditWorkspacePage','{$view_id}',false,'workspace_delete');">{'common.yes'|devblocks_translate|capitalize}</button>
 	<button type="button" onclick="$(this).closest('fieldset').fadeOut().siblings('div.toolbar').fadeIn();">{'common.no'|devblocks_translate|capitalize}</button>
 </fieldset>
-{/if}
 
 <div class="toolbar">
-	{if (!$workspace_page && $active_worker->hasPriv("contexts.{$peek_context}.create")) || ($workspace_page && $active_worker->hasPriv("contexts.{$peek_context}.update"))}<button type="button" onclick="genericAjaxPopupPostCloseReloadView(null,'frmEditWorkspacePage','{$view_id}',false,'workspace_save');"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate}</button>{/if}
-	{if !empty($workspace_page) && $active_worker->hasPriv("contexts.{$peek_context}.delete")}<button type="button" onclick="$(this).closest('div.toolbar').fadeOut().siblings('fieldset.delete').fadeIn();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
+	<button type="button" onclick="genericAjaxPopupPostCloseReloadView(null,'frmEditWorkspacePage','{$view_id}',false,'workspace_save');"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate}</button>
+	{if !empty($workspace_page)}<button type="button" onclick="$(this).closest('div.toolbar').fadeOut().siblings('fieldset.delete').fadeIn();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
 </div>
 </form>
 {/capture}
@@ -95,14 +92,13 @@
 <div class="tabs">
 	<ul>
 		<li><a href="#tabWorkspacePage{$workspace_page->id}Build">Build</a></li>
-		{if $active_worker->hasPriv("contexts.{$peek_context}.import")}<li><a href="#tabWorkspacePage{$workspace_page->id}Import">Import</a></li>{/if}
+		<li><a href="#tabWorkspacePage{$workspace_page->id}Import">Import</a></li>
 	</ul>
 	
 	<div id="tabWorkspacePage{$workspace_page->id}Build">
 		{$smarty.capture.workspace_page_build nofilter}
 	</div>
 	
-	{if $active_worker->hasPriv("contexts.{$peek_context}.import")}
 	<div id="tabWorkspacePage{$workspace_page->id}Import">
 		<form action="{devblocks_url}{/devblocks_url}" method="post" id="frmWorkspacePageImport" onsubmit="return false;">
 		<input type="hidden" name="c" value="pages">
@@ -153,7 +149,6 @@
 		</div>
 		</form>
 	</div>
-	{/if}
 </div>
 {else}{* Otherwise, just draw the form to edit an existing page *}
 	{$smarty.capture.workspace_page_build nofilter}
@@ -166,8 +161,6 @@ $(function() {
 	
 	$popup.one('popup_open', function(event,ui) {
 		$popup.dialog('option','title',"{if !empty($workspace_page)}Edit Page{else}Add Page{/if}");
-		$popup.css('overflow', 'inherit');
-		
 		$('#frmEditWorkspacePage').sortable({ items: 'DIV.column', placeholder:'ui-state-highlight' });
 		
 		$frm.find('input:text:first').focus().select();

@@ -28,10 +28,9 @@
 </ul>
 
 <script type="text/javascript">
-$(function() {
 // Menu
-var $menu_trigger = $('#{$menu_button}');
-var $menu = $menu_trigger.nextAll('ul.cerb-popupmenu');
+$menu_trigger = $('#{$menu_button}');
+$menu = $menu_trigger.nextAll('ul.cerb-popupmenu');
 $menu_trigger.data('menu', $menu);
 
 $menu_trigger
@@ -56,7 +55,7 @@ $menu_trigger
 
 $menu.find('> li.filter > input.input_search').keypress(
 	function(e) {
-		var code = e.keyCode || e.which;
+		code = (e.keyCode ? e.keyCode : e.which);
 		if(code == 13) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -105,5 +104,5 @@ $menu.find('> li.item > a').click(function() {
 	
 	$bubbles.append($bubble);
 });
-});
+
 </script>

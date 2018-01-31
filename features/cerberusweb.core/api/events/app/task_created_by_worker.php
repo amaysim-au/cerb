@@ -24,7 +24,7 @@ class Event_TaskCreatedByWorker extends AbstractEvent_Task {
 	}
 	
 	static function trigger($context_id, $worker_id) {
-		$events = DevblocksPlatform::services()->event();
+		$events = DevblocksPlatform::getEventService();
 		return $events->trigger(
 			new Model_DevblocksEvent(
 				self::ID,

@@ -31,19 +31,10 @@ $(function() {
 	
 	$menu
 		.menu({
+			//items: "> :not(.ui-widget-header)",
 			select: function(event, ui) {
 				var val = ui.item.attr('data-value');
-				
-				var $field = $widget.find('pre.ace_editor');
-				
-				if($field.is(':text, textarea')) {
-					$field.focus().insertAtCursor(val);
-					
-				} else if($field.is('.ace_editor')) {
-					var evt = new jQuery.Event('cerb.insertAtCursor');
-					evt.content = val;
-					$field.trigger(evt);
-				}
+				$textarea.insertAtCursor(val);
 			}
 		})
 		.hide()
@@ -52,7 +43,11 @@ $(function() {
 	// Syntax editor autocompletion
 	
 	$textarea
-		.cerbCodeEditor()
+		.cerbTwigCodeCompletion()
 		;
+	
+	// HTML editor
+	
+	$textarea.markItUp(markitupHTMLDefaults);
 });
 </script>

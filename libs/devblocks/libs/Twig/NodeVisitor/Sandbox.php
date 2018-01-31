@@ -3,7 +3,7 @@
 /*
  * This file is part of Twig.
  *
- * (c) Fabien Potencier
+ * (c) 2009 Fabien Potencier
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -12,18 +12,24 @@
 /**
  * Twig_NodeVisitor_Sandbox implements sandboxing.
  *
- * @final
- *
  * @author Fabien Potencier <fabien@symfony.com>
  */
-class Twig_NodeVisitor_Sandbox extends Twig_BaseNodeVisitor
+class Twig_NodeVisitor_Sandbox implements Twig_NodeVisitorInterface
 {
     protected $inAModule = false;
     protected $tags;
     protected $filters;
     protected $functions;
 
-    protected function doEnterNode(Twig_Node $node, Twig_Environment $env)
+    /**
+     * Called before child nodes are visited.
+     *
+     * @param Twig_NodeInterface $node The node to visit
+     * @param Twig_Environment   $env  The Twig environment instance
+     *
+     * @return Twig_NodeInterface The modified node
+     */
+    public function enterNode(Twig_NodeInterface $node, Twig_Environment $env)
     {
         if ($node instanceof Twig_Node_Module) {
             $this->inAModule = true;
@@ -50,24 +56,35 @@ class Twig_NodeVisitor_Sandbox extends Twig_BaseNodeVisitor
 
             // wrap print to check __toString() calls
             if ($node instanceof Twig_Node_Print) {
-                return new Twig_Node_SandboxedPrint($node->getNode('expr'), $node->getTemplateLine(), $node->getNodeTag());
+                return new Twig_Node_SandboxedPrint($node->getNode('expr'), $node->getLine(), $node->getNodeTag());
             }
         }
 
         return $node;
     }
 
-    protected function doLeaveNode(Twig_Node $node, Twig_Environment $env)
+    /**
+     * Called after child nodes are visited.
+     *
+     * @param Twig_NodeInterface $node The node to visit
+     * @param Twig_Environment   $env  The Twig environment instance
+     *
+     * @return Twig_NodeInterface The modified node
+     */
+    public function leaveNode(Twig_NodeInterface $node, Twig_Environment $env)
     {
         if ($node instanceof Twig_Node_Module) {
             $this->inAModule = false;
 
-            $node->setNode('display_start', new Twig_Node(array(new Twig_Node_CheckSecurity($this->filters, $this->tags, $this->functions), $node->getNode('display_start'))));
+            return new Twig_Node_SandboxedModule($node, $this->filters, $this->tags, $this->functions);
         }
 
         return $node;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function getPriority()
     {
         return 0;

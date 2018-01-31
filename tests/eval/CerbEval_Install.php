@@ -6,8 +6,8 @@ class CerbEval_Install extends PHPUnit_Framework_TestCase {
 	
 	public function testRequirements() {
 		// Version
-		$actual = version_compare(PHP_VERSION, "7.0", ">=");
-		$this->assertEquals(true, $actual, sprintf('Cerb requires a PHP version of 7.0+, currently %s', PHP_VERSION));
+		$actual = version_compare(PHP_VERSION, "5.5", ">=");
+		$this->assertEquals(true, $actual, sprintf('Cerb requires a PHP version of 5.5+, currently %s', PHP_VERSION));
 
 		// File Uploads
 		$ini_file_uploads = ini_get("file_uploads");
@@ -46,12 +46,12 @@ class CerbEval_Install extends PHPUnit_Framework_TestCase {
 	}
 	
 	function testDatabase() {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$this->assertNotNull($db);
 	}
 	
 	function testDatabaseSchemaIsEmpty() {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$this->assertNotNull($db);
 		
 		$tables = $db->metaTables();
@@ -95,9 +95,6 @@ class CerbEval_Install extends PHPUnit_Framework_TestCase {
 				case 'cerberusweb.support_center':
 				case 'cerberusweb.simulator':
 				case 'cerberusweb.timetracking':
-				case 'cerb.bots.portal.widget':
-				case 'cerb.project_boards':
-				case 'cerb.webhooks':
 					$plugin->setEnabled(true);
 					break;
 				
@@ -116,8 +113,8 @@ class CerbEval_Install extends PHPUnit_Framework_TestCase {
 			// Reload plugin translations
 			DAO_Translation::reloadPluginStrings();
 			
-			DevblocksPlatform::services()->cache()->clean();
-			DevblocksPlatform::services()->classloader()->destroy();
+			DevblocksPlatform::getCacheService()->clean();
+			DevblocksPlatform::getClassLoaderService()->destroy();
 			
 		} catch(Exception $e) {
 			$this->assertTrue(false, "Failed to initialize the Cerb database tables");
@@ -154,14 +151,5 @@ class CerbEval_Install extends PHPUnit_Framework_TestCase {
 		
 		DAO_Worker::setAuth($worker_id, 'cerb');
 		
-	}
-	
-	function testCreateVersionFile() {
-		$path = APP_STORAGE_PATH . '/version.php';
-		$contents = sprintf('<?php define(\'APP_BUILD_CACHED\', %s);', APP_BUILD);
-		
-		if(!file_put_contents($path, $contents)) {
-			$this->assertTrue(false, "Failed to write the version.php file in storage.");
-		}
 	}
 };

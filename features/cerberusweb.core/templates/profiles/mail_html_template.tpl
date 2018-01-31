@@ -1,15 +1,36 @@
 {$page_context = CerberusContexts::CONTEXT_MAIL_HTML_TEMPLATE}
 {$page_context_id = $mail_html_template->id}
-{$is_writeable = Context_MailHtmlTemplate::isWriteableByActor($mail_html_template, $active_worker)}
 
-<h1>{$mail_html_template->name}</h1>
+<div style="float:left">
+	<h1>{$mail_html_template->name}</h1>
+</div>
+
+<div style="float:right;">
+{$ctx = Extension_DevblocksContext::get($page_context)}
+{include file="devblocks:cerberusweb.core::search/quick_search.tpl" view=$ctx->getSearchView() return_url="{devblocks_url}c=search&context={$ctx->manifest->params.alias}{/devblocks_url}"}
+</div>
+
+<div style="clear:both;"></div>
 
 <div class="cerb-profile-toolbar">
 	<form class="toolbar" action="{devblocks_url}{/devblocks_url}" onsubmit="return false;" style="margin-bottom:5px;">
 		<input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
 		
+		<!-- Toolbar -->
+		
+		{*
+		<span>
+		{$object_watchers = DAO_ContextLink::getContextLinks($page_context, array($page_context_id), CerberusContexts::CONTEXT_WORKER)}
+		{include file="devblocks:cerberusweb.core::internal/watchers/context_follow_button.tpl" context=$page_context context_id=$page_context_id full=true}
+		</span>
+		*}
+		
+		<!-- Macros -->
+		{devblocks_url assign=return_url full=true}c=profiles&type=html_template&id={$page_context_id}-{$mail_html_template->name|devblocks_permalink}{/devblocks_url}
+		{include file="devblocks:cerberusweb.core::internal/macros/display/button.tpl" context=$page_context context_id=$page_context_id macros=$macros return_url=$return_url}
+		
 		<!-- Edit -->
-		{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
+		{if $active_worker->is_superuser}
 		<button type="button" id="btnDisplayMailHtmlTemplateEdit" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_MAIL_HTML_TEMPLATE}" data-context-id="{$page_context_id}" data-edit="true" title="{'common.edit'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-cogwheel"></span></button>
 		{/if}
 	</form>
@@ -18,6 +39,7 @@
 		<small>
 		{$translate->_('common.keyboard')|lower}:
 		(<b>e</b>) {'common.edit'|devblocks_translate|lower}
+		{if !empty($macros)}(<b>m</b>) {'common.macros'|devblocks_translate|lower} {/if}
 		(<b>1-9</b>) change tab
 		</small>
 	{/if}
@@ -95,6 +117,8 @@
 			.on('cerb-peek-closed', function(e) {
 			})
 			;
+		
+		{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_button=null selector_menu=null}
 	});
 </script>
 

@@ -17,87 +17,17 @@
 
 class DAO_Attachment extends Cerb_ORMHelper {
 	const ID = 'id';
-	const MIME_TYPE = 'mime_type';
 	const NAME = 'name';
+	const MIME_TYPE = 'mime_type';
 	const STORAGE_EXTENSION = 'storage_extension';
 	const STORAGE_KEY = 'storage_key';
+	const STORAGE_SIZE = 'storage_size';
 	const STORAGE_PROFILE_ID = 'storage_profile_id';
 	const STORAGE_SHA1HASH = 'storage_sha1hash';
-	const STORAGE_SIZE = 'storage_size';
 	const UPDATED = 'updated';
 	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		$validation
-			->addField(self::MIME_TYPE)
-			->string()
-			->setNotEmpty(true)
-			;
-		$validation
-			->addField(self::NAME)
-			->string()
-			->setNotEmpty(true)
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::STORAGE_EXTENSION)
-			->string()
-			->setEditable(false)
-			;
-		$validation
-			->addField(self::STORAGE_KEY)
-			->string()
-			->setEditable(false)
-			;
-		$validation
-			->addField(self::STORAGE_PROFILE_ID)
-			->uint(4)
-			->setEditable(false)
-			;
-		$validation
-			->addField(self::STORAGE_SHA1HASH)
-			->string()
-			->setMaxLength(40)
-			->setEditable(false)
-			;
-		$validation
-			->addField(self::STORAGE_SIZE)
-			->uint(4)
-			->setEditable(false)
-			;
-		$validation
-			->addField(self::UPDATED)
-			->timestamp()
-			;
-		$validation
-			->addField('_attach')
-			->string()
-			->setMaxLength('32 bits')
-			;
-		$validation
-			->addField('_content')
-			->string()
-			->setMaxLength('32 bits')
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
-	
 	public static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "INSERT INTO attachment () VALUES ()";
 		if(false == ($db->ExecuteMaster($sql)))
@@ -109,81 +39,15 @@ class DAO_Attachment extends Cerb_ORMHelper {
 		return $id;
 	}
 	
-	public static function update($ids, $fields) {
-		if(!is_array($ids))
-			$ids = [$ids];
-		
+	public static function update($id, $fields) {
 		if(!isset($fields[self::UPDATED]))
 			$fields[self::UPDATED] = time();
 		
-		self::_updateAbstract(Context_Attachment::ID, $ids, $fields);
-		self::_updateAttach($ids, $fields);
-		self::_updateContent($ids, $fields);
-		
-		self::_update($ids, 'attachment', $fields);
-	}
-	
-	private static function _updateAttach($ids, &$fields) {
-		if(!is_array($ids))
-			$ids = [$ids];
-		
-		if(!isset($fields['_attach']))
-			return;
-		
-		$links_json = $fields['_attach'];
-		unset($fields['_attach']);
-		
-		if(false == (@$links = json_decode($links_json)))
-			return;
-		
-		if(is_array($links))
-		foreach($links as $link) {
-			$link_context = $link_id = null;
-			
-			if(!is_string($link))
-				continue;
-			
-			@list($link_context, $link_id) = explode(':', $link, 2);
-			
-			if(false == ($link_context_ext = Extension_DevblocksContext::getByAlias($link_context, false)))
-				continue;
-			
-			foreach($ids as $id)
-				DAO_Attachment::addLinks($link_context_ext->id, $link_id, $ids);
-		}
-	}
-	
-	private static function _updateContent($ids, &$fields) {
-		if(!isset($fields['_content']))
-			return;
-			
-		@$content = $fields['_content'];
-		unset($fields['_content']);
-		
-		// If base64 encoded
-		if(DevblocksPlatform::strStartsWith($content, 'data:')) {
-			if(false !== ($idx = strpos($content, ';base64,'))) {
-				$content = base64_decode(substr($content, $idx + strlen(';base64,')));
-			}
-		}
-		
-		$fields[self::STORAGE_SHA1HASH] = sha1($content);
-		
-		foreach($ids as $id) {
-			Storage_Attachments::put($id, $content);
-		}
-	}
-	
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		$context = CerberusContexts::CONTEXT_ATTACHMENT;
-		
-		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
-			return false;
-		
-		return true;
+		self::_update($id, 'attachment', $fields);
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param integer $id
 	 * @return Model_Attachment
@@ -208,7 +72,7 @@ class DAO_Attachment extends Cerb_ORMHelper {
 	 * @return Model_Attachment[]
 	 */
 	static function getWhere($where=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "SELECT id,name,mime_type,storage_size,storage_extension,storage_key,storage_profile_id,storage_sha1hash,updated ".
 			"FROM attachment ".
@@ -244,37 +108,7 @@ class DAO_Attachment extends Cerb_ORMHelper {
 	}
 	
 	static function setLinks($context, $context_id, $file_ids) {
-		$db = DevblocksPlatform::services()->database();
-		
-		$sql = sprintf("DELETE FROM attachment_link WHERE context = %s AND context_id = %d",
-			$db->qstr($context),
-			$context_id
-		);
-		$db->ExecuteMaster($sql);
-		
-		return self::addLinks($context, $context_id, $file_ids);
-	}
-	
-	static function deleteLinks($context, $context_ids) {
-		$db = DevblocksPlatform::services()->database();
-		
-		if(!is_array($context_ids))
-			$context_ids = [$context_ids];
-		
-		$context_ids = DevblocksPlatform::sanitizeArray($context_ids, 'int');
-		
-		if(empty($context_ids))
-			return;
-		
-		$sql = sprintf("DELETE FROM attachment_link WHERE context = %s AND context_id IN (%s)",
-			$db->qstr($context),
-			implode(',', $context_ids)
-		);
-		$db->ExecuteMaster($sql);
-	}
-	
-	static function addLinks($context, $context_id, $file_ids) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(!is_array($file_ids))
 			$file_ids = array($file_ids);
@@ -299,7 +133,7 @@ class DAO_Attachment extends Cerb_ORMHelper {
 	}
 	
 	static function getLinks($file_id, $only_contexts=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$contexts = [];
 		
 		$sql = sprintf("SELECT context, context_id FROM attachment_link WHERE attachment_id = %d",
@@ -325,7 +159,7 @@ class DAO_Attachment extends Cerb_ORMHelper {
 	}
 	
 	static function getLinkCounts($context_id) {
-		$db = DevblocksPlatform::services()->database(); 
+		$db = DevblocksPlatform::getDatabaseService(); 
 		
 		$results = $db->GetArrayMaster(sprintf("SELECT count(context_id) AS hits, context FROM attachment_link WHERE attachment_id = %d GROUP BY context",
 			$context_id
@@ -346,7 +180,7 @@ class DAO_Attachment extends Cerb_ORMHelper {
 		if(empty($context) && empty($context_ids))
 			return array();
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$results = self::getWhere(sprintf("id in (SELECT attachment_id FROM attachment_link WHERE context = %s AND context_id IN (%s))",
 			$db->qstr($context),
@@ -378,10 +212,7 @@ class DAO_Attachment extends Cerb_ORMHelper {
 	}
 	
 	static function getBySha1Hash($sha1_hash, $file_name=null, $file_size=null) {
-		$db = DevblocksPlatform::services()->database();
-		
-		if(empty($sha1_hash) || $sha1_hash == 'da39a3ee5e6b4b0d3255bfef95601890afd80709')
-			return null;
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("SELECT id ".
 			"FROM attachment ".
@@ -399,8 +230,8 @@ class DAO_Attachment extends Cerb_ORMHelper {
 	}
 	
 	static function maint() {
-		$db = DevblocksPlatform::services()->database();
-		$logger = DevblocksPlatform::services()->log();
+		$db = DevblocksPlatform::getDatabaseService();
+		$logger = DevblocksPlatform::getConsoleLog();
 		
 		// Delete attachments where links=0 and created > 1h
 		// This also cleans up temporary attachment uploads from the file chooser.
@@ -424,7 +255,7 @@ class DAO_Attachment extends Cerb_ORMHelper {
 	}
 	
 	static function count($context, $context_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$query = null;
 		
 		if(false == ($context_ext = Extension_DevblocksContext::get(CerberusContexts::CONTEXT_ATTACHMENT)))
@@ -432,24 +263,11 @@ class DAO_Attachment extends Cerb_ORMHelper {
 		
 		switch($context) {
 			case CerberusContexts::CONTEXT_TICKET:
-				//$query = sprintf("(on.msgs:(ticket.id:%d) OR on.comments:(on.ticket:(id:%d)) OR on.comments:(on.msgs:(ticket.id:%d)))", $context_id, $context_id, $context_id);
-				$sql = sprintf(
-					"SELECT COUNT(1) FROM (".
-					"SELECT attachment_id FROM attachment_link WHERE context = 'cerberusweb.contexts.message' AND context_id IN (SELECT m.id FROM message m INNER JOIN ticket t ON (m.ticket_id = t.id) INNER JOIN address a ON (m.address_id = a.id) WHERE (m.ticket_id = %d)) ".
-					"UNION ".
-					"SELECT attachment_id FROM attachment_link WHERE context = 'cerberusweb.contexts.comment' AND context_id IN (SELECT comment.id FROM comment WHERE ((context = 'cerberusweb.contexts.ticket' AND context_id IN (SELECT t.id FROM ticket t  WHERE (t.id = %d))))) ".
-					"UNION ".
-					"SELECT attachment_id FROM attachment_link WHERE context = 'cerberusweb.contexts.comment' AND context_id IN (SELECT comment.id FROM comment WHERE ((context = 'cerberusweb.contexts.message' AND context_id IN (SELECT m.id FROM message m INNER JOIN ticket t ON (m.ticket_id = t.id) INNER JOIN address a ON (m.address_id = a.id) WHERE (m.ticket_id = %d)))))".
-					") S",
-					$context_id,
-					$context_id,
-					$context_id
-				);
-				return $db->GetOneSlave($sql);
+				$query = sprintf("(on.msgs:(ticket.id:%d) OR on.comments:(on.ticket:(id:%d)))", $context_id, $context_id);
 				break;
 				
 			default:
-				if(false == ($manifest = Extension_DevblocksContext::get($context, false)))
+				if(false == ($manifest = DevblocksPlatform::getExtension($context)))
 					break;
 				
 				if(false == ($aliases = Extension_DevblocksContext::getAliasesForContext($manifest)))
@@ -468,7 +286,6 @@ class DAO_Attachment extends Cerb_ORMHelper {
 		$view->is_ephemeral = true;
 		$view->setAutoPersist(false);
 		$view->addParamsWithQuickSearch($query, true);
-		$view->renderPage = 0;
 		$view->renderTotal = true;
 		
 		$query_parts = DAO_Attachment::getSearchQueryComponents($view->view_columns, $view->getParams());
@@ -477,12 +294,11 @@ class DAO_Attachment extends Cerb_ORMHelper {
 			$query_parts['join'] .
 			$query_parts['where']
 			;
-		
 		return $db->GetOneSlave($sql);
 	}
 	
 	static function delete($ids) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(!is_array($ids))
 			$ids = array($ids);
@@ -553,6 +369,7 @@ class DAO_Attachment extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param DevblocksSearchCriteria[] $params
 	 * @param integer $limit
@@ -563,7 +380,7 @@ class DAO_Attachment extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -666,7 +483,6 @@ class SearchFields_Attachment extends DevblocksSearchFields {
 			$view->is_ephemeral = true;
 			$view->setAutoPersist(false);
 			$view->addParamsWithQuickSearch($query, true);
-			$view->renderPage = 0;
 			
 			$params = $view->getParams();
 			
@@ -804,7 +620,7 @@ class Storage_Attachments extends Extension_DevblocksStorageSchema {
 	}
 
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('active_storage_profile', $this->getParam('active_storage_profile', 'devblocks.storage.engine.disk'));
 		$tpl->assign('archive_storage_profile', $this->getParam('archive_storage_profile', 'devblocks.storage.engine.disk'));
@@ -814,7 +630,7 @@ class Storage_Attachments extends Extension_DevblocksStorageSchema {
 	}
 	
 	function renderConfig() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('active_storage_profile', $this->getParam('active_storage_profile', 'devblocks.storage.engine.disk'));
 		$tpl->assign('archive_storage_profile', $this->getParam('archive_storage_profile', 'devblocks.storage.engine.disk'));
@@ -841,7 +657,7 @@ class Storage_Attachments extends Extension_DevblocksStorageSchema {
 	
 	/**
 	 * @param Model_Attachment | $attachment_id
-	 * @return mixed
+	 * @return unknown_type
 	 */
 	public static function get($object, &$fp=null) {
 		if($object instanceof Model_Attachment) {
@@ -906,7 +722,7 @@ class Storage_Attachments extends Extension_DevblocksStorageSchema {
 	public static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("SELECT storage_extension, storage_key, storage_profile_id FROM attachment WHERE id IN (%s)", implode(',',$ids));
 		
@@ -933,7 +749,7 @@ class Storage_Attachments extends Extension_DevblocksStorageSchema {
 	}
 	
 	public static function archive($stop_time=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Params
 		$src_profile = DAO_DevblocksStorageProfile::get(DAO_DevblocksExtensionPropertyStore::get(self::ID, 'active_storage_profile'));
@@ -973,7 +789,7 @@ class Storage_Attachments extends Extension_DevblocksStorageSchema {
 	public static function unarchive($stop_time=null) {
 		// We don't want to unarchive message content under any condition
 		/*
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// Params
 		$dst_profile = DAO_DevblocksStorageProfile::get(DAO_DevblocksExtensionPropertyStore::get(self::ID, 'active_storage_profile'));
@@ -1007,7 +823,7 @@ class Storage_Attachments extends Extension_DevblocksStorageSchema {
 	}
 	
 	private static function _migrate($dst_profile, $row, $is_unarchive=false) {
-		$logger = DevblocksPlatform::services()->log();
+		$logger = DevblocksPlatform::getConsoleLog();
 		
 		$ns = 'attachments';
 		
@@ -1205,7 +1021,7 @@ class View_Attachment extends C4_AbstractView implements IAbstractView_Subtotals
 					
 				// Valid custom fields
 				default:
-					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
+					if('cf_' == substr($field_key,0,3))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -1346,7 +1162,7 @@ class View_Attachment extends C4_AbstractView implements IAbstractView_Subtotals
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1359,7 +1175,7 @@ class View_Attachment extends C4_AbstractView implements IAbstractView_Subtotals
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {
@@ -1483,22 +1299,6 @@ class View_Attachment extends C4_AbstractView implements IAbstractView_Subtotals
 class Context_Attachment extends Extension_DevblocksContext implements IDevblocksContextPeek, IDevblocksContextProfile {
 	const ID = CerberusContexts::CONTEXT_ATTACHMENT;
 	
-	static function isReadableByActor($models, $actor) {
-		// Everyone can view attachment meta
-		return CerberusContexts::allowEverything($models);
-	}
-	
-	static function isWriteableByActor($models, $actor) {
-		// Only admins can edit attachment meta
-		if(false == ($actor = CerberusContexts::polymorphActorToDictionary($actor)))
-			return CerberusContexts::denyEverything($models);
-		
-		if(CerberusContexts::isActorAnAdmin($actor))
-			return CerberusContexts::allowEverything($models);
-			
-		return CerberusContexts::denyEverything($models);
-	}
-	
 	static function isDownloadableByActor($models, $actor) {
 		if(false == ($actor = CerberusContexts::polymorphActorToDictionary($actor)))
 			return CerberusContexts::denyEverything($models);
@@ -1512,7 +1312,7 @@ class Context_Attachment extends Extension_DevblocksContext implements IDevblock
 		
 		$results = array_fill_keys(array_keys($dicts), false);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Approve attachments by session (worklist export)
 		// [TODO] We can remove this once we have 'files' as a first-class object (complementary to attachments)
@@ -1559,7 +1359,6 @@ class Context_Attachment extends Extension_DevblocksContext implements IDevblock
 		
 		$only_contexts = [
 			CerberusContexts::CONTEXT_COMMENT,
-			CerberusContexts::CONTEXT_DRAFT,
 			CerberusContexts::CONTEXT_FILE_BUNDLE,
 			CerberusContexts::CONTEXT_KB_ARTICLE,
 			CerberusContexts::CONTEXT_MAIL_HTML_TEMPLATE,
@@ -1576,7 +1375,7 @@ class Context_Attachment extends Extension_DevblocksContext implements IDevblock
 				continue;
 			
 			foreach($links as $context => $ids) {
-				if(false == ($mft = Extension_DevblocksContext::get($context, false)))
+				if(false == ($mft = DevblocksPlatform::getExtension($context, false)))
 					continue;
 				
 				$class = $mft->class;
@@ -1600,11 +1399,27 @@ class Context_Attachment extends Extension_DevblocksContext implements IDevblock
 		}
 	}
 	
+	static function isReadableByActor($models, $actor) {
+		// Everyone can view attachment meta
+		return CerberusContexts::allowEverything($models);
+	}
+	
+	static function isWriteableByActor($models, $actor) {
+		// Only admins can edit attachment meta
+		if(false == ($actor = CerberusContexts::polymorphActorToDictionary($actor)))
+			return CerberusContexts::denyEverything($models);
+		
+		if(CerberusContexts::isActorAnAdmin($actor))
+			return CerberusContexts::allowEverything($models);
+			
+		return CerberusContexts::denyEverything($models);
+	}
+	
 	function profileGetUrl($context_id) {
 		if(empty($context_id))
 			return '';
 	
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		$url = $url_writer->writeNoProxy('c=profiles&type=attachment&id='.$context_id, true);
 		return $url;
 	}
@@ -1684,7 +1499,6 @@ class Context_Attachment extends Extension_DevblocksContext implements IDevblock
 			'size' => $prefix.$translate->_('common.size'),
 			'storage_extension' => $prefix.$translate->_('attachment.storage_extension'),
 			'storage_key' => $prefix.$translate->_('attachment.storage_key'),
-			'storage_sha1hash' => $prefix.$translate->_('attachment.storage_sha1hash'),
 			'updated' => $prefix.$translate->_('common.updated'),
 		);
 		
@@ -1696,7 +1510,6 @@ class Context_Attachment extends Extension_DevblocksContext implements IDevblock
 			'size' => 'size_bytes',
 			'storage_extension' => Model_CustomField::TYPE_SINGLE_LINE,
 			'storage_key' => Model_CustomField::TYPE_SINGLE_LINE,
-			'storage_sha1hash' => Model_CustomField::TYPE_SINGLE_LINE,
 			'updated' => Model_CustomField::TYPE_DATE,
 		);
 		
@@ -1709,7 +1522,7 @@ class Context_Attachment extends Extension_DevblocksContext implements IDevblock
 			$token_types = array_merge($token_types, $custom_field_types);
 		
 		// Token values
-		$token_values = [];
+		$token_values = array();
 		
 		$token_values['_context'] = CerberusContexts::CONTEXT_ATTACHMENT;
 		$token_values['_types'] = $token_types;
@@ -1724,7 +1537,6 @@ class Context_Attachment extends Extension_DevblocksContext implements IDevblock
 			$token_values['size'] = $attachment->storage_size;
 			$token_values['storage_extension'] = $attachment->storage_extension;
 			$token_values['storage_key'] = $attachment->storage_key;
-			$token_values['storage_sha1hash'] = $attachment->storage_sha1hash;
 			$token_values['updated'] = $attachment->updated;
 			
 			// Custom fields
@@ -1734,73 +1546,6 @@ class Context_Attachment extends Extension_DevblocksContext implements IDevblock
 		return true;
 	}
 
-	function getKeyToDaoFieldMap() {
-		return [
-			'attach' => '_attach',
-			'content' => '_content',
-			'id' => DAO_Attachment::ID,
-			'links' => '_links',
-			'mime_type' => DAO_Attachment::MIME_TYPE,
-			'name' => DAO_Attachment::NAME,
-			'size' => DAO_Attachment::STORAGE_SIZE,
-			'storage_extension' => DAO_Attachment::STORAGE_EXTENSION,
-			'storage_key' => DAO_Attachment::STORAGE_KEY,
-			'updated' => DAO_Attachment::UPDATED,
-		];
-	}
-	
-	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
-		switch(DevblocksPlatform::strLower($key)) {
-			case 'attach':
-				$this->_getDaoFieldsAttach($value, $out_fields, $error);
-				break;
-			
-			case 'content':
-				$out_fields['_content'] = $value;
-				break;
-				
-			case 'links':
-				$this->_getDaoFieldsLinks($value, $out_fields, $error);
-				break;
-		}
-		
-		return true;
-	}
-	
-	protected function _getDaoFieldsAttach($value, &$out_fields, &$error) {
-		if(!is_array($value)) {
-			$error = 'must be an array of context:id pairs.';
-			return false;
-		}
-		
-		$links = [];
-		
-		foreach($value as &$tuple) {
-			@list($context, $id) = explode(':', $tuple, 2);
-			
-			if(false == ($context_ext = Extension_DevblocksContext::getByAlias($context, false))) {
-				$error = sprintf("has a link with an invalid context (%s)", $tuple);
-				return false;
-			}
-			
-			$context = $context_ext->id;
-			
-			$tuple = sprintf("%s:%d",
-				$context,
-				$id
-			);
-			
-			$links[] = $tuple;
-		}
-		
-		if(false == ($json = json_encode($links))) {
-			$error = 'could not be JSON encoded.';
-			return false;
-		}
-		
-		$out_fields['_attach'] = $json;
-	}
-	
 	function lazyLoadContextValues($token, $dictionary) {
 		if(!isset($dictionary['id']))
 			return;
@@ -1885,7 +1630,7 @@ class Context_Attachment extends Extension_DevblocksContext implements IDevblock
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('view_id', $view_id);
 		
 		$context = CerberusContexts::CONTEXT_ATTACHMENT;

@@ -16,68 +16,16 @@
 ***********************************************************************/
 
 class DAO_Comment extends Cerb_ORMHelper {
-	const COMMENT = 'comment';
+	const ID = 'id';
 	const CONTEXT = 'context';
 	const CONTEXT_ID = 'context_id';
 	const CREATED = 'created';
-	const ID = 'id';
 	const OWNER_CONTEXT = 'owner_context';
 	const OWNER_CONTEXT_ID = 'owner_context_id';
-	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
-		
-		$validation
-			->addField(self::COMMENT)
-			->string()
-			->setMaxLength(65535)
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::CONTEXT)
-			->context()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::CONTEXT_ID)
-			->id()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::CREATED)
-			->timestamp()
-			;
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		$validation
-			->addField(self::OWNER_CONTEXT)
-			->context()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::OWNER_CONTEXT_ID)
-			->id()
-			->setRequired(true)
-			;
-		$validation
-			->addField('_links')
-			->string()
-			->setMaxLength(65535)
-			;
-			
-		return $validation->getFields();
-	}
+	const COMMENT = 'comment';
 
-	static function create($fields, $also_notify_worker_ids=[], $file_ids=[]) {
-		$db = DevblocksPlatform::services()->database();
-		
-		if(!isset($fields[self::CREATED]))
-			$fields[self::CREATED] = time();
+	static function create($fields, $also_notify_worker_ids=array(), $file_ids=array()) {
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$db->ExecuteMaster("INSERT INTO comment () VALUES ()");
 		$id = $db->LastInsertId();
@@ -89,102 +37,76 @@ class DAO_Comment extends Cerb_ORMHelper {
 		 */
 		
 		if(!empty($file_ids)) {
-			DAO_Attachment::addLinks(CerberusContexts::CONTEXT_COMMENT, $id, $file_ids);
+			DAO_Attachment::setLinks(CerberusContexts::CONTEXT_COMMENT, $id, $file_ids);
 		}
 		
 		/*
 		 * Log the activity of a new comment being created
 		 */
-
-		if(isset($fields[self::CONTEXT]) && isset($fields[self::CONTEXT_ID])) {
-			$context = Extension_DevblocksContext::get($fields[self::CONTEXT]);
-			
-			$meta = $context->getMeta($fields[self::CONTEXT_ID]);
-			
-			$entry = [
-				//{{actor}} {{common.commented}} on {{object}} {{target}}
-				'message' => 'activities.comment.create',
-				'variables' => array(
-					'object' => mb_convert_case($context->manifest->name, MB_CASE_LOWER),
-					'target' => $meta['name'],
-					),
-				'urls' => array(
-					'common.commented' => sprintf("ctx://%s:%d", CerberusContexts::CONTEXT_COMMENT, $id),
-					'target' => sprintf("ctx://%s:%d", $fields[self::CONTEXT], $fields[self::CONTEXT_ID]),
-					)
-			];
-			CerberusContexts::logActivity('comment.create', $fields[self::CONTEXT], $fields[self::CONTEXT_ID], $entry, null, null, $also_notify_worker_ids);
-			
-			/*
-			 * Send a new comment event
-			 */
-			
-			$eventMgr = DevblocksPlatform::services()->event();
-			$eventMgr->trigger(
-				new Model_DevblocksEvent(
-					'comment.create',
-					[
-						'comment_id' => $id,
-						'fields' => $fields,
-					]
+		
+		$context = DevblocksPlatform::getExtension($fields[self::CONTEXT], true); /* @var $context Extension_DevblocksContext */
+		$meta = $context->getMeta($fields[self::CONTEXT_ID]);
+		
+		$entry = array(
+			//{{actor}} {{common.commented}} on {{object}} {{target}}
+			'message' => 'activities.comment.create',
+			'variables' => array(
+				'object' => mb_convert_case($context->manifest->name, MB_CASE_LOWER),
+				'target' => $meta['name'],
+				),
+			'urls' => array(
+				'common.commented' => sprintf("ctx://%s:%d", CerberusContexts::CONTEXT_COMMENT, $id),
+				'target' => sprintf("ctx://%s:%d", $fields[self::CONTEXT], $fields[self::CONTEXT_ID]),
 				)
-			);
-			
-			/*
-			 * Trigger global VA behavior
-			 */
-			
-			Event_CommentCreatedByWorker::trigger($id);
-			
-			/*
-			 * Trigger group-level VA behavior
-			 */
-			
-			switch($context->id) {
-				case CerberusContexts::CONTEXT_TICKET:
-					@$ticket_id = $fields[self::CONTEXT_ID];
-	
-					// [TODO] This is inefficient
-					if(!empty($ticket_id)) {
-						@$ticket = DAO_Ticket::get($ticket_id);
-						Event_CommentOnTicketInGroup::trigger($id, $ticket_id, $ticket->group_id);
-					}
-					break;
-			}
+		);
+		CerberusContexts::logActivity('comment.create', $fields[self::CONTEXT], $fields[self::CONTEXT_ID], $entry, null, null, $also_notify_worker_ids);
+		
+		/*
+		 * Send a new comment event
+		 */
+		
+		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr->trigger(
+			new Model_DevblocksEvent(
+				'comment.create',
+				array(
+					'comment_id' => $id,
+					'fields' => $fields,
+				)
+			)
+		);
+		
+		/*
+		 * Trigger global VA behavior
+		 */
+		
+		Event_CommentCreatedByWorker::trigger($id);
+		
+		/*
+		 * Trigger group-level VA behavior
+		 */
+		
+		switch($context->id) {
+			case CerberusContexts::CONTEXT_TICKET:
+				@$ticket_id = $fields[self::CONTEXT_ID];
+
+				// [TODO] This is inefficient
+				if(!empty($ticket_id)) {
+					@$ticket = DAO_Ticket::get($ticket_id);
+					Event_CommentOnTicketInGroup::trigger($id, $ticket_id, $ticket->group_id);
+				}
+				break;
 		}
 		
 		return $id;
 	}
 	
 	static function update($ids, $fields) {
-		$context = CerberusContexts::CONTEXT_COMMENT;
-		self::_updateAbstract($context, $ids, $fields);
-		
 		parent::_update($ids, 'comment', $fields);
 	}
 	
 	static function updateWhere($fields, $where) {
 		parent::_updateWhere('comment', $fields, $where);
-	}
-	
-	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
-		$context = CerberusContexts::CONTEXT_COMMENT;
-		
-		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
-			return false;
-		
-		@$owner_context = $fields[self::OWNER_CONTEXT];
-		@$owner_context_id = intval($fields[self::OWNER_CONTEXT_ID]);
-		
-		// Verify that the actor can use this new owner
-		if($owner_context) {
-			if(!CerberusContexts::isOwnableBy($owner_context, $owner_context_id, $actor)) {
-				$error = DevblocksPlatform::translate('error.core.no_acl.owner');
-				return false;
-			}
-		}
-		
-		return true;
 	}
 	
 	/**
@@ -195,7 +117,7 @@ class DAO_Comment extends Cerb_ORMHelper {
 	 * @return Model_Comment[]
 	 */
 	static function getWhere($where=null, $sortBy='created', $sortAsc=false, $limit=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -213,7 +135,7 @@ class DAO_Comment extends Cerb_ORMHelper {
 	
 	// [TODO] Cache
 	static function getContextIdsByContextAndIds($context, $ids) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(!is_array($ids))
 			$ids = array($ids);
@@ -297,7 +219,7 @@ class DAO_Comment extends Cerb_ORMHelper {
 	}
 	
 	static public function count($from_context, $from_context_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		return $db->GetOneSlave(sprintf("SELECT count(*) FROM comment ".
 			"WHERE context = %s AND context_id = %d",
 			$db->qstr($from_context),
@@ -312,7 +234,7 @@ class DAO_Comment extends Cerb_ORMHelper {
 		if(empty($context_ids))
 			return;
 			
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$db->ExecuteMaster(sprintf("DELETE FROM comment WHERE context = %s AND context_id IN (%s) ",
 			$db->qstr($context),
@@ -324,7 +246,7 @@ class DAO_Comment extends Cerb_ORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -339,7 +261,7 @@ class DAO_Comment extends Cerb_ORMHelper {
 		$search->delete($ids);
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
+		$eventMgr = DevblocksPlatform::getEventService();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -413,6 +335,7 @@ class DAO_Comment extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -424,7 +347,7 @@ class DAO_Comment extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -478,12 +401,9 @@ class DAO_Comment extends Cerb_ORMHelper {
 	}
 
 	static function maint() {
-		$db = DevblocksPlatform::services()->database();
-		$logger = DevblocksPlatform::services()->log();
+		$db = DevblocksPlatform::getDatabaseService();
+		$logger = DevblocksPlatform::getConsoleLog();
 		$tables = DevblocksPlatform::getDatabaseTables();
-		
-		$db->ExecuteMaster("DELETE FROM attachment_link WHERE context = 'cerberusweb.contexts.comment' AND context_id NOT IN (SELECT id FROM comment)");
-		$logger->info('[Maint] Purged ' . $db->Affected_Rows() . ' comment attachment_link records.');
 
 		// Search indexes
 		if(isset($tables['fulltext_comment_content'])) {
@@ -492,7 +412,7 @@ class DAO_Comment extends Cerb_ORMHelper {
 		}
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
+		$eventMgr = DevblocksPlatform::getEventService();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.maint',
@@ -681,7 +601,7 @@ class Search_CommentContent extends Extension_DevblocksSearchSchema {
 	}
 	
 	public function index($stop_time=null) {
-		$logger = DevblocksPlatform::services()->log();
+		$logger = DevblocksPlatform::getConsoleLog();
 		
 		if(false == ($engine = $this->getEngine()))
 			return false;
@@ -896,7 +816,7 @@ class View_Comment extends C4_AbstractView implements IAbstractView_Subtotals, I
 					
 				// Valid custom fields
 				default:
-					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
+					if('cf_' == substr($field_key,0,3))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -1051,7 +971,7 @@ class View_Comment extends C4_AbstractView implements IAbstractView_Subtotals, I
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 		
@@ -1091,7 +1011,7 @@ class View_Comment extends C4_AbstractView implements IAbstractView_Subtotals, I
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {
@@ -1261,15 +1181,11 @@ class Context_Comment extends Extension_DevblocksContext implements IDevblocksCo
 			return false;
 		
 		$results = array_fill_keys(array_keys($dicts), false);
-		$workers = DAO_Worker::getAllActive();
 			
+		// If the actor is the author
 		foreach($dicts as $id => $dict) {
-			// If the actor is the author
 			if($dict->author__context == $actor->_context && $dict->author_id == $actor->id)
-				if(false != (@$worker = $workers[$actor->id]))
-					// And they have permission to edit their own comments
-					if($worker->hasPriv('contexts.cerberusweb.contexts.comment.update'))
-						$results[$id] = true;
+				$results[$id] = true;
 		}
 		
 		if(is_array($models)) {
@@ -1287,14 +1203,14 @@ class Context_Comment extends Extension_DevblocksContext implements IDevblocksCo
 		if(empty($context_id))
 			return '';
 	
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		$url = $url_writer->writeNoProxy('c=profiles&type=comment&id='.$context_id, true);
 		return $url;
 	}
 	
 	function getMeta($context_id) {
 		$comment = DAO_Comment::get($context_id);
-		$url_writer = DevblocksPlatform::services()->url();
+		$url_writer = DevblocksPlatform::getUrlService();
 		
 		$url = $this->profileGetUrl($context_id);
 		
@@ -1335,7 +1251,7 @@ class Context_Comment extends Extension_DevblocksContext implements IDevblocksCo
 		// Token labels
 		$token_labels = array(
 			'_label' => $prefix,
-			'id' => $prefix.DevblocksPlatform::translate('common.id', DevblocksPlatform::TRANSLATE_UPPER),
+			'id' => $prefix.DevblocksPlatform::translate('common.target'),
 			'comment' => $prefix.DevblocksPlatform::translate('common.content', DevblocksPlatform::TRANSLATE_CAPITALIZE),
 			'created' => $prefix.DevblocksPlatform::translate('common.created', DevblocksPlatform::TRANSLATE_CAPITALIZE),
 			'author__label' => $prefix.DevblocksPlatform::translate('common.author', DevblocksPlatform::TRANSLATE_CAPITALIZE),
@@ -1375,29 +1291,6 @@ class Context_Comment extends Extension_DevblocksContext implements IDevblocksCo
 			
 			// Custom fields
 			$token_values = $this->_importModelCustomFieldsAsValues($comment, $token_values);
-		}
-		
-		return true;
-	}
-	
-	function getKeyToDaoFieldMap() {
-		return [
-			'author__context' => DAO_Comment::OWNER_CONTEXT,
-			'author_id' => DAO_Comment::OWNER_CONTEXT_ID,
-			'comment' => DAO_Comment::COMMENT,
-			'created' => DAO_Comment::CREATED,
-			'id' => DAO_Comment::ID,
-			'links' => '_links',
-			'target__context' => DAO_Comment::CONTEXT,
-			'target_id' => DAO_Comment::CONTEXT_ID,
-		];
-	}
-	
-	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
-		switch(DevblocksPlatform::strLower($key)) {
-			case 'links':
-				$this->_getDaoFieldsLinks($value, $out_fields, $error);
-				break;
 		}
 		
 		return true;
@@ -1493,7 +1386,7 @@ class Context_Comment extends Extension_DevblocksContext implements IDevblocksCo
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		$tpl->assign('view_id', $view_id);
 
 		$active_worker = CerberusApplication::getActiveWorker();

@@ -1,70 +1,18 @@
 <?php
 class DAO_ContextAvatar extends Cerb_ORMHelper {
-	const CONTENT_TYPE = 'content_type';
+	const ID = 'id';
 	const CONTEXT = 'context';
 	const CONTEXT_ID = 'context_id';
-	const ID = 'id';
+	const CONTENT_TYPE = 'content_type';
 	const IS_APPROVED = 'is_approved';
+	const UPDATED_AT = 'updated_at';
 	const STORAGE_EXTENSION = 'storage_extension';
 	const STORAGE_KEY = 'storage_key';
-	const STORAGE_PROFILE_ID = 'storage_profile_id';
 	const STORAGE_SIZE = 'storage_size';
-	const UPDATED_AT = 'updated_at';
-	
-	private function __construct() {}
-	
-	static function getFields() {
-		$validation = DevblocksPlatform::services()->validation();
+	const STORAGE_PROFILE_ID = 'storage_profile_id';
 
-		$validation
-			->addField(self::CONTENT_TYPE)
-			->string()
-			;
-		$validation
-			->addField(self::CONTEXT)
-			->context()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::CONTEXT_ID)
-			->id()
-			->setRequired(true)
-			;
-		$validation
-			->addField(self::ID)
-			->id()
-			->setEditable(false)
-			;
-		$validation
-			->addField(self::IS_APPROVED)
-			->bit()
-			;
-		$validation
-			->addField(self::STORAGE_EXTENSION)
-			->string()
-			;
-		$validation
-			->addField(self::STORAGE_KEY)
-			->string()
-			;
-		$validation
-			->addField(self::STORAGE_PROFILE_ID)
-			->id()
-			;
-		$validation
-			->addField(self::STORAGE_SIZE)
-			->uint()
-			;
-		$validation
-			->addField(self::UPDATED_AT)
-			->timestamp()
-			;
-		
-		return $validation->getFields();
-	}
-	
 	static function create($fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = "INSERT INTO context_avatar () VALUES ()";
 		$db->ExecuteMaster($sql);
@@ -97,7 +45,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 			// Send events
 			if($check_deltas) {
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::services()->event();
+				$eventMgr = DevblocksPlatform::getEventService();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.context_avatar.update',
@@ -122,7 +70,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 			return false;
 		
 		// We're given a data URL
-		if(DevblocksPlatform::strStartsWith($imagedata,'data:')) {
+		if(DevblocksPlatform::strLower(substr($imagedata,0,5)) == 'data:') {
 			$imagedata = substr($imagedata, 5);
 			
 			// Are we deleting it?
@@ -131,7 +79,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 				$imagedata = '';
 				
 			// Is it a base64-encoded png?
-			} else if(DevblocksPlatform::strStartsWith($imagedata,'image/png;base64,')) {
+			} else if(DevblocksPlatform::strLower(substr($imagedata,0,17)) == 'image/png;base64,') {
 				$content_type = 'image/png';
 				
 				// Decode it to binary
@@ -147,7 +95,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 			}
 		}
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(false == ($avatar = DAO_ContextAvatar::getByContext($context, $context_id))) {
 			$fields = array(
@@ -196,7 +144,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 	 * @return Model_ContextAvatar
 	 */
 	static function getByContext($context, $context_id) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$results = self::getWhere(sprintf("(%s = %s AND %s = %d)",
 			$db->escape(DAO_ContextAvatar::CONTEXT),
@@ -219,7 +167,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 	 * @return Model_ContextAvatar[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null, $options=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -246,7 +194,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 	 * @return Model_ContextAvatar[]
 	 */
 	static function getAll($nocache=false) {
-		//$cache = DevblocksPlatform::services()->cache();
+		//$cache = DevblocksPlatform::getCacheService();
 		//if($nocache || null === ($objects = $cache->load(self::_CACHE_ALL))) {
 			$objects = self::getWhere(null, DAO_ContextAvatar::NAME, true, null, Cerb_ORMHelper::OPT_GET_MASTER_ONLY);
 			
@@ -293,7 +241,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 		if(!method_exists(get_called_class(), 'getWhere'))
 			return array();
 
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 
 		$ids = DevblocksPlatform::importVar($ids, 'array:integer');
 
@@ -352,7 +300,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 		if(!is_array($ids))
 			$ids = array($ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(empty($ids))
 			return;
@@ -364,7 +312,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 		$db->ExecuteMaster(sprintf("DELETE FROM context_avatar WHERE id IN (%s)", $ids_list));
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::services()->event();
+		$eventMgr = DevblocksPlatform::getEventService();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -386,7 +334,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 		if(!is_array($context_ids))
 			$context_ids = array($context_ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$context_ids = DevblocksPlatform::sanitizeArray($context_ids, 'integer');
 		
@@ -489,6 +437,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 	}
 	
 	/**
+	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -500,7 +449,7 @@ class DAO_ContextAvatar extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -670,7 +619,7 @@ class Storage_ContextAvatar extends Extension_DevblocksStorageSchema {
 	}
 
 	function render() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('active_storage_profile', $this->getParam('active_storage_profile', 'devblocks.storage.engine.disk'));
 		$tpl->assign('archive_storage_profile', $this->getParam('archive_storage_profile', 'devblocks.storage.engine.disk'));
@@ -680,7 +629,7 @@ class Storage_ContextAvatar extends Extension_DevblocksStorageSchema {
 	}
 	
 	function renderConfig() {
-		$tpl = DevblocksPlatform::services()->template();
+		$tpl = DevblocksPlatform::getTemplateService();
 		
 		$tpl->assign('active_storage_profile', $this->getParam('active_storage_profile', 'devblocks.storage.engine.disk'));
 		$tpl->assign('archive_storage_profile', $this->getParam('archive_storage_profile', 'devblocks.storage.engine.disk'));
@@ -707,7 +656,7 @@ class Storage_ContextAvatar extends Extension_DevblocksStorageSchema {
 	
 	/**
 	 * @param Model_ContextAvatar | $avatar_id
-	 * @return mixed
+	 * @return unknown_type
 	 */
 	public static function get($object, &$fp=null) {
 		if($object instanceof Model_ContextAvatar) {
@@ -776,7 +725,7 @@ class Storage_ContextAvatar extends Extension_DevblocksStorageSchema {
 		if(!is_array($ids))
 			$ids = array($ids);
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		$sql = sprintf("SELECT storage_extension, storage_key, storage_profile_id FROM context_avatar WHERE id IN (%s)", implode(',',$ids));
 		
@@ -802,7 +751,7 @@ class Storage_ContextAvatar extends Extension_DevblocksStorageSchema {
 	}
 	
 	public static function deleteByContext($context, $context_ids) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		if(!is_array($context_ids))
 			$context_ids = array($context_ids);
@@ -830,7 +779,7 @@ class Storage_ContextAvatar extends Extension_DevblocksStorageSchema {
 	}
 	
 	public static function archive($stop_time=null) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// Params
 		$src_profile = DAO_DevblocksStorageProfile::get(DAO_DevblocksExtensionPropertyStore::get(self::ID, 'active_storage_profile'));
@@ -873,7 +822,7 @@ class Storage_ContextAvatar extends Extension_DevblocksStorageSchema {
 	}
 	
 	private static function _migrate($dst_profile, $row, $is_unarchive=false) {
-		$logger = DevblocksPlatform::services()->log();
+		$logger = DevblocksPlatform::getConsoleLog();
 		
 		$ns = 'context_avatar';
 		

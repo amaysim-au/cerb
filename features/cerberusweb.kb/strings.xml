@@ -5,22 +5,22 @@
 		srclang="en-us" o-tmf="abc" />
 	<body>
 
+		<!-- ACL -->
+		
+		<tu tuid='acl.core.kb.articles.modify'>
+			<tuv xml:lang="en_US"><seg>[Knowledgebase] Can manage articles</seg></tuv>
+		</tu>
+		<tu tuid='acl.core.kb.categories.modify'>
+			<tuv xml:lang="en_US"><seg>[Knowledgebase] Can manage categories</seg></tuv>
+		</tu>
+		<tu tuid='acl.kb.articles.actions.update_all'>
+			<tuv xml:lang="en_US"><seg>[Knowledgebase] Can bulk update articles</seg></tuv>
+		</tu>
+
 		<!-- Common Strings -->
 
 		<tu tuid='kb.common.knowledgebase_article'>
-			<tuv xml:lang="en_US"><seg>knowledgebase article</seg></tuv>
-		</tu>
-		
-		<tu tuid='kb.common.knowledgebase_articles'>
-			<tuv xml:lang="en_US"><seg>knowledgebase articles</seg></tuv>
-		</tu>
-		
-		<tu tuid='kb.common.knowledgebase_category'>
-			<tuv xml:lang="en_US"><seg>knowledgebase category</seg></tuv>
-		</tu>
-		
-		<tu tuid='kb.common.knowledgebase_categories'>
-			<tuv xml:lang="en_US"><seg>knowledgebase categories</seg></tuv>
+			<tuv xml:lang="en_US"><seg>Knowledgebase Article</seg></tuv>
 		</tu>
 		
 		<tu tuid='activity.kb'>

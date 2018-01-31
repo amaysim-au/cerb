@@ -19,15 +19,14 @@
  * Bayesian Anti-Spam DAO
  */
 class DAO_Bayes {
-	private function __construct() {}
 	
 	/**
-	 * @return array
+	 * @return CerberusWord[]
 	 */
 	static function lookupWordIds($words) {
-		$db = DevblocksPlatform::services()->database();
-		$tmp = [];
-		$outwords = [];
+		$db = DevblocksPlatform::getDatabaseService();
+		$tmp = array();
+		$outwords = array(); // CerberusWord
 		
 		// Escaped set
 		if(is_array($words))
@@ -36,7 +35,7 @@ class DAO_Bayes {
 		}
 		
 		if(empty($words))
-			return [];
+			return array();
 		
 		$sql = sprintf("SELECT id,word,spam,nonspam FROM bayes_words WHERE word IN ('%s')",
 			implode("','", $tmp)
@@ -86,7 +85,7 @@ class DAO_Bayes {
 	 * @return array Two element array (keys: spam,nonspam)
 	 */
 	static function getStatistics() {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		
 		// [JAS]: [TODO] Change this into a 'replace' index?
 		$sql = "SELECT spam, nonspam FROM bayes_stats";
@@ -103,18 +102,18 @@ class DAO_Bayes {
 			$db->ExecuteMaster($sql);
 		}
 		
-		return ['spam' => $spam,'nonspam' => $nonspam];
+		return array('spam' => $spam,'nonspam' => $nonspam);
 	}
 	
 	static function addOneToSpamTotal() {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$sql = "UPDATE bayes_stats SET spam = spam + 1";
 		if(false == ($db->ExecuteMaster($sql)))
 			return false;
 	}
 	
 	static function addOneToNonSpamTotal() {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$sql = "UPDATE bayes_stats SET nonspam = nonspam + 1";
 		if(false == ($db->ExecuteMaster($sql)))
 			return false;
@@ -123,7 +122,7 @@ class DAO_Bayes {
 	static function addOneToSpamWord($word_ids=array()) {
 		if(!is_array($word_ids)) $word_ids = array($word_ids);
 		if(empty($word_ids)) return;
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$sql = sprintf("UPDATE bayes_words SET spam = spam + 1 WHERE id IN(%s)", implode(',',$word_ids));
 		if(false == ($db->ExecuteMaster($sql)))
 			return false;
@@ -132,7 +131,7 @@ class DAO_Bayes {
 	static function addOneToNonSpamWord($word_ids=array()) {
 		if(!is_array($word_ids)) $word_ids = array($word_ids);
 		if(empty($word_ids)) return;
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$sql = sprintf("UPDATE bayes_words SET nonspam = nonspam + 1 WHERE id IN(%s)", implode(',',$word_ids));
 		if(false == ($db->ExecuteMaster($sql)))
 			return false;

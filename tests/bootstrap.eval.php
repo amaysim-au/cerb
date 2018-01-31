@@ -1,9 +1,6 @@
 <?php
-// The URL to Selenium's WebDriver API
-define('WEBDRIVER_URL', 'http://localhost:4444');
-
-// The URL where you installed Cerb
-define('BROWSER_URL', 'http://localhost:8080/index.php');
+define('WEBDRIVER_URL', 'http://127.0.0.1:4444/');
+define('BROWSER_URL', 'http://localhost:8000/index.php');
 
 require(getcwd() . '/eval/CerbTestBase.php');
 
@@ -12,9 +9,6 @@ use Facebook\WebDriver\Remote\RemoteWebDriver;
 use Facebook\WebDriver\Exception\NoSuchElementException;
 use Facebook\WebDriver\WebDriverBy;
 use Facebook\WebDriver\WebDriverExpectedCondition;
-use Facebook\WebDriver\WebDriverDimension;
-use Facebook\WebDriver\Chrome\ChromeOptions;
-use Facebook\WebDriver\Remote\WebDriverBrowserType;
 
 require_once('vendor/autoload.php');
 
@@ -24,25 +18,8 @@ class CerbTestHelper {
 	
 	static function getInstance() {
 		if(is_null(self::$_instance)) {
-			// Pick one:
-			//$capabilities = DesiredCapabilities::phantomjs();
-			//$capabilities = DesiredCapabilities::safari();
-			//$capabilities = DesiredCapabilities::firefox();
-			$capabilities = DesiredCapabilities::chrome();
-
-			if($capabilities->getBrowserName() == WebDriverBrowserType::CHROME) {
-				$chromeOptions = new ChromeOptions();
-				$chromeOptions->addArguments(['--headless', 'window-size=1920,1080']);
-				$capabilities->setCapability(ChromeOptions::CAPABILITY, $chromeOptions);
-			}
-
+			$capabilities = DesiredCapabilities::safari();
 			$driver = RemoteWebDriver::create(WEBDRIVER_URL, $capabilities, 5000, 30000);
-
-			if($capabilities->getBrowserName() == WebDriverBrowserType::PHANTOMJS) {
-				$window = new WebDriverDimension(1024, 768);
-				$driver->manage()->window()->setSize($window);
-			}
-
 			//$driver->manage()->window()->maximize();
 			
 			self::$_instance = new CerbTestHelper();
@@ -146,34 +123,18 @@ class CerbTestHelper {
 		
 		$this->getPathAndWait('/');
 		
-		$by = WebDriverBy::id('lnkSignedIn');
-		
-		$driver->wait(10)->until(
-			WebDriverExpectedCondition::presenceOfElementLocated($by)
-		);
-		
-		$worker_menu = $driver->findElement($by);
+		$worker_menu = $driver->findElement(WebDriverBy::id('lnkSignedIn'));
 		$worker_menu->getLocationOnScreenOnceScrolledIntoView();
-		
-		$driver->wait()->until(
-			WebDriverExpectedCondition::visibilityOf($worker_menu)
-		);
-		
 		$worker_menu->click();
 		
-		$by = WebDriverBy::cssSelector('#menuSignedIn li:nth-child(7) a');
+		$by = WebDriverBy::cssSelector('#menuSignedIn li:nth-child(5) a');
 		
-		$driver->wait(10)->until(
+		$driver->wait(5, 250)->until(
 			WebDriverExpectedCondition::presenceOfElementLocated($by)
 		);
 		
 		$link = $driver->findElement($by);
 		$link->getLocationOnScreenOnceScrolledIntoView();
-		
-		$driver->wait()->until(
-			WebDriverExpectedCondition::visibilityOf($link)
-		);
-		
 		$link->click();
 		
 		$this->waitForPaths(['/login']);
@@ -192,16 +153,11 @@ class CerbTestHelper {
 		
 		$reply_button = $driver->findElement($by);
 		$reply_button->getLocationOnScreenOnceScrolledIntoView();
-		
-		$driver->wait()->until(
-			WebDriverExpectedCondition::visibilityOf($reply_button)
-		);
-		
 		$reply_button->click();
 		
 		$by = WebDriverBy::cssSelector('textarea.reply[name=content]');
 			
-		$driver->wait(10)->until(
+		$driver->wait(5)->until(
 			WebDriverExpectedCondition::presenceOfElementLocated($by)
 		);
 		
@@ -209,21 +165,11 @@ class CerbTestHelper {
 		
 		$textarea = $driver->findElement($by);
 		$textarea->getLocationOnScreenOnceScrolledIntoView();
-		
-		$driver->wait()->until(
-			WebDriverExpectedCondition::visibilityOf($textarea)
-		);
-		
 		$textarea->clear();
 		$textarea->sendKeys($reply_text);
 		
 		$send_button = $reply_form->findElement(WebDriverBy::cssSelector('button.send'));
 		$send_button->getLocationOnScreenOnceScrolledIntoView();
-		
-		$driver->wait()->until(
-			WebDriverExpectedCondition::visibilityOf($send_button)
-		);
-		
 		$send_button->click();
 		
 		return true;
@@ -234,7 +180,7 @@ class CerbTestHelper {
 		
 		$by = WebDriverBy::id('btnComment');
 			
-		$driver->wait(10)->until(
+		$driver->wait(5)->until(
 			WebDriverExpectedCondition::presenceOfElementLocated($by)
 		);
 		
@@ -243,11 +189,11 @@ class CerbTestHelper {
 		
 		$popups = [];
 		
-		$driver->wait(10, 250)->until(
+		$driver->wait(5, 250)->until(
 			function() use (&$driver, &$popups) {
 				try {
 					$popups = $driver->findElements(WebDriverBy::cssSelector('body > div.ui-dialog'));
-					return 1 == count($popups);
+					return (count($popups) == 1);
 					
 				} catch(NoSuchElementException $nse) {
 					return null;
@@ -262,21 +208,15 @@ class CerbTestHelper {
 		
 		$textarea = $popup->findElement(WebDriverBy::tagName('textarea'));
 		$textarea->getLocationOnScreenOnceScrolledIntoView();
-		
-		$driver->wait()->until(
-			WebDriverExpectedCondition::visibilityOf($textarea)
-		);
-		
 		$textarea->sendKeys($comment_text);
 		
 		$popup->findElement(WebDriverBy::cssSelector('button.submit'))
 			->click();
 		
-		$driver->wait(10, 250)->until(
+		$driver->wait(5, 250)->until(
 			function() use (&$driver) {
 				try {
 					$popups = $driver->findElements(WebDriverBy::cssSelector('body > div.ui-dialog'));
-					return empty($popups);
 				} catch (NoSuchElementException $nse) {
 					return true;
 				}

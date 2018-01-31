@@ -7,7 +7,7 @@
 	</div>
 	
 	<div style="float:left;">
-		<h1>
+		<h1 style="color:inherit;">
 			{$dict->full_name}
 			
 			{if $dict->gender == 'M'}
@@ -24,10 +24,9 @@
 		{/if}
 		
 		<div style="margin-top:5px;">
-			{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.tpl"}
+			{if $active_worker->is_superuser}<button type="button" class="cerb-peek-edit" data-context="{$peek_context}" data-context-id="{$dict->id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span> {'common.edit'|devblocks_translate|capitalize}</button>{/if}
 			{if $dict->id}<button type="button" class="cerb-peek-profile"><span class="glyphicons glyphicons-nameplate"></span> {'common.profile'|devblocks_translate|capitalize}</button>{/if}
-			{if $active_worker->is_superuser && $active_worker->hasPriv("contexts.{$peek_context}.update")}<button type="button" class="cerb-peek-edit" data-context="{$peek_context}" data-context-id="{$dict->id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span> {'common.edit'|devblocks_translate|capitalize}</button>{/if}
-			{if $active_worker->hasPriv("contexts.{$peek_context}.comment")}<button type="button" class="cerb-peek-comments-add" data-context="{CerberusContexts::CONTEXT_COMMENT}" data-context-id="0" data-edit="context:{$peek_context} context.id:{$dict->id}"><span class="glyphicons glyphicons-conversation"></span> {'common.comment'|devblocks_translate|capitalize}</button>{/if}
+			<button type="button" class="cerb-peek-comments-add" data-context="{CerberusContexts::CONTEXT_COMMENT}" data-context-id="0" data-edit="context:{$peek_context} context.id:{$dict->id}"><span class="glyphicons glyphicons-conversation"></span> {'common.comment'|devblocks_translate|capitalize}</button>
 		</div>
 	</div>
 </div>
@@ -138,10 +137,6 @@ $(function() {
 		$popup.find('.cerb-search-trigger')
 			.cerbSearchTrigger()
 			;
-		
-		// Interactions
-		var $interaction_container = $popup;
-		{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.js.tpl"}
 		
 		// Menus
 		$popup.find('ul.cerb-menu').menu();

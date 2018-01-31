@@ -1,6 +1,6 @@
 <?php
-$db = DevblocksPlatform::services()->database();
-$logger = DevblocksPlatform::services()->log();
+$db = DevblocksPlatform::getDatabaseService();
+$logger = DevblocksPlatform::getConsoleLog();
 $tables = $db->metaTables();
 
 // ===========================================================================
@@ -167,7 +167,7 @@ if(!isset($tables['context_alias'])) {
 	
 	require_once(DEVBLOCKS_PATH . 'api/services/bayes_classifier.php');
 	
-	$bayes = DevblocksPlatform::services()->bayesClassifier();
+	$bayes = DevblocksPlatform::getBayesClassifierService();
 	
 	$values = [];
 	$n = 0;
@@ -453,7 +453,7 @@ if(isset($columns['guid'])) {
 // Clean up attachment_link GUID references in content
 
 function cerb730_extractInternalURLsFromContent($content) {
-	$url_writer = DevblocksPlatform::services()->url();
+	$url_writer = DevblocksPlatform::getUrlService();
 	$img_baseurl = $url_writer->write('c=files', true, false);
 	$img_baseurl_parts = parse_url($img_baseurl);
 	

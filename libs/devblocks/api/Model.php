@@ -110,28 +110,20 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 		$search = Extension_DevblocksSearchSchema::get($schema);
 		$query = $search->getQueryFromParam($param);
 		
-		$not = false;
-		if(DevblocksPlatform::strStartsWith($query, '!')) {
-			$not = true;
-			$query = mb_substr($query, 1);
-		}
-		
 		if(false === ($ids = $search->query($query, array('context_crc32' => sprintf("%u", crc32($from_context)))))) {
 			return '0';
 		
 		} elseif(is_array($ids)) {
 			$from_ids = DAO_Comment::getContextIdsByContextAndIds($from_context, $ids);
 			
-			return sprintf('%s %sIN (%s)',
+			return sprintf('%s IN (%s)',
 				$pkey,
-				$not ? 'NOT ' : '',
 				implode(', ', (!empty($from_ids) ? $from_ids : array(-1)))
 			);
 			
 		} elseif(is_string($ids)) {
-			return sprintf("%s %sIN (SELECT context_id FROM comment INNER JOIN %s ON (%s.id=comment.id))",
+			return sprintf("%s IN (SELECT context_id FROM comment INNER JOIN %s ON (%s.id=comment.id))",
 				$pkey,
-				$not ? 'NOT ' : '',
 				$ids,
 				$ids
 			);
@@ -143,12 +135,6 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 		if($param->operator == DevblocksSearchCriteria::OPER_CUSTOM) {
 			$query = $param->value;
 			
-			$not = false;
-			if(DevblocksPlatform::strStartsWith($query, '!')) {
-				$not = true;
-				$query = mb_substr($query, 1);
-			}
-			
 			if(false == ($ext_attachments = Extension_DevblocksContext::get(CerberusContexts::CONTEXT_ATTACHMENT)))
 				return;
 			
@@ -159,7 +145,6 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 			$view->is_ephemeral = true;
 			$view->setAutoPersist(false);
 			$view->addParamsWithQuickSearch($query, true);
-			$view->renderPage = 0;
 			
 			$params = $view->getParams();
 			
@@ -174,24 +159,17 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 				. $query_parts['sort']
 				;
 			
-			return sprintf("%s %sIN (SELECT context_id FROM attachment_link WHERE attachment_id IN (%s)) ",
+			return sprintf("%s IN (SELECT context_id FROM attachment_link WHERE attachment_id IN (%s)) ",
 				Cerb_OrmHelper::escape($join_key),
-				$not ? 'NOT ' : '',
 				$sql
 			);
 		}
 	}
 	
-	static function _getWhereSQLFromVirtualSearchSqlField(DevblocksSearchCriteria $param, $context, $subquery_sql, $where_key=null) {
+	static function _getWhereSQLFromVirtualSearchSqlField(DevblocksSearchCriteria $param, $context, $subquery_sql) {
 		// Handle nested quick search filters first
 		if($param->operator == DevblocksSearchCriteria::OPER_CUSTOM) {
 			$query = $param->value;
-			
-			$not = false;
-			if(DevblocksPlatform::strStartsWith($query, '!')) {
-				$not = true;
-				$query = mb_substr($query, 1);
-			}
 			
 			if(false == ($ext = Extension_DevblocksContext::get($context)))
 				return;
@@ -200,7 +178,6 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 			$view->is_ephemeral = true;
 			$view->setAutoPersist(false);
 			$view->addParamsWithQuickSearch($query, true);
-			$view->renderPage = 0;
 			
 			$params = $view->getParams();
 			
@@ -210,7 +187,7 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 			if(false == ($search_class = $ext->getSearchClass()))
 				return;
 			
-			$query_parts = $dao_class::getSearchQueryComponents([], $params);
+			$query_parts = $dao_class::getSearchQueryComponents(array(), $params);
 			
 			$query_parts['select'] = sprintf("SELECT %s ", $search_class::getPrimaryKey());
 			
@@ -221,14 +198,6 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 				. $query_parts['sort']
 				;
 			
-			if(!empty($where_key)) {
-				$subquery_sql = sprintf("%s %s (%s)",
-					$where_key,
-					$not ? 'NOT IN' : 'IN',
-					$subquery_sql
-				);
-			}
-			
 			return sprintf($subquery_sql, $sql);
 		}
 	}
@@ -238,12 +207,6 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 		if($param->operator == DevblocksSearchCriteria::OPER_CUSTOM) {
 			$query = $param->value;
 			
-			$not = false;
-			if(DevblocksPlatform::strStartsWith($query, '!')) {
-				$not = true;
-				$query = mb_substr($query, 1);
-			}
-			
 			if(false == ($ext = Extension_DevblocksContext::get($context)))
 				return;
 			
@@ -251,7 +214,6 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 			$view->is_ephemeral = true;
 			$view->setAutoPersist(false);
 			$view->addParamsWithQuickSearch($query, true);
-			$view->renderPage = 0;
 			
 			$params = $view->getParams();
 			
@@ -275,9 +237,8 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 				. $query_parts['sort']
 				;
 			
-			return sprintf("%s %sIN (%s) ",
+			return sprintf("%s IN (%s) ",
 				Cerb_OrmHelper::escape($join_key),
-				$not ? 'NOT ' : '',
 				$sql
 			);
 		}
@@ -309,7 +270,6 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 			$view->is_ephemeral = true;
 			$view->setAutoPersist(false);
 			$view->addParamsWithQuickSearch($query, true);
-			$view->renderPage = 0;
 			
 			$params = $view->getParams();
 			
@@ -388,12 +348,6 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 			if(empty($alias) || (false == ($ext = Extension_DevblocksContext::getByAlias(str_replace('.', ' ', $alias), true))))
 				return;
 			
-			$not = false;
-			if(DevblocksPlatform::strStartsWith($query, '!')) {
-				$not = true;
-				$query = mb_substr($query, 1);
-			}
-			
 			$view = $ext->getSearchView(uniqid());
 			$view->is_ephemeral = true;
 			$view->setAutoPersist(false);
@@ -421,9 +375,8 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 				. $query_parts['sort']
 				;
 			
-			return sprintf("%s %sIN (SELECT from_context_id FROM context_link cl WHERE from_context = %s AND to_context = %s AND to_context_id IN (%s)) ",
+			return sprintf("%s IN (SELECT from_context_id FROM context_link cl WHERE from_context = %s AND to_context = %s AND to_context_id IN (%s)) ",
 				$pkey,
-				$not ? 'NOT ' : '',
 				Cerb_ORMHelper::qstr($from_context),
 				Cerb_ORMHelper::qstr($ext->id),
 				$sql
@@ -532,7 +485,6 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 		// Return a soft failure when a filtered custom field has been deleted (i.e. ignore)
 		if(false == ($field = DAO_CustomField::get($field_id)))
 			return '';
-		
 
 		$field_table = sprintf("cf_%d", $field_id);
 		$value_table = DAO_CustomFieldValue::getValueTableName($field_id);
@@ -576,28 +528,6 @@ abstract class DevblocksSearchFields implements IDevblocksSearchFields {
 						$not = true;
 						$param->operator = DevblocksSearchCriteria::OPER_IS_NULL;
 						$param->value = null;
-						break;
-				}
-				break;
-				
-			case Model_CustomField::TYPE_LINK:
-				switch($param->operator) {
-					case DevblocksSearchCriteria::OPER_CUSTOM:
-						@$link_context = $field->params['context'];
-						
-						$subquery_sql = sprintf("SELECT context_id FROM %s WHERE field_id = %d AND field_value IN (%%s)",
-							$value_table,
-							$field_id
-						);
-						
-						$where_sql = self::_getWhereSQLFromVirtualSearchSqlField(
-							$param,
-							$link_context,
-							$subquery_sql,
-							$cfield_key
-						);
-						
-						return $where_sql;
 						break;
 				}
 				break;
@@ -697,10 +627,8 @@ class DevblocksSearchCriteria {
 	const OPER_FALSE = '0';
 	const OPER_CUSTOM = 'custom';
 	
-	const GROUP_AND = 'AND';
-	const GROUP_AND_NOT = 'AND NOT';
 	const GROUP_OR = 'OR';
-	const GROUP_OR_NOT = 'OR NOT';
+	const GROUP_AND = 'AND';
 	
 	const TYPE_BOOL = 'bool';
 	const TYPE_DATE = 'date';
@@ -739,68 +667,38 @@ class DevblocksSearchCriteria {
 
 		@$param_key = $search_fields[$field]['options']['param_key'];
 		
-		// Handle searches for NULL/!NULL
-		if(
-			(2 == count($tokens) && 'T_NOT' == $tokens[0]->type && 'T_TEXT' == $tokens[1]->type && 'null' == $tokens[1]->value)
-			|| (1 == count($tokens) && 'T_TEXT' == $tokens[0]->type && 'null' == $tokens[0]->value)
-		) {
-			$not = ('T_NOT' == @$tokens[0]->type);
-			$oper = $not ? DevblocksSearchCriteria::OPER_IS_NOT_NULL : DevblocksSearchCriteria::OPER_IS_NULL;
-			
-			return new DevblocksSearchCriteria(
-				$param_key,
-				$oper,
-				null
-			);
-		}
-		
 		switch($search_field['type']) {
 			case DevblocksSearchCriteria::TYPE_BOOL:
 				if($param_key && false != ($param = DevblocksSearchCriteria::getBooleanParamFromTokens($param_key, $tokens)))
 					return $param;
-				break;
+				continue;
 				
 			case DevblocksSearchCriteria::TYPE_DATE:
 				if($param_key && false != ($param = DevblocksSearchCriteria::getDateParamFromTokens($param_key, $tokens)))
 					return $param;
-				break;
+				continue;
 				
 			case DevblocksSearchCriteria::TYPE_FULLTEXT:
 				if($param_key && false != ($param = DevblocksSearchCriteria::getFulltextParamFromTokens($param_key, $tokens)))
 					return $param;
-				break;
+				continue;
 				
 			case DevblocksSearchCriteria::TYPE_NUMBER:
 				if($param_key && false != ($param = DevblocksSearchCriteria::getNumberParamFromTokens($param_key, $tokens)))
 					return $param;
-				break;
+				continue;
 				
 			case DevblocksSearchCriteria::TYPE_TEXT:
 				@$match_type = $search_field['options']['match'];
 				
 				if($param_key && false != ($param = DevblocksSearchCriteria::getTextParamFromTokens($param_key, $tokens, $match_type)))
 					return $param;
-				break;
-			
-			case DevblocksSearchCriteria::TYPE_VIRTUAL:
-				@$cf_id = $search_fields[$field]['options']['cf_id'];
+				continue;
 				
-				if(!$cf_id || false == ($custom_field = DAO_CustomField::get($cf_id)))
-					break;
-				
-				switch($custom_field->type) {
-					// If a custom record link, add a deep search filter
-					case Model_CustomField::TYPE_LINK:
-						if($param_key && false != $param = DevblocksSearchCriteria::getVirtualQuickSearchParamFromTokens($field, $tokens, $param_key))
-							return $param;
-						break;
-				}
-				break;
-			
 			case DevblocksSearchCriteria::TYPE_WORKER:
 				if($param_key && false != ($param = DevblocksSearchCriteria::getWorkerParamFromTokens($param_key, $tokens, $search_field)))
 					return $param;
-				break;
+				continue;
 		}
 		
 		return false;
@@ -1031,8 +929,8 @@ class DevblocksSearchCriteria {
 					break;
 					
 				case 'T_ARRAY':
-					$oper = $not ? DevblocksSearchCriteria::OPER_NIN : DevblocksSearchCriteria::OPER_IN;
-					$terms = DevblocksPlatform::sanitizeArray($token->value, 'int');
+					$oper = ($not) ? self::OPER_NIN : self::OPER_IN;
+					$terms = $token->value;
 					break;
 					
 				case 'T_QUOTED_TEXT':
@@ -1043,7 +941,7 @@ class DevblocksSearchCriteria {
 			}
 		}
 		
-		if(1 == count($terms) && in_array(DevblocksPlatform::strLower($terms[0]), ['any','anyone','anybody'])) {
+		if(1 == count($terms) && in_array(DevblocksPlatform::strLower($terms[0]), array('any','anyone','anybody'))) {
 			@$is_cfield = $search_field['options']['cf_id'];
 			if($is_cfield) {
 				$oper = self::OPER_IS_NOT_NULL;
@@ -1053,7 +951,7 @@ class DevblocksSearchCriteria {
 				$value = 0;
 			}
 			
-		} else if(1 == count($terms) && in_array(DevblocksPlatform::strLower($terms[0]), ['blank','empty','no','none','noone','nobody'])) {
+		} else if(1 == count($terms) && in_array(DevblocksPlatform::strLower($terms[0]), array('blank','empty','no','none','noone','nobody'))) {
 			@$is_cfield = $search_field['options']['cf_id'];
 			if($is_cfield) {
 				$oper = self::OPER_IS_NULL;
@@ -1067,7 +965,7 @@ class DevblocksSearchCriteria {
 			$active_worker = CerberusApplication::getActiveWorker();
 			$workers = DAO_Worker::getAllActive();
 				
-			$worker_ids = [];
+			$worker_ids = array();
 			
 			if(is_array($terms))
 			foreach($terms as $term) {
@@ -1095,11 +993,13 @@ class DevblocksSearchCriteria {
 			}
 		}
 		
-		return new DevblocksSearchCriteria(
+		$param = new DevblocksSearchCriteria(
 			$field_key,
 			$oper,
 			$value
 		);
+		
+		return $param;
 	}
 	
 	public static function getVirtualQuickSearchParamFromTokens($field_key, $tokens, $search_field_key) {
@@ -1337,14 +1237,14 @@ class DevblocksSearchCriteria {
 		if(isset($this->where_sql))
 			return $this->where_sql;
 		
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$where = '';
 		
 		if(!isset($fields[$this->field]))
 			return '';
 		
 		$db_field_name = $fields[$this->field]->db_table . '.' . $fields[$this->field]->db_column;
-		
+
 		// This should be handled by SearchFields_*::getWhereSQL()
 		if('*_' == substr($this->field,0,2)) {
 			return '';
@@ -1671,9 +1571,6 @@ class DevblocksSearchCriteria {
 				break;
 			
 			case DevblocksSearchCriteria::OPER_CUSTOM:
-				if(!isset($this->value['where']))
-					return 0;
-				
 				$where = sprintf("%s %s",
 					$db_field_name,
 					$this->value['where']
@@ -1688,7 +1585,7 @@ class DevblocksSearchCriteria {
 	}
 	
 	static protected function _escapeSearchParam(DevblocksSearchCriteria $param, $fields) {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$field = $fields[$param->field];
 		$where_value = null;
 
@@ -1924,7 +1821,7 @@ class DevblocksPluginManifest {
 	}
 	
 	function purge() {
-		$db = DevblocksPlatform::services()->database();
+		$db = DevblocksPlatform::getDatabaseService();
 		$prefix = (APP_DB_PREFIX != '') ? APP_DB_PREFIX.'_' : ''; // [TODO] Cleanup
 		
 		$db->ExecuteMaster(sprintf("DELETE FROM %splugin WHERE id = %s",
@@ -2003,15 +1900,15 @@ class DevblocksExtensionManifest {
 	function createInstance() {
 		if(empty($this->id) || empty($this->plugin_id))
 			return null;
-		
+
 		if(null == ($plugin = DevblocksPlatform::getPlugin($this->plugin_id)))
 			return;
-		
+
 		$class_file = $plugin->getStoragePath() . '/' . $this->file;
 		$class_name = $this->class;
-		
-		DevblocksPlatform::registerClasses($class_file, [$class_name]);
-		
+
+		DevblocksPlatform::registerClasses($class_file,array($class_name));
+
 		if(!class_exists($class_name, true)) {
 			return null;
 		}
@@ -2046,10 +1943,7 @@ class DevblocksExtensionManifest {
 	 * @return boolean
 	 */
 	function hasOption($key) {
-		if(!isset($this->params['options']) || !is_array($this->params['options']) || empty($this->params['options']))
-			return false;
-		
-		if(!isset($this->params['options'][0]))
+		if(!isset($this->params['options']) || !is_array($this->params['options']))
 			return false;
 		
 		$options = $this->params['options'][0];
@@ -2148,12 +2042,12 @@ class DevblocksPatch {
 
 class Model_DevblocksEvent {
 	public $id = '';
-	public $params = [];
+	public $params = array();
 
-	function __construct($id='',$params=[]) {
+  function __construct($id='',$params=array()) {
 		$this->id = $id;
 		$this->params = $params;
-	}
+  }
 };
 
 class Model_Translation {
@@ -2169,14 +2063,14 @@ class Model_DevblocksStorageProfile {
 	public $name;
 	public $extension_id;
 	public $params_json;
-	public $params = [];
+	public $params = array();
 	
 	function getUsageStats() {
 		// Schemas
 		$storage_schemas = DevblocksPlatform::getExtensions('devblocks.storage.schema', true);
 		
 		// Stats
-		$storage_schema_stats = [];
+		$storage_schema_stats = array();
 		foreach($storage_schemas as $schema) {
 			$stats = $schema->getStats();
 			$key = $this->extension_id . ':' . intval($this->id);

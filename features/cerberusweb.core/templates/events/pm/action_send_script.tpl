@@ -5,6 +5,6 @@
 
 <script type="text/javascript">
 $(function() {
-	var $action = $('#{$namePrefix}_{$nonce}');
+	var $action = $('fieldset#{$namePrefix}');
 });
 </script>
