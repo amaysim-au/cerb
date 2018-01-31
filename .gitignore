@@ -5,3 +5,5 @@
 /phpunit.phar
 /tags
 /vendor/
+*.iml
+.idea/

@@ -11,6 +11,11 @@
 	<textarea name="{$namePrefix}[http_url]" class="placeholders" spellcheck="false" cols="45" rows="5" style="width:100%;" placeholder="e.g. http://example.com/api/request.json">{$params.http_url|default:""}</textarea>
 </div>
 
+<b>HTTPS client certificate file path (Optional):</b>
+<div style="margin-left:10px;margin-bottom:10px;">
+	<input type="text" name="{$namePrefix}[http_cert]" value="{$params.http_cert|default:""}" class="placeholders" spellcheck="false" size="45" style="width:100%;" placeholder="e.g. /path/to/https/cert.pem">
+</div>
+
 <div class="cerb-httprequest-headers">
 	<b>Request headers:</b>
 	<div style="margin-left:10px;margin-bottom:10px;">

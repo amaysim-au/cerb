@@ -134,6 +134,9 @@ if(!defined('DEVELOPMENT_MODE_QUERIES'))
 if(!defined('DEVELOPMENT_MODE_ALLOW_CSRF'))
 	define('DEVELOPMENT_MODE_ALLOW_CSRF', false);
 
+if(!defined('CURL_DEBUG_PATH'))
+    define('CURL_DEBUG_PATH','');
+
 // ----
 
 @date_default_timezone_set(date_default_timezone_get());
