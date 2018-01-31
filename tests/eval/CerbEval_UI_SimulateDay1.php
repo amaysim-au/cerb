@@ -48,23 +48,22 @@ class CerbEval_UI_SimulateDay1 extends CerbTestBase {
 		];
 		
 		foreach($message_files as $message_file) {
-			$cerb->getPathAndWait('/config/mail_import');
+			$cerb->getPathAndWait('/config/mail_incoming/import');
 			
 			$by = WebDriverBy::id('frmSetupMailImport');
 			
-			$driver->wait(5, 250)->until(
+			$driver->wait(10)->until(
 				WebDriverExpectedCondition::presenceOfElementLocated($by)
 			);
 			
 			$form = $driver->findElement($by);
 			
-			$textarea = $form->findElement(WebDriverBy::name('message_source'));
-			$textarea->sendKeys(file_get_contents('resources/convos/' . $message_file));
+			$driver->executeScript(sprintf("$('textarea[name=message_source]').val(%s);", json_encode(file_get_contents('resources/convos/' . $message_file))));
 			
 			$form->findElement(WebDriverBy::tagName('button'))
 				->click();
 			
-			$driver->wait(5, 250)->until(
+			$driver->wait(10)->until(
 				WebDriverExpectedCondition::elementTextContains(WebDriverBy::cssSelector('div.output'), 'Ticket updated:')
 			);
 		}
@@ -80,7 +79,7 @@ class CerbEval_UI_SimulateDay1 extends CerbTestBase {
 		
 		$cerb->replyOnTicket(1, file_get_contents('resources/convos/001_always_use_html/2.txt'));
 		
-		$driver->wait(5)->until(
+		$driver->wait(10)->until(
 			function() use (&$driver) {
 				try {
 					$objects = $driver->findElements(WebDriverBy::cssSelector('#conversation > div'));
@@ -115,7 +114,7 @@ class CerbEval_UI_SimulateDay1 extends CerbTestBase {
 		
 		$cerb->replyOnTicket(3, file_get_contents('resources/convos/003_oldest_ie_version/2.txt'));
 		
-		$driver->wait(5)->until(
+		$driver->wait(10)->until(
 			function() use (&$driver) {
 				try {
 					$objects = $driver->findElements(WebDriverBy::cssSelector('#conversation > div'));
@@ -145,6 +144,26 @@ class CerbEval_UI_SimulateDay1 extends CerbTestBase {
 		$cerb->logInAs('milo@cerb.example', 'cerb');
 	}
 	
+	public function testMiloClosesTour() {
+		$cerb = CerbTestHelper::getInstance();
+		$driver = $cerb->driver();
+		
+		try {
+			$hide_this = $driver->findElement(WebDriverBy::linkText('hide this'));
+			
+			$hide_this->click();
+			
+			$driver->wait(10)->until(
+				WebDriverExpectedCondition::invisibilityOfElementLocated(WebDriverBy::id('tourForm'))
+			);
+			
+		} catch (NoSuchElementException $e) {
+			// This is ok
+		}
+		
+		$this->assertTrue(true);
+	}
+	
 	public function testMiloCommentsToKinaOnTicket1() {
 		$cerb = CerbTestHelper::getInstance();
 		$driver = $cerb->driver();
@@ -162,7 +181,7 @@ class CerbEval_UI_SimulateDay1 extends CerbTestBase {
 		
 		$cerb->replyOnTicket(2, file_get_contents('resources/convos/002_server_requirements/2.txt'));
 		
-		$driver->wait(5)->until(
+		$driver->wait(10)->until(
 			function() use (&$driver) {
 				try {
 					$objects = $driver->findElements(WebDriverBy::cssSelector('#conversation > div'));
@@ -200,23 +219,22 @@ class CerbEval_UI_SimulateDay1 extends CerbTestBase {
 		];
 		
 		foreach($message_files as $message_file) {
-			$cerb->getPathAndWait('/config/mail_import');
+			$cerb->getPathAndWait('/config/mail_incoming/import');
 			
 			$by = WebDriverBy::id('frmSetupMailImport');
 			
-			$driver->wait(5, 250)->until(
+			$driver->wait(10)->until(
 				WebDriverExpectedCondition::presenceOfElementLocated($by)
 			);
 			
 			$form = $driver->findElement($by);
 			
-			$textarea = $form->findElement(WebDriverBy::name('message_source'));
-			$textarea->sendKeys(file_get_contents('resources/convos/' . $message_file));
+			$driver->executeScript(sprintf("$('textarea[name=message_source]').val(%s);", json_encode(file_get_contents('resources/convos/' . $message_file))));
 			
 			$form->findElement(WebDriverBy::tagName('button'))
 				->click();
 			
-			$driver->wait(5, 250)->until(
+			$driver->wait(10)->until(
 				WebDriverExpectedCondition::elementTextContains(WebDriverBy::cssSelector('div.output'), 'Ticket updated:')
 			);
 		}
@@ -232,7 +250,7 @@ class CerbEval_UI_SimulateDay1 extends CerbTestBase {
 		
 		$cerb->replyOnTicket(1, file_get_contents('resources/convos/001_always_use_html/4.txt'));
 		
-		$driver->wait(5)->until(
+		$driver->wait(10)->until(
 			function() use (&$driver) {
 				try {
 					$objects = $driver->findElements(WebDriverBy::cssSelector('#conversation > div'));
@@ -268,11 +286,11 @@ class CerbEval_UI_SimulateDay1 extends CerbTestBase {
 		
 		$cerb->replyOnTicket(2, file_get_contents('resources/convos/002_server_requirements/4.txt'));
 		
-		$driver->wait(5)->until(
+		$driver->wait(10)->until(
 			function() use (&$driver) {
 				try {
 					$objects = $driver->findElements(WebDriverBy::cssSelector('#conversation > div'));
-					return 4 == count($objects);
+					return 5 == count($objects);
 					
 				} catch (NoSuchElementException $nse) {
 					return null;

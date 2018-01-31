@@ -38,6 +38,9 @@ $.fn.extend({
 			var canvas = $canvas.get(0);
 			var context = canvas.getContext('2d');
 			
+			var chart_height = canvas.height;
+			var chart_width = canvas.width;
+			
 			if(null == options.threshold_colors)
 				options.threshold_colors = ['#6BA81E', '#F9B326', '#D23E2E'];
 			
@@ -59,7 +62,11 @@ $.fn.extend({
 			if(null == options.threshold_labels)
 				options.threshold_labels = options.threshold_values;
 			
-			metric_max = options.threshold_values[options.threshold_values.length-1];
+			var metric_min = options.metric_min ? options.metric_min : 0;
+			var metric_max = options.threshold_values[options.threshold_values.length-1];
+			
+			if(options.metric < metric_min)
+				options.metric = metric_min;
 			
 			if(options.metric > metric_max)
 				options.metric = metric_max;
@@ -69,24 +76,51 @@ $.fn.extend({
 			
 			// Dial
 			
-			arclen = Math.PI;
-			piecenter_x = options.radius + 10;
-			piecenter_y = options.radius + 5;
+			var piecenter_x = options.radius + 10;
+			var piecenter_y = options.radius + 5;
 			
-			area_used = 0;
+			var angle_start = Math.PI;
+			var range = metric_max - metric_min;
+			var value_last = metric_min;
 			
-			for(idx in options.threshold_values) {
+			for(var idx in options.threshold_values) {
 				context.beginPath();
 				context.moveTo(piecenter_x, piecenter_y);
 				context.fillStyle = options.threshold_colors[idx];
-				//context.strokeStyle = context.fillStyle;
-				partlen = Math.PI * ((options.threshold_values[idx]-area_used)/metric_max);
-				area_used += options.threshold_values[idx]-area_used;
-				context.arc(piecenter_x, piecenter_y, options.radius, arclen, arclen + partlen, false);
+				var value = parseFloat(options.threshold_values[idx]);
+				var angle_wedge = (Math.abs(value_last - value)/range * Math.PI);
+				context.arc(piecenter_x, piecenter_y, options.radius, angle_start, angle_start + angle_wedge, false);
+				angle_start += angle_wedge;
+				value_last = value;
 				context.lineTo(piecenter_x, piecenter_y);
 				context.fill();
 				//context.stroke();
-				arclen += partlen;
+			}
+			
+			// White out the inside of the gauge
+			context.beginPath();
+			context.moveTo(piecenter_x, piecenter_y);
+			context.fillStyle = '#FFFFFF';
+			context.arc(piecenter_x, piecenter_y, options.radius * 0.75, Math.PI, 2 * Math.PI, false);
+			context.lineTo(piecenter_x, piecenter_y);
+			context.fill();
+			
+			// Label the min
+			if(options.metric_label_min) {
+				context.font = '10px Verdana';
+				context.fillStyle = 'gray';
+				context.textBaseline = 'top';
+				var measure = context.measureText(options.metric_label_min);
+				context.fillText(options.metric_label_min, 10, piecenter_y+3);
+			}
+			
+			// Label the max
+			if(options.metric_label_max) {
+				context.font = '10px Verdana';
+				context.fillStyle = 'gray';
+				context.textBaseline = 'top';
+				var measure = context.measureText(options.metric_label_max);
+				context.fillText(options.metric_label_max, chart_width-10-measure.width, piecenter_y+3);
 			}
 			
 			// Legend
@@ -134,12 +168,12 @@ $.fn.extend({
 			
 			// Needle
 			context.translate(piecenter_x, piecenter_y);
-			theta = (Math.PI/metric_max) * options.metric;
+			var theta = (Math.PI/range) * Math.abs(metric_min - options.metric);
 			context.rotate(theta);
 			context.beginPath();
 			context.fillStyle = 'black';
-			context.moveTo(3,6);
-			context.lineTo(3,-6);
+			context.moveTo(3,4);
+			context.lineTo(3,-4);
 			context.lineTo(-1 * (options.radius * 1.1),0);
 			context.fill();
 			
@@ -157,8 +191,8 @@ $.fn.extend({
 			context.font = 'bold 15px Verdana';
 			context.fillStyle = 'black';
 			context.textBaseline = 'top';
-			measure = context.measureText(options.metric_label);
-			context.fillText(options.metric_label, piecenter_x-(measure.width/2), piecenter_y+10);
+			var measure = context.measureText(options.metric_label);
+			context.fillText(options.metric_label, piecenter_x-(measure.width/2), piecenter_y+12);
 		};
 		
 		var drawPieChart = function($canvas, options) {

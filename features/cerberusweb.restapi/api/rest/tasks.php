@@ -80,7 +80,8 @@ class ChRest_Tasks extends Extension_RestController implements IExtensionRestCon
 			$tokens = array(
 				'completed' => DAO_Task::COMPLETED_DATE,
 				'due' => DAO_Task::DUE_DATE,
-				'is_completed' => DAO_Task::IS_COMPLETED,
+				'reopen_at' => DAO_Task::REOPEN_AT,
+				'status_id' => DAO_Task::STATUS_ID,
 				'title' => DAO_Task::TITLE,
 				'updated' => DAO_Task::UPDATED_DATE,
 			);
@@ -91,7 +92,7 @@ class ChRest_Tasks extends Extension_RestController implements IExtensionRestCon
 				'links' => SearchFields_Task::VIRTUAL_CONTEXT_LINK,
 				'watchers' => SearchFields_Task::VIRTUAL_WATCHERS,
 					
-				'is_completed' => SearchFields_Task::IS_COMPLETED,
+				'status_id' => SearchFields_Task::STATUS_ID,
 			);
 			
 			$tokens_cfields = $this->_handleSearchTokensCustomFields(CerberusContexts::CONTEXT_TASK);
@@ -104,7 +105,8 @@ class ChRest_Tasks extends Extension_RestController implements IExtensionRestCon
 				'completed' => SearchFields_Task::COMPLETED_DATE,
 				'due' => SearchFields_Task::DUE_DATE,
 				'id' => SearchFields_Task::ID,
-				'is_completed' => SearchFields_Task::IS_COMPLETED,
+				'reopen_at' => SearchFields_Task::REOPEN_AT,
+				'status_id' => SearchFields_Task::STATUS_ID,
 				'title' => SearchFields_Task::TITLE,
 				'watchers' => SearchFields_Task::VIRTUAL_WATCHERS,
 			);
@@ -129,7 +131,7 @@ class ChRest_Tasks extends Extension_RestController implements IExtensionRestCon
 		
 		// ACL
 //		if(!$worker->hasPriv('...'))
-//			$this->error("Access denied.");
+//			$this->error(self::ERRNO_ACL);
 
 		$container = $this->search(array(
 			array('id', '=', $id),
@@ -235,14 +237,15 @@ class ChRest_Tasks extends Extension_RestController implements IExtensionRestCon
 			$this->error(self::ERRNO_CUSTOM, sprintf("Invalid task ID '%d'", $id));
 			
 		// ACL
-		if(!($worker->hasPriv('core.tasks.actions.update_all') || $task->worker_id == $worker->id))
+		if(!($worker->hasPriv('contexts.cerberusweb.contexts.task.update') || $task->worker_id == $worker->id))
 			$this->error(self::ERRNO_ACL);
 			
 		$putfields = array(
 			'assignee_id' => 'integer',
 			'completed' => 'timestamp',
 			'due' => 'timestamp',
-			'is_completed' => 'bit',
+			'reopen_at' => 'timestamp',
+			'status_id' => 'integer',
 			'title' => 'string',
 			'updated' => 'timestamp',
 		);
@@ -282,14 +285,15 @@ class ChRest_Tasks extends Extension_RestController implements IExtensionRestCon
 		$worker = CerberusApplication::getActiveWorker();
 		
 		// ACL
-		if(!$worker->hasPriv('core.tasks.actions.create'))
+		if(!$worker->hasPriv('contexts.cerberusweb.contexts.task.create'))
 			$this->error(self::ERRNO_ACL);
 		
 		$postfields = array(
 			'assignee_id' => 'integer',
 			'completed' => 'timestamp',
 			'due' => 'timestamp',
-			'is_completed' => 'bit',
+			'reopen_at' => 'timestamp',
+			'status_id' => 'integer',
 			'title' => 'string',
 			'updated' => 'timestamp',
 		);
@@ -340,7 +344,7 @@ class ChRest_Tasks extends Extension_RestController implements IExtensionRestCon
 			$this->error(self::ERRNO_CUSTOM, sprintf("Invalid task ID %d", $id));
 
 		// ACL
-		if(!($worker->hasPriv('core.tasks.actions.update_all') || $task->worker_id==$worker->id))
+		if(!($worker->hasPriv('contexts.cerberusweb.contexts.task.update') || $task->worker_id==$worker->id))
 			$this->error(self::ERRNO_ACL);
 		
 		// Required fields

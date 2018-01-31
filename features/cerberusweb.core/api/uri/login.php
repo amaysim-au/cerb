@@ -37,9 +37,7 @@ class ChSignInPage extends CerberusPageExtension {
 		
 		switch($section) {
 			case "recover":
-				// [TODO] If the email account is given we don't need to prompt for the address
-				
-				$tpl = DevblocksPlatform::getTemplateService();
+				$tpl = DevblocksPlatform::services()->template();
 				$tpl->assign('email', $email);
 
 				if(!empty($email)
@@ -92,14 +90,18 @@ class ChSignInPage extends CerberusPageExtension {
 						}
 						
 					} else {
-						$recovery_code = CerberusApplication::generatePassword(8);
-
-						// [TODO] Use the internal account recovery service to send the code by email or SMS
-						// [TODO] This needs to be limited to only recovering once per hour unless successful
+						// [TODO] This needs to be rate-limited to only recovering once per hour unless successful
 						
-						CerberusMail::quickSend($worker->getEmailString(), 'Your account recovery confirmation code', $recovery_code);
+						$labels = $values = [];
+						CerberusContexts::getContext(CerberusContexts::CONTEXT_WORKER, $worker, $worker_labels, $worker_values, '', true, true);
+						CerberusContexts::merge('worker_', null, $worker_labels, $worker_values, $labels, $values);
 						
-						$_SESSION['recovery_code'] = $worker->getEmailString().':'.$recovery_code;
+						$values['code'] = CerberusApplication::generatePassword(8);
+						$values['ip'] = DevblocksPlatform::getClientIp();
+						
+						$_SESSION['recovery_code'] = $worker->getEmailString() . ':' . $values['code'];
+						
+						CerberusApplication::sendEmailTemplate($worker->getEmailString(), 'worker_recover', $values);
 						
 						$tpl->display('devblocks:cerberusweb.core::login/recover/recover2.tpl');
 					}
@@ -161,8 +163,8 @@ class ChSignInPage extends CerberusPageExtension {
 			case 'reset':
 				unset($_COOKIE['cerb_login_email']);
 				
-				$url_writer = DevblocksPlatform::getUrlService();
-				setcookie('cerb_login_email', null, time()-3600, $url_writer->write('c=login',false,false), null, null, true);
+				$url_writer = DevblocksPlatform::services()->url();
+				setcookie('cerb_login_email', null, time()-3600, $url_writer->write('c=login',false,false), null, $url_writer->isSSL(), true);
 				
 				DevblocksPlatform::redirect(new DevblocksHttpRequest(array('login')));
 				break;
@@ -188,7 +190,7 @@ class ChSignInPage extends CerberusPageExtension {
 					DevblocksPlatform::redirect($devblocks_response, 1);
 				}
 				
-				$tpl = DevblocksPlatform::getTemplateService();
+				$tpl = DevblocksPlatform::services()->template();
 				
 				$tpl->assign('remember_me', $remember_email);
 				
@@ -256,8 +258,8 @@ class ChSignInPage extends CerberusPageExtension {
 			}
 			
 			if($remember_me) {
-				$url_writer = DevblocksPlatform::getUrlService();
-				setcookie('cerb_login_email', $email, time()+30*86400, $url_writer->write('c=login',false,false), null, null, true);
+				$url_writer = DevblocksPlatform::services()->url();
+				setcookie('cerb_login_email', $email, time()+30*86400, $url_writer->write('c=login',false,false), null, $url_writer->isSSL(), true);
 			}
 			
 			$query = array(
@@ -271,7 +273,7 @@ class ChSignInPage extends CerberusPageExtension {
 	// Please be honest
 	private function _checkSeats($worker) {
 		$honesty = CerberusLicense::getInstance();
-		$session = DevblocksPlatform::getSessionService();
+		$session = DevblocksPlatform::services()->session();
 		
 		$online_workers = DAO_Worker::getAllOnline(PHP_INT_MAX, 0);
 		$max = intval(max($honesty->w, 1));
@@ -298,7 +300,7 @@ class ChSignInPage extends CerberusPageExtension {
 	}
 	
 	private function _processAuthenticated($worker) { /* @var $worker Model_Worker */
-		$session = DevblocksPlatform::getSessionService();
+		$session = DevblocksPlatform::services()->session();
 
 		$visit = new CerberusVisit();
 		$visit->setWorker($worker);
@@ -338,7 +340,7 @@ class ChSignInPage extends CerberusPageExtension {
 		 * Log activity (worker.logged_in)
 		 */
 		$ip_address = DevblocksPlatform::getClientIp() ?: 'an unknown IP';
-		$user_agent = UserAgentParser::parse();
+		$user_agent = DevblocksPlatform::getClientUserAgent();
 		$user_agent_string = sprintf("%s%s%s",
 			$user_agent['browser'],
 			!empty($user_agent['version']) ? (' ' . $user_agent['version']) : '',
@@ -383,7 +385,7 @@ class ChSignInPage extends CerberusPageExtension {
 		);
 		CerberusContexts::logActivity('worker.logged_out', null, null, $entry);
 		
-		$session = DevblocksPlatform::getSessionService();
+		$session = DevblocksPlatform::services()->session();
 		
 		switch($option) {
 			case 'all':

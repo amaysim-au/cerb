@@ -17,9 +17,11 @@
 
 class PageSection_ProfilesOrganization extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$translate = DevblocksPlatform::getTranslationService();
 		$response = DevblocksPlatform::getHttpResponse();
+		
+		$context = CerberusContexts::CONTEXT_ORG;
 		$active_worker = CerberusApplication::getActiveWorker();
 
 		$stack = $response->path;
@@ -35,6 +37,13 @@ class PageSection_ProfilesOrganization extends Extension_PageSection {
 			return;
 		
 		$tpl->assign('contact', $org);
+		
+		// Dictionary
+		$labels = array();
+		$values = array();
+		CerberusContexts::getContext($context, $org, $labels, $values, '', true, false);
+		$dict = DevblocksDictionaryDelegate::instance($values);
+		$tpl->assign('dict', $dict);
 		
 		// Properties
 		
@@ -107,26 +116,26 @@ class PageSection_ProfilesOrganization extends Extension_PageSection {
 		
 		// Custom Fields
 
-		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_ORG, $org->id)) or array();
+		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds($context, $org->id)) or array();
 		$tpl->assign('custom_field_values', $values);
 		
-		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields(CerberusContexts::CONTEXT_ORG, $values);
+		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields($context, $values);
 		
 		if(!empty($properties_cfields))
 			$properties = array_merge($properties, $properties_cfields);
 		
 		// Custom Fieldsets
 
-		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets(CerberusContexts::CONTEXT_ORG, $org->id, $values);
+		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets($context, $org->id, $values);
 		$tpl->assign('properties_custom_fieldsets', $properties_custom_fieldsets);
 		
 		// Link counts
 		
 		if(isset($org->id)) {
-			$properties_links[CerberusContexts::CONTEXT_ORG] = array(
+			$properties_links[$context] = array(
 				$org->id => 
 					DAO_ContextLink::getContextLinkCounts(
-						CerberusContexts::CONTEXT_ORG,
+						$context,
 						$org->id,
 						array(CerberusContexts::CONTEXT_CUSTOM_FIELDSET)
 					),
@@ -141,7 +150,7 @@ class PageSection_ProfilesOrganization extends Extension_PageSection {
 		
 		// Counts
 		$activity_counts = array(
-			//'comments' => DAO_Comment::count(CerberusContexts::CONTEXT_ORG, $org->id),
+			//'comments' => DAO_Comment::count($context, $org->id),
 			'contacts' => DAO_Contact::countByOrgId($org->id),
 			'emails' => DAO_Address::countByOrgId($org->id),
 			//'tickets' => DAO_Ticket::countsByOrgId($org->id),
@@ -150,17 +159,14 @@ class PageSection_ProfilesOrganization extends Extension_PageSection {
 
 		// Tabs
 		
-		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_ORG);
+		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, $context);
 		$tpl->assign('tab_manifests', $tab_manifests);
 		
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.org'
-		);
-		$tpl->assign('macros', $macros);
-
+		// Interactions
+		$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
+		$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
+		$tpl->assign('interactions_menu', $interactions_menu);
+	
 		// Template
 		$tpl->display('devblocks:cerberusweb.core::profiles/organization.tpl');
 	}
@@ -175,10 +181,9 @@ class PageSection_ProfilesOrganization extends Extension_PageSection {
 		header('Content-Type: application/json; charset=utf-8');
 		
 		try {
-		
 			if(!empty($id) && !empty($delete)) { // delete
-				if(!$active_worker->hasPriv('core.addybook.org.actions.delete'))
-					throw new Exception_DevblocksAjaxValidationError("You don't have permission to delete this record.");
+				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_ORG)))
+					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
 				
 				DAO_ContactOrg::delete($id);
 				
@@ -202,69 +207,78 @@ class PageSection_ProfilesOrganization extends Extension_PageSection {
 				@$comment = DevblocksPlatform::importGPC($_REQUEST['comment'],'string','');
 				@$email_id = DevblocksPlatform::importGPC($_REQUEST['email_id'],'integer',0);
 				
-				// Validation
-				if(empty($org_name))
-					throw new Exception_DevblocksAjaxValidationError("The 'Name' field is required.", 'org_name');
-				
 				// Privs
-				if($active_worker->hasPriv('core.addybook.org.actions.update')) {
-					$fields = array(
-						DAO_ContactOrg::NAME => $org_name,
-						DAO_ContactOrg::STREET => $street,
-						DAO_ContactOrg::CITY => $city,
-						DAO_ContactOrg::PROVINCE => $province,
-						DAO_ContactOrg::POSTAL => $postal,
-						DAO_ContactOrg::COUNTRY => $country,
-						DAO_ContactOrg::PHONE => $phone,
-						DAO_ContactOrg::WEBSITE => $website,
-						DAO_ContactOrg::EMAIL_ID => $email_id,
-					);
-			
-					if($id==0) {
-						if(false == ($id = DAO_ContactOrg::create($fields)))
-							throw new Exception_DevblocksAjaxValidationError("Failed to create a new record.");
-						
-						// View marquee
-						if(!empty($id) && !empty($view_id)) {
-							C4_AbstractView::setMarqueeContextCreated($view_id, CerberusContexts::CONTEXT_ORG, $id);
-						}
-						
-					}
-					else {
-						DAO_ContactOrg::update($id, $fields);
+				$fields = array(
+					DAO_ContactOrg::NAME => $org_name,
+					DAO_ContactOrg::STREET => $street,
+					DAO_ContactOrg::CITY => $city,
+					DAO_ContactOrg::PROVINCE => $province,
+					DAO_ContactOrg::POSTAL => $postal,
+					DAO_ContactOrg::COUNTRY => $country,
+					DAO_ContactOrg::PHONE => $phone,
+					DAO_ContactOrg::WEBSITE => $website,
+					DAO_ContactOrg::EMAIL_ID => $email_id,
+				);
+		
+				if($id==0) {
+					if(!DAO_ContactOrg::validate($fields, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					if(!DAO_ContactOrg::onBeforeUpdateByActor($active_worker, $fields, null, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					if(false == ($id = DAO_ContactOrg::create($fields)))
+						throw new Exception_DevblocksAjaxValidationError("Failed to create a new record.");
+					
+					DAO_ContactOrg::onUpdateByActor($active_worker, $fields, $id);
+					
+					// View marquee
+					if(!empty($id) && !empty($view_id)) {
+						C4_AbstractView::setMarqueeContextCreated($view_id, CerberusContexts::CONTEXT_ORG, $id);
 					}
 					
-					if($id) {
-						// Custom field saves
-						@$field_ids = DevblocksPlatform::importGPC($_POST['field_ids'], 'array', array());
-						DAO_CustomFieldValue::handleFormPost(CerberusContexts::CONTEXT_ORG, $id, $field_ids);
+				}
+				else {
+					if(!DAO_ContactOrg::validate($fields, $error, $id))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					if(!DAO_ContactOrg::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					DAO_ContactOrg::update($id, $fields);
+					DAO_ContactOrg::onUpdateByActor($active_worker, $fields, $id);
+				}
+				
+				if($id) {
+					// Custom field saves
+					@$field_ids = DevblocksPlatform::importGPC($_POST['field_ids'], 'array', array());
+					DAO_CustomFieldValue::handleFormPost(CerberusContexts::CONTEXT_ORG, $id, $field_ids);
+					
+					// Aliases
+					DAO_ContextAlias::set(CerberusContexts::CONTEXT_ORG, $id, DevblocksPlatform::parseCrlfString($org_name . "\n" . $aliases));
+					
+					// Avatar image
+					@$avatar_image = DevblocksPlatform::importGPC($_REQUEST['avatar_image'], 'string', '');
+					DAO_ContextAvatar::upsertWithImage(CerberusContexts::CONTEXT_ORG, $id, $avatar_image);
+					
+					// Comments
+					if(!empty($comment)) {
+						$also_notify_worker_ids = array_keys(CerberusApplication::getWorkersByAtMentionsText($comment));
 						
-						// Aliases
-						DAO_ContextAlias::set(CerberusContexts::CONTEXT_ORG, $id, DevblocksPlatform::parseCrlfString($org_name . "\n" . $aliases));
-						
-						// Avatar image
-						@$avatar_image = DevblocksPlatform::importGPC($_REQUEST['avatar_image'], 'string', '');
-						DAO_ContextAvatar::upsertWithImage(CerberusContexts::CONTEXT_ORG, $id, $avatar_image);
-						
-						// Comments
-						if(!empty($comment)) {
-							$also_notify_worker_ids = array_keys(CerberusApplication::getWorkersByAtMentionsText($comment));
-							
-							$fields = array(
-								DAO_Comment::CREATED => time(),
-								DAO_Comment::CONTEXT => CerberusContexts::CONTEXT_ORG,
-								DAO_Comment::CONTEXT_ID => $id,
-								DAO_Comment::COMMENT => $comment,
-								DAO_Comment::OWNER_CONTEXT => CerberusContexts::CONTEXT_WORKER,
-								DAO_Comment::OWNER_CONTEXT_ID => $active_worker->id,
-							);
-							$comment_id = DAO_Comment::create($fields, $also_notify_worker_ids);
-						}
-						
-						// Index immediately
-						$search = Extension_DevblocksSearchSchema::get(Search_Org::ID);
-						$search->indexIds(array($id));
+						$fields = array(
+							DAO_Comment::CREATED => time(),
+							DAO_Comment::CONTEXT => CerberusContexts::CONTEXT_ORG,
+							DAO_Comment::CONTEXT_ID => $id,
+							DAO_Comment::COMMENT => $comment,
+							DAO_Comment::OWNER_CONTEXT => CerberusContexts::CONTEXT_WORKER,
+							DAO_Comment::OWNER_CONTEXT_ID => $active_worker->id,
+						);
+						$comment_id = DAO_Comment::create($fields, $also_notify_worker_ids);
 					}
+					
+					// Index immediately
+					$search = Extension_DevblocksSearchSchema::get(Search_Org::ID);
+					$search->indexIds(array($id));
 				}
 			}
 			
@@ -302,7 +316,7 @@ class PageSection_ProfilesOrganization extends Extension_PageSection {
 
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('view_id', $view_id);
 
 		if(!empty($ids)) {
@@ -326,14 +340,6 @@ class PageSection_ProfilesOrganization extends Extension_PageSection {
 		
 		$html_templates = DAO_MailHtmlTemplate::getAll();
 		$tpl->assign('html_templates', $html_templates);
-		
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.org'
-		);
-		$tpl->assign('macros', $macros);
 		
 		$tpl->display('devblocks:cerberusweb.core::contacts/orgs/bulk.tpl');
 	}
@@ -365,7 +371,7 @@ class PageSection_ProfilesOrganization extends Extension_PageSection {
 		if(strlen($status) > 0) {
 			switch($status) {
 				case 'deleted':
-					if($active_worker->hasPriv('core.addybook.org.actions.delete')) {
+					if($active_worker->hasPriv('contexts.cerberusweb.contexts.org.delete')) {
 						$do['delete'] = true;
 					}
 					break;
@@ -403,7 +409,7 @@ class PageSection_ProfilesOrganization extends Extension_PageSection {
 		$do = DAO_CustomFieldValue::handleBulkPost($do);
 		
 		// Broadcast: Compose
-		if($active_worker->hasPriv('context.org.worklist.broadcast')) {
+		if($active_worker->hasPriv('contexts.cerberusweb.contexts.org.broadcast')) {
 			@$do_broadcast = DevblocksPlatform::importGPC($_REQUEST['do_broadcast'],'string',null);
 			@$broadcast_group_id = DevblocksPlatform::importGPC($_REQUEST['broadcast_group_id'],'integer',0);
 			@$broadcast_subject = DevblocksPlatform::importGPC($_REQUEST['broadcast_subject'],'string',null);

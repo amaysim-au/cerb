@@ -17,7 +17,7 @@
 
 class PageSection_SetupPortals extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$visit = CerberusApplication::getVisit();
 		
 		$visit->set(ChConfigurationPage::ID, 'portals');
@@ -34,9 +34,9 @@ class PageSection_SetupPortals extends Extension_PageSection {
 	}
 	
 	function showAddPortalPeekAction() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
-		$tool_manifests = DevblocksPlatform::getExtensions('usermeet.tool', false);
+		$tool_manifests = DevblocksPlatform::getExtensions('cerb.portal', false);
 		
 		if(empty($tool_manifests)) {
 			$tpl->assign('error_message', sprintf("There are no community portals available. Please enable a plugin like the Support Center and try again."));

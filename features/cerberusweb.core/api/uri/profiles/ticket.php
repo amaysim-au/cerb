@@ -17,11 +17,13 @@
 
 class PageSection_ProfilesTicket extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$translate = DevblocksPlatform::getTranslationService();
 		$response = DevblocksPlatform::getHttpResponse();
+		$url = DevblocksPlatform::services()->url();
+		
+		$context = CerberusContexts::CONTEXT_TICKET;
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url = DevblocksPlatform::getUrlService();
 		
 		$stack = $response->path;
 		@array_shift($stack); // profiles
@@ -43,7 +45,11 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 			return;
 		}
 		
-		$tpl->assign('ticket', $ticket);
+		// Dictionary
+		$labels = $values = [];
+		CerberusContexts::getContext($context, $ticket, $labels, $values, '', true, false);
+		$dict = DevblocksDictionaryDelegate::instance($values);
+		$tpl->assign('dict', $dict);
 		
 		// Permissions
 		
@@ -51,7 +57,7 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 			return;
 		
 		// Check group membership ACL
-		if(!Context_Ticket::isReadableByActor($ticket, $active_worker)) {
+		if(!Context_Ticket::isReadableByActor($dict, $active_worker)) {
 			echo DevblocksPlatform::translateCapitalized('common.access_denied');
 			exit;
 		}
@@ -107,7 +113,7 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 			'owner' => array(
 				'label' => mb_ucfirst($translate->_('common.owner')),
 				'type' => Model_CustomField::TYPE_LINK,
-				'value' => $ticket->owner_id,
+				'value' => $dict->owner_id,
 				'params' => array(
 					'context' => CerberusContexts::CONTEXT_WORKER,
 				),
@@ -117,7 +123,7 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 			'org' => array(
 				'label' => mb_ucfirst($translate->_('common.organization')),
 				'type' => Model_CustomField::TYPE_LINK,
-				'value' => $ticket->org_id,
+				'value' => $dict->org_id,
 				'params' => array(
 					'context' => CerberusContexts::CONTEXT_ORG,
 				),
@@ -126,58 +132,58 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 			'created' => array(
 				'label' => mb_ucfirst($translate->_('common.created')),
 				'type' => Model_CustomField::TYPE_DATE,
-				'value' => $ticket->created_date,
+				'value' => $dict->created,
 			),
 			'updated' => array(
 				'label' => DevblocksPlatform::translateCapitalized('common.updated'),
 				'type' => Model_CustomField::TYPE_DATE,
-				'value' => $ticket->updated_date,
+				'value' => $dict->updated,
 			),
 		);
 		
-		if(!empty($ticket->closed_at)) {
+		if(!empty($dict->closed_at)) {
 			$properties['closed'] = array(
 				'label' => mb_ucfirst($translate->_('ticket.closed_at')),
 				'type' => Model_CustomField::TYPE_DATE,
-				'value' => $ticket->closed_at,
+				'value' => $dict->closed,
 			);
 		}
 		
-		if(!empty($ticket->elapsed_response_first)) {
+		if(!empty($dict->elapsed_response_first)) {
 			$properties['elapsed_response_first'] = array(
 				'label' => mb_ucfirst($translate->_('ticket.elapsed_response_first')),
 				'type' => null,
-				'value' => DevblocksPlatform::strSecsToString($ticket->elapsed_response_first, 2),
+				'value' => DevblocksPlatform::strSecsToString($dict->elapsed_response_first, 2),
 			);
 		}
 		
-		if(!empty($ticket->elapsed_resolution_first)) {
+		if(!empty($dict->elapsed_resolution_first)) {
 			$properties['elapsed_resolution_first'] = array(
 				'label' => mb_ucfirst($translate->_('ticket.elapsed_resolution_first')),
 				'type' => null,
-				'value' => DevblocksPlatform::strSecsToString($ticket->elapsed_resolution_first, 2),
+				'value' => DevblocksPlatform::strSecsToString($dict->elapsed_resolution_first, 2),
 			);
 		}
 		
 		$properties['spam_score'] = array(
 			'label' => mb_ucfirst($translate->_('ticket.spam_score')),
 			'type' => Model_CustomField::TYPE_SINGLE_LINE,
-			'value' => (100*$ticket->spam_score) . '%',
+			'value' => (100*$dict->spam_score) . '%',
 		);
 		
 		// Custom Fields
 
-		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_TICKET, $ticket->id)) or array();
+		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds($context, $dict->id)) or array();
 		$tpl->assign('custom_field_values', $values);
 		
-		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields(CerberusContexts::CONTEXT_TICKET, $values);
+		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields($context, $values);
 		
 		if(!empty($properties_cfields))
 			$properties = array_merge($properties, $properties_cfields);
 		
 		// Custom Fieldsets
 
-		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets(CerberusContexts::CONTEXT_TICKET, $ticket->id, $values);
+		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets($context, $dict->id, $values);
 		$tpl->assign('properties_custom_fieldsets', $properties_custom_fieldsets);
 		
 		// Properties
@@ -186,32 +192,32 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 		
 		// Profile counts
 		$profile_counts = array(
-			'attachments' => DAO_Attachment::count(CerberusContexts::CONTEXT_TICKET, $ticket->id),
-			'comments' => DAO_Comment::count(CerberusContexts::CONTEXT_TICKET, $ticket->id),
-			//'participants' => DAO_Address::countByTicketId($ticket->id),
-			'messages' => DAO_Message::countByTicketId($ticket->id),
+			'attachments' => DAO_Attachment::count($context, $dict->id),
+			'comments' => DAO_Comment::count($context, $dict->id),
+			//'participants' => DAO_Address::countByTicketId($dict->id),
+			'messages' => DAO_Message::countByTicketId($dict->id),
 		);
 		$tpl->assign('profile_counts', $profile_counts);
 		
 		// Link counts
 		
 		$properties_links = array(
-			CerberusContexts::CONTEXT_TICKET => array(
-				$ticket->id => 
+			$context => array(
+				$dict->id => 
 					DAO_ContextLink::getContextLinkCounts(
-						CerberusContexts::CONTEXT_TICKET,
-						$ticket->id,
+						$context,
+						$dict->id,
 						array(CerberusContexts::CONTEXT_CUSTOM_FIELDSET)
 					),
 			),
 		);
 		
-		if(!empty($ticket->org_id)) {
+		if(!empty($dict->org_id)) {
 			$properties_links[CerberusContexts::CONTEXT_ORG] = array(
-				$ticket->org_id => 
+				$dict->org_id => 
 					DAO_ContextLink::getContextLinkCounts(
 						CerberusContexts::CONTEXT_ORG,
-						$ticket->org_id,
+						$dict->org_id,
 						array(CerberusContexts::CONTEXT_CUSTOM_FIELDSET)
 					),
 			);
@@ -223,28 +229,8 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 		$groups = DAO_Group::getAll();
 		$tpl->assign('groups', $groups);
 		
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.ticket'
-		);
-
-		// Filter macros to only those owned by the ticket's group
-		
-		$macros = array_filter($macros, function($macro) use ($ticket) { /* @var $macro Model_TriggerEvent */
-			$va = $macro->getBot(); /* @var $va Model_Bot */
-			
-			if($va->owner_context == CerberusContexts::CONTEXT_GROUP && $va->owner_context_id != $ticket->group_id)
-				return false;
-			
-			return true;
-		});
-		
-		$tpl->assign('macros', $macros);
-		
 		// Requesters
-		$requesters = DAO_Ticket::getRequestersByTicket($ticket->id);
+		$requesters = DAO_Ticket::getRequestersByTicket($dict->id);
 		$tpl->assign('requesters', $requesters);
 		
 		// Workers
@@ -252,7 +238,7 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 		
 		// Watchers
 		// [TODO] Is this necessary or redundant?
-		$context_watchers = CerberusContexts::getWatchers(CerberusContexts::CONTEXT_TICKET, $ticket->id);
+		$context_watchers = CerberusContexts::getWatchers($context, $dict->id);
 		$tpl->assign('context_watchers', $context_watchers);
 		
 		// Buckets
@@ -260,16 +246,21 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 		$tpl->assign('group_buckets', $group_buckets);
 		
 		// If deleted, check for a new merge parent URL
-		if($ticket->status_id == Model_Ticket::STATUS_DELETED) {
-			if(false !== ($new_mask = DAO_Ticket::getMergeParentByMask($ticket->mask))) {
+		if($dict->status_id == Model_Ticket::STATUS_DELETED) {
+			if(false !== ($new_mask = DAO_Ticket::getMergeParentByMask($dict->mask))) {
 				if(false !== ($merge_parent = DAO_Ticket::getTicketByMask($new_mask)))
 					if(!empty($merge_parent->mask))
 						$tpl->assign('merge_parent', $merge_parent);
 			}
 		}
 		
+		// Interactions
+		$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
+		$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
+		$tpl->assign('interactions_menu', $interactions_menu);
+		
 		// Tabs
-		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_TICKET);
+		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, $context);
 		$tpl->assign('tab_manifests', $tab_manifests);
 
 		// Template
@@ -280,7 +271,7 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 		@$context = DevblocksPlatform::importGPC($_REQUEST['context'], 'string', '');
 		@$context_id = DevblocksPlatform::importGPC($_REQUEST['context_id'], 'integer', 0);
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		switch($context) {
 			case CerberusContexts::CONTEXT_MESSAGE:
@@ -309,7 +300,7 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 		
 		$raw_headers = $message->getHeaders(true);
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		$tpl->assign('raw_headers', $raw_headers);
 		
@@ -322,7 +313,7 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('view_id', $view_id);
 
 		if(!empty($ids)) {
@@ -342,14 +333,6 @@ class PageSection_ProfilesTicket extends Extension_PageSection {
 		// Custom Fields
 		$custom_fields = DAO_CustomField::getByContext(CerberusContexts::CONTEXT_TICKET, false);
 		$tpl->assign('custom_fields', $custom_fields);
-		
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.ticket'
-		);
-		$tpl->assign('macros', $macros);
 		
 		// HTML templates
 		$html_templates = DAO_MailHtmlTemplate::getAll();

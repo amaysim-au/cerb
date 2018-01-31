@@ -1,6 +1,6 @@
 <b>{'common.url'|devblocks_translate|upper}:</b>
 <div style="margin-left:10px;margin-bottom:10px;">
-	{$verbs = [get,post,put,delete]}
+	{$verbs = [get,post,put,patch,head,options,delete]}
 	<select name="{$namePrefix}[http_verb]" class="cerb-httprequest-verb">
 		{foreach from=$verbs item=verb}
 		<option value="{$verb}" {if $params.http_verb == $verb}selected="selected"{/if}>{$verb|upper}</option>
@@ -8,7 +8,7 @@
 	</select>
 	<br>
 	
-	<input type="text" name="{$namePrefix}[http_url]" value="{$params.http_url|default:""}" class="placeholders" spellcheck="false" size="45" style="width:100%;" placeholder="e.g. http://example.com/api/request.json">
+	<textarea name="{$namePrefix}[http_url]" class="placeholders" spellcheck="false" cols="45" rows="5" style="width:100%;" placeholder="e.g. http://example.com/api/request.json">{$params.http_url|default:""}</textarea>
 </div>
 
 <b>HTTPS client certificate file path (Optional):</b>
@@ -23,7 +23,7 @@
 	</div>
 </div>
 
-<div class="cerb-httprequest-body" style="{if !in_array($params.http_verb,[post,put])}display:none;{/if}">
+<div class="cerb-httprequest-body" style="{if !in_array($params.http_verb,[post,put,patch])}display:none;{/if}">
 	<b>Request body:</b>
 	<div style="margin-left:10px;margin-bottom:10px;">
 		<textarea rows="3" cols="60" name="{$namePrefix}[http_body]" style="width:100%;white-space:pre;word-wrap:normal;" class="placeholders" spellcheck="false">{$params.http_body}</textarea>
@@ -76,8 +76,7 @@
 
 <script type="text/javascript">
 $(function() {
-	var $action = $('fieldset#{$namePrefix}');
-	$action.find('textarea').autosize();
+	var $action = $('#{$namePrefix}_{$nonce}');
 	
 	$action.find('.chooser-abstract')
 		.cerbChooserTrigger()
@@ -88,8 +87,8 @@ $(function() {
 		var $div_httpbody = $container.find('div.cerb-httprequest-body');
 		var val = $(this).val();
 		
-		if(val == 'post' || val == 'put')
-			$div_httpbody.show().find('textarea').autosize();
+		if(val == 'post' || val == 'put' || val == 'patch')
+			$div_httpbody.show();
 		else
 			$div_httpbody.fadeOut();
 	});

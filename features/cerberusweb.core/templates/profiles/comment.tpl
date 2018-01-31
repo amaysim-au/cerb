@@ -1,5 +1,6 @@
 {$page_context = CerberusContexts::CONTEXT_COMMENT}
 {$page_context_id = $comment->id}
+{$is_writeable = Context_Comment::isWriteableByActor($comment, $active_worker)}
 
 <div style="float:left">
 	<div style="float:left;margin:0px 10px 0px 0px;">
@@ -12,7 +13,7 @@
 	
 	<div style="float:left;">
 		<div style="margin-bottom:2px;">
-			<h1 style="color:inherit;">{$author->_label}</h1>
+			<h1>{$author->_label}</h1>
 		</div>
 	
 		<div>
@@ -21,30 +22,22 @@
 	</div>
 </div>
 
-<div style="float:right;">
-{$ctx = Extension_DevblocksContext::get($page_context)}
-{include file="devblocks:cerberusweb.core::search/quick_search.tpl" view=$ctx->getSearchView() return_url="{devblocks_url}c=search&context={$ctx->manifest->params.alias}{/devblocks_url}"}
-</div>
-
 <div style="clear:both;margin-bottom:10px;"></div>
 
 <div class="cerb-profile-toolbar">
 	<form class="toolbar" action="{devblocks_url}{/devblocks_url}" onsubmit="return false;" style="margin-bottom:5px;">
 		<input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
 		
-		<!-- Macros -->
-		{devblocks_url assign=return_url full=true}c=profiles&type=comment&id={$page_context_id}-{$comment->name|devblocks_permalink}{/devblocks_url}
-		{include file="devblocks:cerberusweb.core::internal/macros/display/button.tpl" context=$page_context context_id=$page_context_id macros=$macros return_url=$return_url}
-		
 		<!-- Edit -->
+		{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
 		<button type="button" id="btnDisplayCommentEdit" title="{'common.edit'|devblocks_translate|capitalize} (E)" class="cerb-peek-trigger" data-context="{$page_context}" data-context-id="{$page_context_id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span></button>
+		{/if}
 	</form>
 	
 	{if $pref_keyboard_shortcuts}
 		<small>
 		{$translate->_('common.keyboard')|lower}:
 		(<b>e</b>) {'common.edit'|devblocks_translate|lower}
-		{if !empty($macros)}(<b>m</b>) {'common.macros'|devblocks_translate|lower} {/if}
 		(<b>1-9</b>) change tab
 		</small>
 	{/if}
@@ -121,8 +114,6 @@ $(function() {
 		.on('cerb-peek-closed', function(e) {
 		})
 		;
-	
-	{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_button=null selector_menu=null}
 });
 </script>
 

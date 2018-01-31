@@ -5,6 +5,7 @@
 	<meta http-equiv="Cache-Control" content="no-cache">
 	<meta name="robots" content="noindex">
 	<meta name="googlebot" content="noindex">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 	<meta name="_csrf_token" content="{$session.csrf_token}">
 	<!--[if gte IE 9]>
 	<meta http-equiv="X-UA-Compatible" content="IE=Edge"/>
@@ -13,7 +14,9 @@
 	<title>{$settings->get('cerberusweb.core','helpdesk_title')}</title>
 	{assign var=favicon_url value=$settings->get('cerberusweb.core','helpdesk_favicon_url','')}
 	{if empty($favicon_url)}
-	<link type="image/x-icon" rel="shortcut icon" href="{devblocks_url}favicon.ico{/devblocks_url}">
+	<link rel="icon" type="image/png" sizes="32x32" href="{devblocks_url}c=resource&p=cerberusweb.core&f=images/favicon-32x32.png{/devblocks_url}">
+	<link rel="icon" type="image/png" sizes="96x96" href="{devblocks_url}c=resource&p=cerberusweb.core&f=images/favicon-96x96.png{/devblocks_url}">
+	<link rel="icon" type="image/png" sizes="16x16" href="{devblocks_url}c=resource&p=cerberusweb.core&f=images/favicon-16x16.png{/devblocks_url}">
 	{else}
 	<link type="image/x-icon" rel="shortcut icon" href="{$favicon_url}">
 	{/if}

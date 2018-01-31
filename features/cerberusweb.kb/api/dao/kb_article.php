@@ -1,35 +1,87 @@
 <?php
 /***********************************************************************
- | Cerb(tm) developed by Webgroup Media, LLC.
- |-----------------------------------------------------------------------
- | All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
- |   unless specifically noted otherwise.
- |
- | This source code is released under the Devblocks Public License.
- | The latest version of this license can be found here:
- | http://cerb.ai/license
- |
- | By using this software, you acknowledge having read this license
- | and agree to be bound thereby.
- | ______________________________________________________________________
- |	http://cerb.ai	    http://webgroup.media
+| Cerb(tm) developed by Webgroup Media, LLC.
+|-----------------------------------------------------------------------
+| All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
+|   unless specifically noted otherwise.
+|
+| This source code is released under the Devblocks Public License.
+| The latest version of this license can be found here:
+| http://cerb.ai/license
+|
+| By using this software, you acknowledge having read this license
+| and agree to be bound thereby.
+| ______________________________________________________________________
+|	http://cerb.ai	    http://webgroup.media
  ***********************************************************************/
 
 class DAO_KbArticle extends Cerb_ORMHelper {
+	const CONTENT = 'content';
+	const FORMAT = 'format';
 	const ID = 'id';
 	const TITLE = 'title';
 	const UPDATED = 'updated';
 	const VIEWS = 'views';
-	const FORMAT = 'format';
-	const CONTENT = 'content';
+	
+	const _CATEGORY_IDS = '_category_ids';
+	
+	private function __construct() {}
+
+	static function getFields() {
+		$validation = DevblocksPlatform::services()->validation();
+		
+		// mediumtext
+		$validation
+			->addField(self::CONTENT)
+			->string()
+			->setMaxLength(16777215)
+			;
+		// tinyint(1) unsigned
+		$validation
+			->addField(self::FORMAT)
+			->uint(1)
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::ID)
+			->id()
+			->setEditable(false)
+			;
+		// varchar(128)
+		$validation
+			->addField(self::TITLE)
+			->string()
+			->setMaxLength(255)
+			->setRequired(true)
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::UPDATED)
+			->timestamp()
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::VIEWS)
+			->uint(4)
+			;
+		// text
+		$validation
+			->addField(self::_CATEGORY_IDS)
+			->string() // [TODO] test CSV ID list
+			;
+		$validation
+			->addField('_links')
+			->string()
+			->setMaxLength(65535)
+			;
+			
+		return $validation->getFields();
+	}
 	
 	static function create($fields) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
-		$sql = sprintf("INSERT INTO kb_article (updated) ".
-			"VALUES (%d)",
-			time()
-		);
+		$sql = "INSERT INTO kb_article () VALUES ()";
 		$db->ExecuteMaster($sql);
 		$id = $db->LastInsertId();
 		
@@ -54,7 +106,7 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 	}
 
 	static function getWhere($where=null, $sortBy='updated', $sortAsc=false, $limit=null) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -70,7 +122,42 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 	}
 	
 	/**
-	 * Enter description here...
+	 * 
+	 * @param array $ids
+	 * @return Model_KbArticle[]
+	 */
+	static function getIds($ids) {
+		if(!is_array($ids))
+			$ids = array($ids);
+
+		if(empty($ids))
+			return [];
+
+		if(!method_exists(get_called_class(), 'getWhere'))
+			return [];
+
+		$db = DevblocksPlatform::services()->database();
+
+		$ids = DevblocksPlatform::importVar($ids, 'array:integer');
+
+		$models = [];
+
+		$results = static::getWhere(sprintf("id IN (%s)",
+			implode(',', $ids)
+		));
+
+		// Sort $models in the same order as $ids
+		foreach($ids as $id) {
+			if(isset($results[$id]))
+				$models[$id] = $results[$id];
+		}
+
+		unset($results);
+
+		return $models;
+	}
+	
+	/**
 	 *
 	 * @param resource $rs
 	 */
@@ -100,6 +187,19 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 		if(!is_array($ids))
 			$ids = array($ids);
 		
+		if(!isset($fields[self::UPDATED]))
+			$fields[self::UPDATED] = time();
+		
+		$context = CerberusContexts::CONTEXT_KB_ARTICLE;
+		self::_updateAbstract($context, $ids, $fields);
+		
+		if(isset($fields[self::_CATEGORY_IDS])) {
+			$category_ids = DevblocksPlatform::parseCsvString($fields[self::_CATEGORY_IDS]);
+			unset($fields[self::_CATEGORY_IDS]);
+			
+			DAO_KbArticle::setCategories($ids, $category_ids);
+		}
+		
 		// Make a diff for the requested objects in batches
 		
 		$chunks = array_chunk($ids, 100, true);
@@ -119,7 +219,7 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 			if($check_deltas) {
 				
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::getEventService();
+				$eventMgr = DevblocksPlatform::services()->event();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.kb_article.update',
@@ -133,6 +233,19 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 				DevblocksPlatform::markContextChanged(CerberusContexts::CONTEXT_KB_ARTICLE, $batch_ids);
 			}
 		}
+	}
+	
+	static function updateWhere($fields, $where) {
+		parent::_updateWhere('kb_article', $fields, $where);
+	}
+	
+	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
+		$context = CerberusContexts::CONTEXT_KB_ARTICLE;
+		
+		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
+			return false;
+		
+		return true;
 	}
 	
 	/**
@@ -188,7 +301,7 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 		if(empty($ids))
 			return;
 		
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$id_string = implode(',', $ids);
 		
@@ -203,7 +316,7 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 		$search->delete($ids);
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -217,7 +330,7 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 	
 	static function maint() {
 		// Fire event
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.maint',
@@ -231,7 +344,7 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 	}
 
 	static function getCategoriesByArticleId($article_id) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		if(empty($article_id))
 			return array();
@@ -258,7 +371,7 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 	}
 	
 	static function getTopArticlesForCategories(array $category_ids, $limit=5) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$tree = DAO_KbCategory::getTree(0);
 		
@@ -288,7 +401,7 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 	}
 	
 	static function setCategories($article_ids,$category_ids,$replace=true) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		if(!is_array($article_ids))
 			$article_ids = array($article_ids);
@@ -311,6 +424,10 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 				
 				// Add
 				if($is_add) {
+					// Valid?
+					if(!isset($categories[$category_id]))
+						continue;
+					
 					$pid = $category_id;
 					while($pid) {
 						$top_category_id = $pid;
@@ -426,8 +543,17 @@ class DAO_KbArticle extends Cerb_ORMHelper {
 		}
 	}
 	
+	static function countByCategoryId($category_id) {
+		$db = DevblocksPlatform::services()->database();
+		
+		$sql = sprintf("SELECT count(kb_article_id) FROM kb_article_to_category WHERE kb_category_id = %d",
+			$category_id
+		);
+		return intval($db->GetOneSlave($sql));
+	}
+	
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -554,7 +680,7 @@ class SearchFields_KbArticle extends DevblocksSearchFields {
 			self::FORMAT => new DevblocksSearchField(self::FORMAT, 'kb', 'format', $translate->_('kb_article.format'), null, true),
 			self::CONTENT => new DevblocksSearchField(self::CONTENT, 'kb', 'content', $translate->_('kb_article.content'), null, true),
 			
-			self::CATEGORY_ID => new DevblocksSearchField(self::CATEGORY_ID, 'katc', 'kb_category_id', null, null, true),
+			self::CATEGORY_ID => new DevblocksSearchField(self::CATEGORY_ID, 'katc', 'kb_category_id', DevblocksPlatform::translateCapitalized('kb.common.knowledgebase_category'), Model_CustomField::TYPE_NUMBER, true),
 			self::TOP_CATEGORY_ID => new DevblocksSearchField(self::TOP_CATEGORY_ID, 'katc', 'kb_top_category_id', $translate->_('kb_article.topic'), null, true),
 			
 			self::VIRTUAL_CONTEXT_LINK => new DevblocksSearchField(self::VIRTUAL_CONTEXT_LINK, '*', 'context_link', $translate->_('common.links'), null, false),
@@ -637,7 +763,7 @@ class Search_KbArticle extends Extension_DevblocksSearchSchema {
 	}
 	
 	public function index($stop_time=null) {
-		$logger = DevblocksPlatform::getConsoleLog();
+		$logger = DevblocksPlatform::services()->log();
 		
 		if(false == ($engine = $this->getEngine()))
 			return false;
@@ -711,19 +837,19 @@ class Model_KbArticle {
 	const FORMAT_HTML = 1;
 	const FORMAT_MARKDOWN = 2;
 	
+	public $content = '';
+	public $format = 0;
 	public $id = 0;
 	public $title = '';
-	public $views = 0;
 	public $updated = 0;
-	public $format = 0;
-	public $content = '';
+	public $views = 0;
 	
 	function getContent() {
 		$html = '';
 		
 		switch($this->format) {
 			case self::FORMAT_HTML:
-				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 				$html = $tpl_builder->build($this->content, array());
 				break;
 				
@@ -732,12 +858,16 @@ class Model_KbArticle {
 				break;
 				
 			case self::FORMAT_MARKDOWN:
-				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 				$html = DevblocksPlatform::parseMarkdown($tpl_builder->build($this->content, array()));
 				break;
 		}
 		
 		return $html;
+	}
+	
+	function getCustomFields() {
+		return array_shift(DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_KB_ARTICLE, $this->id));
 	}
 	
 	// [TODO] Reuse this!
@@ -811,7 +941,7 @@ class Context_KbArticle extends Extension_DevblocksContext implements IDevblocks
 		if(empty($context_id))
 			return '';
 		
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		$url = $url_writer->writeNoProxy(sprintf("c=profiles&type=kb&id=%d", $context_id, true));
 		return $url;
 	}
@@ -885,22 +1015,24 @@ class Context_KbArticle extends Extension_DevblocksContext implements IDevblocks
 		$token_labels = array(
 			'_label' => $prefix,
 			'content' => $prefix.$translate->_('kb_article.content'),
+			'format' => $prefix.$translate->_('common.format'),
 			'id' => $prefix.$translate->_('common.id'),
+			'record_url' => $prefix.$translate->_('common.url.record'),
 			'title' => $prefix.$translate->_('kb_article.title'),
 			'updated' => $prefix.$translate->_('kb_article.updated'),
 			'views' => $prefix.$translate->_('kb_article.views'),
-			'record_url' => $prefix.$translate->_('common.url.record'),
 		);
 		
 		// Token types
 		$token_types = array(
 			'_label' => 'context_url',
 			'content' => null,
+			'format' => Model_CustomField::TYPE_SINGLE_LINE,
 			'id' => Model_CustomField::TYPE_NUMBER,
+			'record_url' => Model_CustomField::TYPE_URL,
 			'title' => Model_CustomField::TYPE_SINGLE_LINE,
 			'updated' => Model_CustomField::TYPE_DATE,
 			'views' => Model_CustomField::TYPE_NUMBER,
-			'record_url' => Model_CustomField::TYPE_URL,
 		);
 		
 		// Custom field/fieldset token labels
@@ -921,6 +1053,7 @@ class Context_KbArticle extends Extension_DevblocksContext implements IDevblocks
 		if(null != $article) {
 			$token_values['_label'] = $article->title;
 			$token_values['content'] = $article->getContent();
+			$token_values['format'] = $article->format;
 			$token_values['id'] = $article->id;
 			$token_values['title'] = $article->title;
 			$token_values['updated'] = $article->updated;
@@ -930,11 +1063,53 @@ class Context_KbArticle extends Extension_DevblocksContext implements IDevblocks
 			$token_values = $this->_importModelCustomFieldsAsValues($article, $token_values);
 			
 			// URL
-			$url_writer = DevblocksPlatform::getUrlService();
+			$url_writer = DevblocksPlatform::services()->url();
 			$token_values['record_url'] = $url_writer->writeNoProxy(sprintf("c=profiles&type=kb&id=%d-%s",$article->id, DevblocksPlatform::strToPermalink($article->title)), true);
 		}
 		
 		return TRUE;
+	}
+	
+	function getKeyToDaoFieldMap() {
+		return [
+			'categories' => DAO_KbArticle::_CATEGORY_IDS,
+			'content' => DAO_KbArticle::CONTENT,
+			'format' => DAO_KbArticle::FORMAT,
+			'id' => DAO_KbArticle::ID,
+			'links' => '_links',
+			'title' => DAO_KbArticle::TITLE,
+			'updated' => DAO_KbArticle::UPDATED,
+			'views' => DAO_KbArticle::VIEWS,
+		];
+	}
+	
+	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
+		switch(DevblocksPlatform::strLower($key)) {
+			case 'format':
+				$formats_to_ids = [
+					'p' => 0,
+					't' => 0,
+					'h' => 1,
+					'm' => 2,
+				];
+				
+				$format_label = DevblocksPlatform::strLower(mb_substr($value,0,1));
+				@$format_id = $formats_to_ids[$format_label];
+				
+				if(is_null($format_id)) {
+					$error = 'Format must be: text, markdown, or html.';
+					return false;
+				}
+				
+				$out_fields[DAO_KbArticle::FORMAT] = $format_id;
+				break;
+				
+			case 'links':
+				$this->_getDaoFieldsLinks($value, $out_fields, $error);
+				break;
+		}
+		
+		return true;
 	}
 
 	function lazyLoadContextValues($token, $dictionary) {
@@ -1034,17 +1209,87 @@ class Context_KbArticle extends Extension_DevblocksContext implements IDevblocks
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('view_id', $view_id);
+		
+		$context = 'cerberusweb.contexts.kb_article';
 		
 		if(!empty($context_id)) {
-			$article = DAO_KbArticle::get($context_id);
-			$tpl->assign('article', $article);
+			$model = DAO_KbArticle::get($context_id);
 		}
 		
-		if(!empty($view_id))
-			$tpl->assign('view_id', $view_id);
+		if(empty($context_id) || $edit) {
+			if(isset($model))
+				$tpl->assign('model', $model);
 			
-		$tpl->display('devblocks:cerberusweb.kb::kb/peek_readonly.tpl');
+			$article_categories = DAO_KbArticle::getCategoriesByArticleId($context_id);
+			$tpl->assign('article_categories', $article_categories);
+			
+			// Categories
+			$categories = DAO_KbCategory::getAll();
+			$tpl->assign('categories', $categories);
+			
+			$levels = DAO_KbCategory::getTree(0); //$root_id
+			$tpl->assign('levels',$levels);
+			
+			// Custom fields
+			$custom_fields = DAO_CustomField::getByContext($context, false);
+			$tpl->assign('custom_fields', $custom_fields);
+	
+			$custom_field_values = DAO_CustomFieldValue::getValuesByContextIds($context, $context_id);
+			if(isset($custom_field_values[$context_id]))
+				$tpl->assign('custom_field_values', $custom_field_values[$context_id]);
+			
+			$types = Model_CustomField::getTypes();
+			$tpl->assign('types', $types);
+			
+			// View
+			$tpl->assign('id', $context_id);
+			$tpl->assign('view_id', $view_id);
+			$tpl->display('devblocks:cerberusweb.kb::kb/article/peek_edit.tpl');
+			
+		} else {
+			// Counts
+			$activity_counts = array(
+				'categories' => DAO_KbCategory::countByArticleId($context_id),
+			);
+			$tpl->assign('activity_counts', $activity_counts);
+			
+			// Links
+			$links = array(
+				$context => array(
+					$context_id => 
+						DAO_ContextLink::getContextLinkCounts(
+							$context,
+							$context_id,
+							array(CerberusContexts::CONTEXT_CUSTOM_FIELDSET)
+						),
+				),
+			);
+			$tpl->assign('links', $links);
+			
+			// Timeline
+			if($context_id) {
+				$timeline_json = Page_Profiles::getTimelineJson(Extension_DevblocksContext::getTimelineComments($context, $context_id));
+				$tpl->assign('timeline_json', $timeline_json);
+			}
+
+			// Context
+			if(false == ($context_ext = Extension_DevblocksContext::get($context)))
+				return;
+			
+			// Dictionary
+			$labels = [];
+			$values = [];
+			CerberusContexts::getContext($context, $model, $labels, $values, '', true, false);
+			$dict = DevblocksDictionaryDelegate::instance($values);
+			$tpl->assign('dict', $dict);
+			
+			$properties = $context_ext->getCardProperties();
+			$tpl->assign('properties', $properties);
+			
+			$tpl->display('devblocks:cerberusweb.kb::kb/article/peek.tpl');
+		}
 	}
 };
 
@@ -1053,7 +1298,7 @@ class View_KbArticle extends C4_AbstractView implements IAbstractView_Subtotals,
 	
 	function __construct() {
 		$this->id = self::DEFAULT_ID;
-		$this->name = 'Articles';
+		$this->name = DevblocksPlatform::translateCapitalized('common.articles');
 		$this->renderSortBy = 'kb_updated';
 		$this->renderSortAsc = false;
 
@@ -1127,7 +1372,7 @@ class View_KbArticle extends C4_AbstractView implements IAbstractView_Subtotals,
 					
 				// Valid custom fields
 				default:
-					if('cf_' == substr($field_key,0,3))
+					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -1193,7 +1438,6 @@ class View_KbArticle extends C4_AbstractView implements IAbstractView_Subtotals,
 	}
 	
 	// [TODO] Fulltext: Comments
-	// [TODO] Virtual: Topic/Categories
 	
 	function getQuickSearchFields() {
 		$search_fields = SearchFields_KbArticle::getFields();
@@ -1203,6 +1447,14 @@ class View_KbArticle extends C4_AbstractView implements IAbstractView_Subtotals,
 				array(
 					'type' => DevblocksSearchCriteria::TYPE_FULLTEXT,
 					'options' => array('param_key' => SearchFields_KbArticle::FULLTEXT_ARTICLE_CONTENT),
+				),
+			'category.id' => 
+				array(
+					'type' => DevblocksSearchCriteria::TYPE_NUMBER,
+					'options' => array('param_key' => SearchFields_KbArticle::CATEGORY_ID),
+					'examples' => [
+						['type' => 'chooser', 'context' => CerberusContexts::CONTEXT_KB_CATEGORY, 'q' => ''],
+					]
 				),
 			'content' => 
 				array(
@@ -1290,7 +1542,7 @@ class View_KbArticle extends C4_AbstractView implements IAbstractView_Subtotals,
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1300,14 +1552,14 @@ class View_KbArticle extends C4_AbstractView implements IAbstractView_Subtotals,
 		switch($this->renderTemplate) {
 			case 'chooser':
 			default:
-				$tpl->assign('view_template', 'devblocks:cerberusweb.kb::kb/view.tpl');
+				$tpl->assign('view_template', 'devblocks:cerberusweb.kb::kb/article/view.tpl');
 				$tpl->display('devblocks:cerberusweb.core::internal/views/subtotals_and_view.tpl');
 				break;
 		}
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {
@@ -1393,9 +1645,10 @@ class View_KbArticle extends C4_AbstractView implements IAbstractView_Subtotals,
 	function renderCriteriaParam($param) {
 		$field = $param->field;
 		$values = !is_array($param->value) ? array($param->value) : $param->value;
-
+		
 		switch($field) {
 			case SearchFields_KbArticle::TOP_CATEGORY_ID:
+				// [TODO] Does this use cache?
 				$topics = DAO_KbCategory::getWhere(sprintf("%s = %d",
 					DAO_KbCategory::PARENT_ID,
 					0
@@ -1407,8 +1660,25 @@ class View_KbArticle extends C4_AbstractView implements IAbstractView_Subtotals,
 						$strings[] = DevblocksPlatform::strEscapeHtml("(none)");
 					} else {
 						if(!isset($topics[$val]))
-						continue;
+							continue;
 						$strings[] = DevblocksPlatform::strEscapeHtml($topics[$val]->name);
+					}
+				}
+				echo implode(" or ", $strings);
+				break;
+				
+			case SearchFields_KbArticle::CATEGORY_ID:
+				$categories = DAO_KbCategory::getAll();
+				
+				$strings = [];
+
+				foreach($values as $val) {
+					if(0==$val) {
+						$strings[] = DevblocksPlatform::strEscapeHtml("(none)");
+					} else {
+						if(!isset($categories[$val]))
+							continue;
+						$strings[] = DevblocksPlatform::strEscapeHtml($categories[$val]->name);
 					}
 				}
 				echo implode(" or ", $strings);

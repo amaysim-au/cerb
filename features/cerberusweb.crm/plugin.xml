@@ -4,20 +4,20 @@
 	<name>Opportunity Tracking</name>
 	<description>Create opportunities (sales leads) linked to e-mail addresses. Opportunity records can be created from the Activity menu or while reading tickets.</description>
 	<author>Webgroup Media, LLC.</author>
-	<version>7.3.12</version>
+	<version>8.2.9</version>
 	<link>http://wiki.cerbweb.com/Features:Opportunity_Tracking</link>
 	<image>plugin.png</image>
 	
 	<!-- Requirements -->
 
 	<requires>
-		<app_version min="7.3" max="7.3.99" />
+		<app_version min="8.2" max="8.2.99" />
 	</requires>
 	
 	<!-- Plugin Dependencies -->
 	
 	<dependencies>
-		<require plugin_id="cerberusweb.core" version="5.0.0-beta" />
+		<require plugin_id="cerberusweb.core" version="8.1.0" />
 	</dependencies>
 	
 	<!-- Patches -->
@@ -42,15 +42,6 @@
 			<class name="Event_CrmOpportunityMacro" />
 		</file>
 	</class_loader>
-	
-	<acl>
-		<priv id="crm.opp.actions.create" label="acl.crm.opp.actions.create" />
-		<priv id="crm.opp.actions.import" label="acl.crm.opp.actions.import" />
-		<priv id="crm.opp.actions.update_all" label="acl.crm.opp.actions.update_all" />
-		<priv id="crm.opp.actions.delete" label="acl.crm.opp.actions.delete" />
-		<priv id="crm.opp.view.actions.broadcast" label="acl.crm.opp.view.actions.broadcast" />
-		<priv id="crm.opp.view.actions.export" label="acl.crm.opp.view.actions.export" />
-	</acl>
 	
 	<!-- Activity Points -->
 	
@@ -108,16 +99,30 @@
 				<param key="options">
 					<value>
 						<data key="cards" />
-						<data key="create" />
 						<data key="custom_fields" />
 						<data key="links" />
+						<data key="records" />
 						<data key="search" />
 						<data key="snippets" />
 						<data key="va_variable" />
+						<data key="watchers" />
 						<data key="workspace" />
 					</value>
 				</param>
 				<param key="context_expand_export" value="email_" />
+				<param key="acl">
+					<value>
+						<data key="broadcast" />
+						<data key="comment" />
+						<data key="create" />
+						<data key="delete" />
+						<data key="export" />
+						<data key="import" />
+						<data key="merge" />
+						<data key="update" />
+						<data key="update.bulk" />
+					</value>
+				</param>
 			</params>
 		</extension>
 	
@@ -158,7 +163,7 @@
 		
 		<extension point="devblocks.event">
 			<id>event.macro.crm.opportunity</id>
-			<name>Custom opportunity behavior</name>
+			<name>Custom behavior on opportunity</name>
 			<class>
 				<file>api/events/opportunity_macro.php</file>
 				<name>Event_CrmOpportunityMacro</name>
@@ -171,6 +176,11 @@
 						<data key="cerberusweb.contexts.group" />
 						<data key="cerberusweb.contexts.role" />
 						<data key="cerberusweb.contexts.worker" />
+					</value>
+				</param>
+				<param key="options">
+					<value>
+						<data key="visibility" />
 					</value>
 				</param>
 			</params>

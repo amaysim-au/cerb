@@ -1,3 +1,4 @@
+{$peek_context = CerberusContexts::CONTEXT_TASK}
 <form action="{devblocks_url}{/devblocks_url}" method="POST" id="formTaskPeek" name="formTaskPeek" onsubmit="return false;">
 <input type="hidden" name="c" value="profiles">
 <input type="hidden" name="a" value="handleSectionAction">
@@ -22,8 +23,15 @@
 		<tr>
 			<td width="1%" nowrap="nowrap" valign="top">{'common.status'|devblocks_translate|capitalize}: </td>
 			<td width="99%">
-				<label><input type="radio" name="completed" value="0" {if empty($task->is_completed)}checked="checked"{/if}> {'status.open'|devblocks_translate|capitalize}</label>
-				<label><input type="radio" name="completed" value="1" {if $task->is_completed}checked="checked"{/if}> {'status.completed'|devblocks_translate|capitalize}</label>
+				<label><input type="radio" name="status_id" value="0" onclick="toggleDiv('taskClosed','none');" {if $task->status_id == 0}checked{/if}> {'status.open'|devblocks_translate|capitalize}</label>
+				<label><input type="radio" name="status_id" value="2" onclick="toggleDiv('taskClosed','block');" {if $task->status_id == 2}checked{/if}> {'status.waiting.abbr'|devblocks_translate|capitalize}</label>
+				<label><input type="radio" name="status_id" value="1" onclick="toggleDiv('taskClosed','none');" {if $task->status_id == 1}checked{/if}> {'status.closed'|devblocks_translate|capitalize}</label>
+				
+				<div id="taskClosed" style="display:{if in_array($task->status_id,[2])}block{else}none{/if};margin:5px 0px 5px 15px;">
+					<b>When would you like to resume this task?</b><br>
+					<i>{'display.reply.next.resume_eg'|devblocks_translate}</i><br>
+					<input type="text" name="reopen_at" size="32" class="input_date" value="{if !empty($task->reopen_at)}{$task->reopen_at|devblocks_date}{/if}" style="width:75%;"><br>
+				</div>
 			</td>
 		</tr>
 		
@@ -85,7 +93,7 @@
 </fieldset>
 {/if}
 
-{include file="devblocks:cerberusweb.core::internal/custom_fieldsets/peek_custom_fieldsets.tpl" context=CerberusContexts::CONTEXT_TASK context_id=$task->id}
+{include file="devblocks:cerberusweb.core::internal/custom_fieldsets/peek_custom_fieldsets.tpl" context=$peek_context context_id=$task->id}
 
 <fieldset class="peek">
 	<legend>{'common.comment'|devblocks_translate|capitalize}</legend>
@@ -100,8 +108,8 @@
 		Are you sure you want to permanently delete this task?
 	</div>
 	
-	<button type="button" class="delete red"></span> {'common.yes'|devblocks_translate|capitalize}</button>
-	<button type="button" onclick="$(this).closest('form').find('div.buttons').fadeIn();$(this).closest('fieldset.delete').fadeOut();"></span> {'common.no'|devblocks_translate|capitalize}</button>
+	<button type="button" class="delete red">{'common.yes'|devblocks_translate|capitalize}</button>
+	<button type="button" onclick="$(this).closest('form').find('div.buttons').fadeIn();$(this).closest('fieldset.delete').fadeOut();">{'common.no'|devblocks_translate|capitalize}</button>
 </fieldset>
 {/if}
 
@@ -109,7 +117,7 @@
 
 <div class="buttons">
 	<button type="button" class="submit"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate|capitalize}</button>
-	{if $active_worker->hasPriv('core.tasks.actions.delete') && !empty($task)}<button type="button" onclick="$(this).parent().siblings('fieldset.delete').fadeIn();$(this).closest('div').fadeOut();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
+	{if $active_worker->hasPriv("contexts.{$peek_context}.delete") && !empty($task)}<button type="button" onclick="$(this).parent().siblings('fieldset.delete').fadeIn();$(this).closest('div').fadeOut();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
 </div>
 
 </form>

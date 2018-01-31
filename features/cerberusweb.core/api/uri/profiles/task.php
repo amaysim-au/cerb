@@ -17,9 +17,11 @@
 
 class PageSection_ProfilesTask extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$translate = DevblocksPlatform::getTranslationService();
 		$response = DevblocksPlatform::getHttpResponse();
+		
+		$context = CerberusContexts::CONTEXT_TASK;
 		$active_worker = CerberusApplication::getActiveWorker();
 
 		$stack = $response->path;
@@ -30,6 +32,13 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 		if(null != ($task = DAO_Task::get($id))) {
 			$tpl->assign('task', $task);
 		}
+		
+		// Dictionary
+		$labels = array();
+		$values = array();
+		CerberusContexts::getContext($context, $task, $labels, $values, '', true, false);
+		$dict = DevblocksDictionaryDelegate::instance($values);
+		$tpl->assign('dict', $dict);
 		
 		$point = 'core.page.tasks';
 		$tpl->assign('point', $point);
@@ -61,7 +70,7 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 			'value' => $task->importance,
 		);
 		
-		if(!$task->is_completed) {
+		if(1 != $task->status_id) {
 			$properties['due_date'] = array(
 				'label' => mb_ucfirst($translate->_('task.due_date')),
 				'type' => Model_CustomField::TYPE_DATE,
@@ -90,26 +99,26 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 		
 		// Custom Fields
 
-		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_TASK, $task->id)) or array();
+		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds($context, $task->id)) or array();
 		$tpl->assign('custom_field_values', $values);
 		
-		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields(CerberusContexts::CONTEXT_TASK, $values);
+		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields($context, $values);
 		
 		if(!empty($properties_cfields))
 			$properties = array_merge($properties, $properties_cfields);
 		
 		// Custom Fieldsets
 
-		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets(CerberusContexts::CONTEXT_TASK, $task->id, $values);
+		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets($context, $task->id, $values);
 		$tpl->assign('properties_custom_fieldsets', $properties_custom_fieldsets);
 		
 		// Link counts
 		
 		$properties_links = array(
-			CerberusContexts::CONTEXT_TASK => array(
+			$context => array(
 				$task->id => 
 					DAO_ContextLink::getContextLinkCounts(
-						CerberusContexts::CONTEXT_TASK,
+						$context,
 						$task->id,
 						array(CerberusContexts::CONTEXT_CUSTOM_FIELDSET)
 					),
@@ -125,18 +134,15 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 		$workers = DAO_Worker::getAll();
 		$tpl->assign('workers', $workers);
 		
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.task'
-		);
-		$tpl->assign('macros', $macros);
-		
 		// Tabs
-		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_TASK);
+		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, $context);
 		$tpl->assign('tab_manifests', $tab_manifests);
 		
+		// Interactions
+		$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
+		$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
+		$tpl->assign('interactions_menu', $interactions_menu);
+	
 		// Template
 		$tpl->display('devblocks:cerberusweb.core::profiles/task.tpl');
 	}
@@ -152,8 +158,8 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 		
 		try {
 			if(!empty($id) && !empty($do_delete)) { // delete
-				if(!$active_worker->hasPriv('core.tasks.actions.delete'))
-					throw new Exception_DevblocksAjaxValidationError("You don't have permission to delete this record.");
+				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_TASK)))
+					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
 				
 				DAO_Task::delete($id);
 				
@@ -175,24 +181,27 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 				// Title
 				@$title = DevblocksPlatform::importGPC($_REQUEST['title'],'string','');
 				
-				if(empty($title))
-					throw new Exception_DevblocksAjaxValidationError("The 'title' field is required.", 'title');
-				
 				$fields[DAO_Task::TITLE] = $title;
 				
 				// Completed
-				@$completed = DevblocksPlatform::importGPC($_REQUEST['completed'],'integer',0);
+				@$status_id = DevblocksPlatform::importGPC($_REQUEST['status_id'],'integer',0);
+				$status_id = DevblocksPlatform::intClamp($status_id, 0, 2);
+				$fields[DAO_Task::STATUS_ID] = $status_id;
 				
-				$fields[DAO_Task::IS_COMPLETED] = intval($completed);
-				
-				// [TODO] This shouldn't constantly update the completed date (it should compare)
-				if($completed)
-					$fields[DAO_Task::COMPLETED_DATE] = time();
-				else
-					$fields[DAO_Task::COMPLETED_DATE] = 0;
+				if($id && $task->status_id != $status_id) {
+					if(1 == $status_id) {
+						$fields[DAO_Task::COMPLETED_DATE] = time();
+					} else {
+						$fields[DAO_Task::COMPLETED_DATE] = 0;
+					}
+				}
 				
 				// Updated Date
 				$fields[DAO_Task::UPDATED_DATE] = time();
+				
+				// Reopen Date
+				@$reopen_at = DevblocksPlatform::importGPC($_REQUEST['reopen_at'],'string','');
+				@$fields[DAO_Task::REOPEN_AT] = empty($reopen_at) ? 0 : intval(strtotime($reopen_at));
 				
 				// Due Date
 				@$due_date = DevblocksPlatform::importGPC($_REQUEST['due_date'],'string','');
@@ -209,19 +218,29 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 				// Comment
 				@$comment = DevblocksPlatform::importGPC($_REQUEST['comment'],'string','');
 	
-				// Custom Fields
-				@$field_ids = DevblocksPlatform::importGPC($_POST['field_ids'], 'array', array());
-				
 				// Save
 				if(!empty($id)) {
+					if(!DAO_Task::validate($fields, $error, $id))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					if(!DAO_Task::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
 					DAO_Task::update($id, $fields);
-					DAO_CustomFieldValue::handleFormPost(CerberusContexts::CONTEXT_TASK, $id, $field_ids);
+					DAO_Task::onUpdateByActor($active_worker, $fields, $id);
+					
 					
 				} else {
-					$custom_fields = DAO_CustomFieldValue::parseFormPost(CerberusContexts::CONTEXT_TASK, $field_ids);
+					if(!DAO_Task::validate($fields, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
 					
-					if(false == ($id = DAO_Task::create($fields, $custom_fields)))
+					if(!DAO_Task::onBeforeUpdateByActor($active_worker, $fields, null, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					if(false == ($id = DAO_Task::create($fields)))
 						return false;
+					
+					DAO_Task::onUpdateByActor($active_worker, $fields, $id);
 					
 					// Watchers
 					@$add_watcher_ids = DevblocksPlatform::sanitizeArray(DevblocksPlatform::importGPC($_REQUEST ['add_watcher_ids'], 'array', []), 'integer', ['unique','nonzero']);
@@ -235,7 +254,7 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 				}
 	
 				// Comments
-				if(!empty($comment) && !empty($id)) {
+				if(!empty($comment) && !empty($id) && $active_worker->hasPriv(sprintf("contexts.%s.comment", CerberusContexts::CONTEXT_TASK))) {
 					$also_notify_worker_ids = array_keys(CerberusApplication::getWorkersByAtMentionsText($comment));
 					
 					$fields = array(
@@ -248,6 +267,10 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 					);
 					$comment_id = DAO_Comment::create($fields, $also_notify_worker_ids);
 				}
+				
+				// Custom Fields
+				@$field_ids = DevblocksPlatform::importGPC($_POST['field_ids'], 'array', []);
+				DAO_CustomFieldValue::handleFormPost(CerberusContexts::CONTEXT_TASK, $id, $field_ids);
 				
 				echo json_encode(array(
 					'status' => true,
@@ -282,7 +305,7 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('view_id', $view_id);
 
 		if(!empty($ids)) {
@@ -296,14 +319,6 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 		// Custom Fields
 		$custom_fields = DAO_CustomField::getByContext(CerberusContexts::CONTEXT_TASK, false);
 		$tpl->assign('custom_fields', $custom_fields);
-		
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.task'
-		);
-		$tpl->assign('macros', $macros);
 		
 		$tpl->display('devblocks:cerberusweb.core::tasks/rpc/bulk.tpl');
 	}
@@ -344,7 +359,7 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 					if(isset($params[$action])) {
 						switch($params[$action]) {
 							case '2':
-								if($active_worker->hasPriv('core.tasks.actions.delete'))
+								if($active_worker->hasPriv('contexts.cerberusweb.contexts.task.delete'))
 									$do['delete'] = true;
 									break;
 								break;
@@ -426,7 +441,7 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 				
 				if(!empty($row_id))
 					DAO_Task::update($row_id, array(
-						DAO_Task::IS_COMPLETED => 1,
+						DAO_Task::STATUS_ID => 1,
 						DAO_Task::COMPLETED_DATE => time(),
 					));
 			}
@@ -443,7 +458,7 @@ class PageSection_ProfilesTask extends Extension_PageSection {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		// Generate hash
 		$hash = md5($view_id.$active_worker->id.time());

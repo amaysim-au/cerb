@@ -17,7 +17,7 @@
 
 class PageSection_ProfilesAttachment extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$visit = CerberusApplication::getVisit();
 		$translate = DevblocksPlatform::getTranslationService();
 		$active_worker = CerberusApplication::getActiveWorker();
@@ -119,14 +119,6 @@ class PageSection_ProfilesAttachment extends Extension_PageSection {
 		
 		$tpl->assign('properties', $properties);
 			
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.attachment'
-		);
-		$tpl->assign('macros', $macros);
-
 		// Tabs
 		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_ATTACHMENT);
 		$tpl->assign('tab_manifests', $tab_manifests);
@@ -147,6 +139,9 @@ class PageSection_ProfilesAttachment extends Extension_PageSection {
 		
 		try {
 			if(!empty($id) && !empty($do_delete)) { // Delete
+				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_ATTACHMENT)))
+					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
+				
 				DAO_Attachment::delete($id);
 				
 				echo json_encode(array(
@@ -160,16 +155,21 @@ class PageSection_ProfilesAttachment extends Extension_PageSection {
 				@$name = DevblocksPlatform::importGPC($_REQUEST['name'], 'string', '');
 				@$mime_type = DevblocksPlatform::importGPC($_REQUEST['mime_type'], 'string', 'application/octet-stream');
 				
-				if(empty($name))
-					throw new Exception_DevblocksAjaxValidationError("The 'Name' field is required.", 'name');
-				
 				if(empty($id)) { // New
 					$fields = array(
 						DAO_Attachment::NAME => $name,
 						DAO_Attachment::MIME_TYPE => $mime_type,
 						DAO_Attachment::UPDATED => time(),
 					);
+					
+					if(!DAO_Attachment::validate($fields, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					if(!DAO_Attachment::onBeforeUpdateByActor($active_worker, $fields, null, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
 					$id = DAO_Attachment::create($fields);
+					DAO_Attachment::onUpdateByActor($active_worker, $fields, $id);
 					
 					if(!empty($view_id) && !empty($id))
 						C4_AbstractView::setMarqueeContextCreated($view_id, CerberusContexts::CONTEXT_ATTACHMENT, $id);
@@ -180,7 +180,15 @@ class PageSection_ProfilesAttachment extends Extension_PageSection {
 						DAO_Attachment::MIME_TYPE => $mime_type,
 						DAO_Attachment::UPDATED => time(),
 					);
+					
+					if(!DAO_Attachment::validate($fields, $error, $id))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					if(!DAO_Attachment::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
 					DAO_Attachment::update($id, $fields);
+					DAO_Attachment::onUpdateByActor($active_worker, $fields, $id);
 				}
 				
 				// Custom fields
@@ -217,7 +225,7 @@ class PageSection_ProfilesAttachment extends Extension_PageSection {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		// Generate hash
 		$hash = md5($view_id.$active_worker->id.time());

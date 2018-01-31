@@ -11,7 +11,7 @@ class UmScContactController extends Extension_UmScController {
 	}
 	
 	function writeResponse(DevblocksHttpResponse $response) {
-		$tpl = DevblocksPlatform::getTemplateSandboxService();
+		$tpl = DevblocksPlatform::services()->templateSandbox();
 
 		$umsession = ChPortalHelper::getSession();
 		
@@ -100,6 +100,8 @@ class UmScContactController extends Extension_UmScController {
 						$workers = DAO_Worker::getAllActive();
 						$tpl->assign('workers', $workers);
 						
+						$tpl->assign('client_ip', DevblocksPlatform::getClientIp());
+						
 						$tpl->display("devblocks:cerberusweb.support_center:portal_".ChPortalHelper::getCode() . ":support_center/contact/step2.tpl");
 						break;
 				}
@@ -109,7 +111,7 @@ class UmScContactController extends Extension_UmScController {
 	}
 
 	function configure(Model_CommunityTool $instance) {
-		$tpl = DevblocksPlatform::getTemplateSandboxService();
+		$tpl = DevblocksPlatform::services()->templateSandbox();
 
 		$captcha_enabled = DAO_CommunityToolProperty::get($instance->code, self::PARAM_CAPTCHA_ENABLED, 1);
 		$tpl->assign('captcha_enabled', $captcha_enabled);
@@ -131,7 +133,7 @@ class UmScContactController extends Extension_UmScController {
 		$tpl->assign('groups', $groups);
 		
 		// Default reply-to
-		$replyto_default = DAO_AddressOutgoing::getDefault();
+		$replyto_default = DAO_Address::getDefaultLocalAddress();
 		$tpl->assign('replyto_default', $replyto_default);
 		
 		// Contact: Fields
@@ -159,7 +161,7 @@ class UmScContactController extends Extension_UmScController {
 		DAO_CommunityToolProperty::set($instance->code, self::PARAM_ATTACHMENTS_MODE, $iAttachmentsMode);
 
 		// Contact Form
-		$replyto_default = DAO_AddressOutgoing::getDefault();
+		$replyto_default = DAO_Address::getDefaultLocalAddress();
 		
 		// Situations
 		@$aReason = DevblocksPlatform::importGPC($_POST['contact_reason'],'array',array());
@@ -209,7 +211,6 @@ class UmScContactController extends Extension_UmScController {
 	
 	function doContactStep2Action() {
 		$umsession = ChPortalHelper::getSession();
-		$fingerprint = ChPortalHelper::getFingerprint();
 
 		@$sNature = DevblocksPlatform::importGPC($_POST['nature'],'string','');
 
@@ -289,7 +290,6 @@ class UmScContactController extends Extension_UmScController {
 		
 		$umsession = ChPortalHelper::getSession();
 		$active_contact = $umsession->getProperty('sc_login', null);
-		$fingerprint = ChPortalHelper::getFingerprint();
 
 		$umsession->setProperty('support.write.last_cc',$sCc);
 		$umsession->setProperty('support.write.last_from',$sFrom);
@@ -332,7 +332,7 @@ class UmScContactController extends Extension_UmScController {
 		}
 
 		// Dispatch
-		$replyto_default = DAO_AddressOutgoing::getDefault();
+		$replyto_default = DAO_Address::getDefaultLocalAddress();
 		$to = $replyto_default->email;
 		$subject = 'Contact me: Other';
 		
@@ -402,7 +402,7 @@ class UmScContactController extends Extension_UmScController {
 			$message->headers[$h] = $v;
 		}
 		
-		$message->body = 'IP: ' . $fingerprint['ip'] . "\r\n\r\n" . $sContent . $fieldContent;
+		$message->body = 'IP: ' . DevblocksPlatform::getClientIp() . "\r\n\r\n" . $sContent . $fieldContent;
 
 		// Attachments
 		$attachments_mode = DAO_CommunityToolProperty::get(ChPortalHelper::getCode(), self::PARAM_ATTACHMENTS_MODE, 0);
@@ -456,6 +456,10 @@ class UmScContactController extends Extension_UmScController {
 						
 					case Model_CustomField::TYPE_CHECKBOX:
 						@$value = (isset($aFollowUpA[$iIdx]) && !empty($aFollowUpA[$iIdx])) ? 1 : 0;
+						break;
+						
+					case Model_CustomField::TYPE_LIST:
+						@$value = DevblocksPlatform::importGPC($_POST['followup_a_'.$iIdx],'array',array());
 						break;
 						
 					case Model_CustomField::TYPE_MULTI_CHECKBOX:

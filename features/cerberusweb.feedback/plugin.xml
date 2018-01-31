@@ -4,20 +4,20 @@
 	<name>Feedback Capture</name>
 	<description>Organically capture praise or criticism and share it with decision makers.  This adds a Feedback tab to the Activity page.  You can also capture feedback while reading e-mail by highlighting a quote and clicking 'more' in the toolbar.</description>
 	<author>Webgroup Media, LLC.</author>
-	<version>7.3.12</version>
+	<version>8.2.9</version>
 	<link>http://wiki.cerbweb.com/Features:Feedback_Capture</link>
 	<image>images/plugin.png</image>
 	
 	<!-- Requirements -->
 
 	<requires>
-		<app_version min="7.3" max="7.3.99" />
+		<app_version min="8.2" max="8.2.99" />
 	</requires>
 	
 	<!-- Plugin Dependencies -->
 	
 	<dependencies>
-		<require plugin_id="cerberusweb.core" version="5.0.0-beta" />
+		<require plugin_id="cerberusweb.core" version="8.1.0" />
 	</dependencies>
 	
 	<!-- Patches -->
@@ -37,13 +37,6 @@
 			<class name="SearchFields_FeedbackEntry" />
 		</file>
 	</class_loader>
-	
-	<acl>
-		<priv id="feedback.actions.create" label="acl.feedback.actions.create" />
-		<priv id="feedback.actions.update_all" label="acl.feedback.actions.update_all" />
-		<priv id="feedback.actions.delete_all" label="acl.feedback.actions.delete_all" />
-		<priv id="feedback.view.actions.export" label="acl.feedback.view.actions.export" />
-	</acl>
 	
 	<extensions>
 	
@@ -68,15 +61,25 @@
 				<param key="view_class" value="View_FeedbackEntry" />
 				<param key="options">
 					<value>
-						<data key="create" />
 						<data key="custom_fields" />
 						<data key="links" />
+						<data key="records" />
 						<data key="search" />
 						<data key="snippets" />
+						<data key="watchers" />
 						<data key="workspace" />
 					</value>
 				</param>
 				<param key="context_expand_export" value="author_" />
+				<param key="acl">
+					<value>
+						<data key="create" />
+						<data key="delete" />
+						<data key="export" />
+						<data key="update" />
+						<data key="update.bulk" />
+					</value>
+				</param>
 			</params>
 		</extension>
 	
@@ -120,6 +123,6 @@
 				<param key="uri" value="feedback" />
 			</params>
 		</extension>		
-		 
+		
 	</extensions>
 </plugin>

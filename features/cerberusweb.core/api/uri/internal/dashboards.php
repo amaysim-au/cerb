@@ -1,18 +1,18 @@
 <?php
 /***********************************************************************
- | Cerb(tm) developed by Webgroup Media, LLC.
- |-----------------------------------------------------------------------
- | All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
- |   unless specifically noted otherwise.
- |
- | This source code is released under the Devblocks Public License.
- | The latest version of this license can be found here:
- | http://cerb.ai/license
- |
- | By using this software, you acknowledge having read this license
- | and agree to be bound thereby.
- | ______________________________________________________________________
- |	http://cerb.ai	    http://webgroup.media
+| Cerb(tm) developed by Webgroup Media, LLC.
+|-----------------------------------------------------------------------
+| All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
+|   unless specifically noted otherwise.
+|
+| This source code is released under the Devblocks Public License.
+| The latest version of this license can be found here:
+| http://cerb.ai/license
+|
+| By using this software, you acknowledge having read this license
+| and agree to be bound thereby.
+| ______________________________________________________________________
+|	http://cerb.ai	    http://webgroup.media
  ***********************************************************************/
 
 if(class_exists('Extension_PageSection')):
@@ -28,7 +28,7 @@ class PageSection_InternalDashboards extends Extension_PageSection {
 	function showWidgetPopupAction() {
 		@$widget_id = DevblocksPlatform::importGPC($_REQUEST['widget_id'], 'integer', 0);
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		if(empty($widget_id)) {
 			// [TODO] Verify this ID
@@ -157,7 +157,7 @@ class PageSection_InternalDashboards extends Extension_PageSection {
 					
 				// If the worker hasn't been prompted, do that now
 				} else {
-					$tpl = DevblocksPlatform::getTemplateService();
+					$tpl = DevblocksPlatform::services()->template();
 					$tpl->assign('import_json', $import_json);
 					$tpl->assign('import_fields', $configure_fields);
 					$config_html = $tpl->fetch('devblocks:cerberusweb.core::internal/import/prompted/configure_json_import.tpl');
@@ -196,12 +196,13 @@ class PageSection_InternalDashboards extends Extension_PageSection {
 		if(null == ($widget = DAO_WorkspaceWidget::get($widget_id)))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		$tpl->assign('widget', $widget);
 		
 		$widget_json = json_encode(array(
 			'widget' => array(
+				'uid' => 'workspace_widget_' . $widget->id,
 				'label' => $widget->label,
 				'extension_id' => $widget->extension_id,
 				'cache_ttl' => $widget->cache_ttl,
@@ -226,7 +227,7 @@ class PageSection_InternalDashboards extends Extension_PageSection {
 		if(!($widget_extension instanceof ICerbWorkspaceWidget_ExportData))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		$tpl->assign('widget', $widget);
 		$tpl->assign('widget_extension', $widget_extension);
@@ -340,7 +341,7 @@ endif;
 if(class_exists('Extension_WorkspaceTab')):
 class WorkspaceTab_Dashboards extends Extension_WorkspaceTab {
 	public function renderTabConfig(Model_WorkspacePage $page, Model_WorkspaceTab $tab) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		$tpl->assign('workspace_page', $page);
 		$tpl->assign('workspace_tab', $tab);
@@ -380,7 +381,7 @@ class WorkspaceTab_Dashboards extends Extension_WorkspaceTab {
 	}
 	
 	public function renderTab(Model_WorkspacePage $page, Model_WorkspaceTab $tab) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		$tpl->assign('workspace_page', $page);
 		$tpl->assign('workspace_tab', $tab);
@@ -426,6 +427,7 @@ class WorkspaceTab_Dashboards extends Extension_WorkspaceTab {
 	function exportTabConfigJson(Model_WorkspacePage $page, Model_WorkspaceTab $tab) {
 		$json = array(
 			'tab' => array(
+				'uid' => 'workspace_tab_' . $tab->id,
 				'name' => $tab->name,
 				'extension_id' => $tab->extension_id,
 				'params' => $tab->params,
@@ -437,12 +439,11 @@ class WorkspaceTab_Dashboards extends Extension_WorkspaceTab {
 		
 		foreach($widgets as $widget) {
 			$widget_json = array(
-				'widget' => array(
-					'label' => $widget->label,
-					'extension_id' => $widget->extension_id,
-					'pos' => $widget->pos,
-					'params' => $widget->params,
-				),
+				'uid' => 'workspace_widget_' . $widget->id,
+				'label' => $widget->label,
+				'extension_id' => $widget->extension_id,
+				'pos' => $widget->pos,
+				'params' => $widget->params,
 			);
 			
 			$json['tab']['widgets'][] = $widget_json;
@@ -452,21 +453,25 @@ class WorkspaceTab_Dashboards extends Extension_WorkspaceTab {
 	}
 	
 	function importTabConfigJson($json, Model_WorkspaceTab $tab) {
-		if(empty($tab->id) || !is_array($json) || !isset($json['tab']))
+		if(empty($tab->id) || !is_array($json))
 			return false;
 		
-		if(!isset($json['tab']['widgets']) || !is_array($json['tab']['widgets']))
+		// Backwards compatibility
+		if(isset($json['tab']))
+			$json = $json['tab'];
+		
+		if(!isset($json['widgets']) || !is_array($json['widgets']))
 			return false;
 		
-		foreach($json['tab']['widgets'] as $widget) {
-			DAO_WorkspaceWidget::create(array(
-				DAO_WorkspaceWidget::LABEL => $widget['widget']['label'],
-				DAO_WorkspaceWidget::EXTENSION_ID => $widget['widget']['extension_id'],
-				DAO_WorkspaceWidget::POS => $widget['widget']['pos'],
-				DAO_WorkspaceWidget::PARAMS_JSON => json_encode($widget['widget']['params']),
+		foreach($json['widgets'] as $widget) {
+			$widget_id = DAO_WorkspaceWidget::create([
+				DAO_WorkspaceWidget::LABEL => $widget['label'],
+				DAO_WorkspaceWidget::EXTENSION_ID => $widget['extension_id'],
+				DAO_WorkspaceWidget::POS => $widget['pos'],
+				DAO_WorkspaceWidget::PARAMS_JSON => json_encode($widget['params']),
 				DAO_WorkspaceWidget::WORKSPACE_TAB_ID => $tab->id,
 				DAO_WorkspaceWidget::UPDATED_AT => time(),
-			));
+			]);
 		}
 		
 		return true;
@@ -494,7 +499,7 @@ class WorkspaceWidget_Gauge extends Extension_WorkspaceWidget implements ICerbWo
 	}
 	
 	function render(Model_WorkspaceWidget $widget) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		if(false == ($this->_loadData($widget))) {
 			echo "This gauge doesn't have a data source. Configure it and select one.";
@@ -512,7 +517,7 @@ class WorkspaceWidget_Gauge extends Extension_WorkspaceWidget implements ICerbWo
 		if(empty($widget))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		// Widget
 		
@@ -550,8 +555,10 @@ class WorkspaceWidget_Gauge extends Extension_WorkspaceWidget implements ICerbWo
 		
 		if(isset($params['threshold_values']))
 		foreach($params['threshold_values'] as $idx => $val) {
-			if(empty($val)) {
+			if(0 == strlen($val)) {
 				unset($params['threshold_values'][$idx]);
+				unset($params['threshold_labels'][$idx]);
+				unset($params['threshold_colors'][$idx]);
 				continue;
 			}
 			
@@ -560,22 +567,31 @@ class WorkspaceWidget_Gauge extends Extension_WorkspaceWidget implements ICerbWo
 			if(empty($label))
 				$params['threshold_labels'][$idx] = $val;
 			
-			@$color = $params['threshold_colors'][$idx];
+			@$color = strtoupper($params['threshold_colors'][$idx]);
 			
 			if(empty($color))
-				$params['threshold_colors'][$idx] = sprintf("#%s%s%s",
-					dechex(mt_rand(0,255)),
-					dechex(mt_rand(0,255)),
-					dechex(mt_rand(0,255))
-				);
+				$color = '#FFFFFF';
+			
+			$params['threshold_colors'][$idx] = $color;
 		}
+		
+		$len = count($params['threshold_colors']);
+		
+		if(0 == strcasecmp($params['threshold_colors'][0], '#FFFFFF')) {
+			$params['threshold_colors'][0] = '#CF2C1D';
+		}
+		
+		if(0 == strcasecmp($params['threshold_colors'][$len-1], '#FFFFFF')) {
+			$params['threshold_colors'][$len-1] = '#66AD11';
+		}
+		$params['threshold_colors'] = DevblocksPlatform::colorLerpArray($params['threshold_colors']);
 		
 		DAO_WorkspaceWidget::update($widget->id, array(
 			DAO_WorkspaceWidget::PARAMS_JSON => json_encode($params),
 		));
 
 		// Clear caches
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		$cache->remove(sprintf("widget%d_datasource", $widget->id));
 	}
 	
@@ -660,10 +676,83 @@ class WorkspaceWidget_Gauge extends Extension_WorkspaceWidget implements ICerbWo
 	}
 };
 
+class WorkspaceWidget_BotBehavior extends Extension_WorkspaceWidget {
+	function render(Model_WorkspaceWidget $widget) {
+		$tpl = DevblocksPlatform::services()->template();
+
+		@$behavior_id = $widget->params['behavior_id'];
+		
+		if(!$behavior_id 
+			|| false == ($widget_behavior = DAO_TriggerEvent::get($behavior_id))
+			|| $widget_behavior->event_point != Event_DashboardWidgetRender::ID
+			) {
+			echo "A bot behavior isn't configured.";
+			return;
+		}
+		
+		$actions = [];
+		
+		$event_model = new Model_DevblocksEvent(
+			Event_DashboardWidgetRender::ID,
+			array(
+				'widget' => $widget,
+				'actions' => &$actions,
+			)
+		);
+		
+		if(false == ($event = $widget_behavior->getEvent()))
+			return;
+			
+		$event->setEvent($event_model, $widget_behavior);
+		
+		$values = $event->getValues();
+		
+		$dict = DevblocksDictionaryDelegate::instance($values);
+		
+		$result = $widget_behavior->runDecisionTree($dict, false, $event);
+		
+		$value = null;
+		
+		foreach($actions as $action) {
+			switch($action['_action']) {
+				case 'render_html':
+					$html = @$action['html'];
+					echo $html;
+					break;
+			}
+		}
+	}
+	
+	// Config
+	
+	function renderConfig(Model_WorkspaceWidget $widget) {
+		if(empty($widget))
+			return;
+		
+		$tpl = DevblocksPlatform::services()->template();
+		
+		// Widget
+		
+		$tpl->assign('widget', $widget);
+		
+		// Template
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/workspaces/widgets/bot/config.tpl');
+	}
+	
+	function saveConfig(Model_WorkspaceWidget $widget) {
+		@$params = DevblocksPlatform::importGPC($_REQUEST['params'], 'array', array());
+		
+		DAO_WorkspaceWidget::update($widget->id, array(
+			DAO_WorkspaceWidget::PARAMS_JSON => json_encode($params),
+		));
+	}
+};
+
 class WorkspaceWidget_Calendar extends Extension_WorkspaceWidget implements ICerbWorkspaceWidget_ExportData {
 	function render(Model_WorkspaceWidget $widget) {
 		$active_worker = CerberusApplication::getActiveWorker();
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		@$month = DevblocksPlatform::importGPC($_REQUEST['month'], 'integer', null);
 		@$year = DevblocksPlatform::importGPC($_REQUEST['year'], 'integer', null);
@@ -696,7 +785,7 @@ class WorkspaceWidget_Calendar extends Extension_WorkspaceWidget implements ICer
 		if(empty($widget))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		// Widget
 		
@@ -838,7 +927,7 @@ class WorkspaceWidget_Calendar extends Extension_WorkspaceWidget implements ICer
 
 class WorkspaceWidget_Clock extends Extension_WorkspaceWidget implements ICerbWorkspaceWidget_ExportData {
 	function render(Model_WorkspaceWidget $widget) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		@$timezone = $widget->params['timezone'];
 		
@@ -864,7 +953,7 @@ class WorkspaceWidget_Clock extends Extension_WorkspaceWidget implements ICerbWo
 		if(empty($widget))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		// Widget
 		
@@ -872,7 +961,7 @@ class WorkspaceWidget_Clock extends Extension_WorkspaceWidget implements ICerbWo
 		
 		// Timezones
 		
-		$date = DevblocksPlatform::getDateService();
+		$date = DevblocksPlatform::services()->date();
 		
 		$timezones = $date->getTimezones();
 		$tpl->assign('timezones', $timezones);
@@ -971,7 +1060,7 @@ class WorkspaceWidget_Counter extends Extension_WorkspaceWidget implements ICerb
 			return false;
 		
 		$data = $datasource_ext->getData($widget, $widget->params);
-
+		
 		if(!empty($data))
 			$widget->params = $data;
 		
@@ -979,7 +1068,7 @@ class WorkspaceWidget_Counter extends Extension_WorkspaceWidget implements ICerb
 	}
 	
 	function render(Model_WorkspaceWidget $widget) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		if(false == ($this->_loadData($widget))) {
 			echo "This counter doesn't have a data source. Configure it and select one.";
@@ -997,7 +1086,7 @@ class WorkspaceWidget_Counter extends Extension_WorkspaceWidget implements ICerb
 		if(empty($widget))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		// Widget
 		
@@ -1038,7 +1127,7 @@ class WorkspaceWidget_Counter extends Extension_WorkspaceWidget implements ICerb
 		));
 
 		// Clear caches
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		$cache->remove(sprintf("widget%d_datasource", $widget->id));
 	}
 	
@@ -1111,7 +1200,7 @@ class WorkspaceWidget_Counter extends Extension_WorkspaceWidget implements ICerb
 
 class WorkspaceWidget_Countdown extends Extension_WorkspaceWidget implements ICerbWorkspaceWidget_ExportData {
 	function render(Model_WorkspaceWidget $widget) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		if(!isset($widget->params['target_timestamp'])) {
 			echo "This countdown doesn't have a target date. Configure it and set one.";
@@ -1129,7 +1218,7 @@ class WorkspaceWidget_Countdown extends Extension_WorkspaceWidget implements ICe
 		if(empty($widget))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		// Widget
 		
@@ -1247,7 +1336,7 @@ class WorkspaceWidget_Chart extends Extension_WorkspaceWidget implements ICerbWo
 	}
 	
 	function render(Model_WorkspaceWidget $widget) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		if(false == ($this->_loadData($widget))) {
 			echo "This chart doesn't have any data sources. Configure it and select one.";
@@ -1274,7 +1363,7 @@ class WorkspaceWidget_Chart extends Extension_WorkspaceWidget implements ICerbWo
 		if(empty($widget))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		// Widget
 		
@@ -1331,24 +1420,24 @@ class WorkspaceWidget_Chart extends Extension_WorkspaceWidget implements ICerbWo
 	private function _hex2RGB($hex_color) {
 		$hex_color = preg_replace("/[^0-9A-Fa-f]/", '', $hex_color); // Gets a proper hex string
 		$rgb = array();
-	  
+		
 		// If a proper hex code, convert using bitwise operation. No overhead... faster
 		if (strlen($hex_color) == 6) {
 			$color_value = hexdec($hex_color);
 			$rgb['r'] = 0xFF & ($color_value >> 0x10);
 			$rgb['g'] = 0xFF & ($color_value >> 0x8);
 			$rgb['b'] = 0xFF & $color_value;
-			 
+			
 		// If shorthand notation, need some string manipulations
 		} elseif (strlen($hex_color) == 3) {
 			$rgb['r'] = hexdec(str_repeat(substr($hex_color, 0, 1), 2));
 			$rgb['g'] = hexdec(str_repeat(substr($hex_color, 1, 1), 2));
 			$rgb['b'] = hexdec(str_repeat(substr($hex_color, 2, 1), 2));
-			 
+			
 		} else {
 			return false;
 		}
-	  
+		
 		return $rgb;
 	}
 	
@@ -1480,7 +1569,7 @@ class WorkspaceWidget_Subtotals extends Extension_WorkspaceWidget implements ICe
 		if(!($view instanceof IAbstractView_Subtotals))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('view_id', $view_id);
 		$tpl->assign('view', $view);
 
@@ -1560,7 +1649,7 @@ class WorkspaceWidget_Subtotals extends Extension_WorkspaceWidget implements ICe
 		if(empty($widget))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		// Widget
 		
@@ -1730,7 +1819,7 @@ class WorkspaceWidget_Worklist extends Extension_WorkspaceWidget implements ICer
 		if(false == ($view = $this->getView($widget)))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('view_id', $view->id);
 		$tpl->assign('view', $view);
 
@@ -1741,7 +1830,7 @@ class WorkspaceWidget_Worklist extends Extension_WorkspaceWidget implements ICer
 		if(empty($widget))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		// Widget
 		
@@ -1925,7 +2014,7 @@ class WorkspaceWidget_CustomHTML extends Extension_WorkspaceWidget {
 	}
 	
 	private function _renderHtml(Model_WorkspaceWidget $widget) {
-		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		if(empty($active_worker))
@@ -1950,7 +2039,7 @@ class WorkspaceWidget_CustomHTML extends Extension_WorkspaceWidget {
 		if(empty($widget))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		// Widget
 		
@@ -1979,7 +2068,7 @@ class WorkspaceWidget_CustomHTML extends Extension_WorkspaceWidget {
 		));
 
 		// Clear caches
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		$cache->remove(sprintf("widget%d_datasource", $widget->id));
 	}
 };
@@ -2047,7 +2136,7 @@ class WorkspaceWidget_PieChart extends Extension_WorkspaceWidget implements ICer
 	}
 	
 	function render(Model_WorkspaceWidget $widget) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		if(false == $this->_loadData($widget)) {
 			echo "This pie chart doesn't have a data source. Configure it and select one.";
@@ -2065,7 +2154,7 @@ class WorkspaceWidget_PieChart extends Extension_WorkspaceWidget implements ICer
 		if(empty($widget))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		// Widget
 		
@@ -2089,7 +2178,7 @@ class WorkspaceWidget_PieChart extends Extension_WorkspaceWidget implements ICer
 		));
 
 		// Clear caches
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		$cache->remove(sprintf("widget%d_datasource", $widget->id));
 	}
 	
@@ -2225,7 +2314,7 @@ class WorkspaceWidget_Scatterplot extends Extension_WorkspaceWidget implements I
 	}
 	
 	function render(Model_WorkspaceWidget $widget) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		if(false == ($this->_loadData($widget))) {
 			echo "This scatterplot doesn't have any data sources. Configure it and select one.";
@@ -2243,7 +2332,7 @@ class WorkspaceWidget_Scatterplot extends Extension_WorkspaceWidget implements I
 		if(empty($widget))
 			return;
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		// Widget
 		
@@ -2289,7 +2378,7 @@ class WorkspaceWidget_Scatterplot extends Extension_WorkspaceWidget implements I
 		));
 
 		// Clear caches
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		$cache->remove(sprintf("widget%d_datasource", $widget->id));
 	}
 	

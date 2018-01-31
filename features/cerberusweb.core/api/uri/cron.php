@@ -27,10 +27,10 @@ class ChCronController extends DevblocksControllerExtension {
 		@$reload = DevblocksPlatform::importGPC($_REQUEST['reload'],'integer',0);
 		@$loglevel = DevblocksPlatform::importGPC($_REQUEST['loglevel'],'integer',0);
 		
-		$logger = DevblocksPlatform::getConsoleLog();
+		$logger = DevblocksPlatform::services()->log();
 		$translate = DevblocksPlatform::getTranslationService();
 		
-		$settings = DevblocksPlatform::getPluginSettingsService();
+		$settings = DevblocksPlatform::services()->pluginSettings();
 		$authorized_ips_str = $settings->get('cerberusweb.core',CerberusSettings::AUTHORIZED_IPS,CerberusSettingsDefaults::AUTHORIZED_IPS);
 		$authorized_ips = DevblocksPlatform::parseCrlfString($authorized_ips_str);
 		
@@ -40,12 +40,7 @@ class ChCronController extends DevblocksControllerExtension {
 		@$is_ignoring_wait = DevblocksPlatform::importGPC($_REQUEST['ignore_wait'],'integer',0);
 		@$is_ignoring_internal = DevblocksPlatform::importGPC($_REQUEST['ignore_internal'],'integer',0);
 		
-		$pass = false;
-		foreach ($authorized_ips as $ip) {
-			if(substr($ip,0,strlen($ip)) == substr(DevblocksPlatform::getClientIp(),0,strlen($ip)))
-		 	{ $pass=true; break; }
-		}
-		if(!$pass) {
+		if(!DevblocksPlatform::isIpAuthorized(DevblocksPlatform::getClientIp(), $authorized_ips)) {
 			echo vsprintf($translate->_('cron.ip_unauthorized'), DevblocksPlatform::strEscapeHtml(DevblocksPlatform::getClientIp()));
 			return;
 		}
@@ -59,7 +54,7 @@ class ChCronController extends DevblocksControllerExtension {
 		
 		CerberusContexts::pushActivityDefaultActor(CerberusContexts::CONTEXT_APPLICATION, 0);
 		
-		$url = DevblocksPlatform::getUrlService();
+		$url = DevblocksPlatform::services()->url();
 		$time_left = intval(ini_get('max_execution_time')) ?: 86400;
 		
 		$logger->info(sprintf("[Scheduler] Set Time Limit: %d seconds", $time_left));
@@ -88,15 +83,15 @@ class ChCronController extends DevblocksControllerExtension {
 			if($is_ignoring_internal) {
 				$cron_manifests = array_filter($cron_manifests, function($instance) {
 					switch($instance->id) {
-						case 'cron.mailbox':
-						case 'cron.parser':
-						case 'cron.maint':
-						case 'cron.heartbeat':
-						case 'cron.import':
-						case 'cron.storage':
-						case 'cron.search':
-						case 'cron.mail_queue':
 						case 'cron.bot.scheduled_behavior':
+						case 'cron.heartbeat':
+						case 'cron.mail_queue':
+						case 'cron.mailbox':
+						case 'cron.maint':
+						case 'cron.parser':
+						case 'cron.reminders':
+						case 'cron.search':
+						case 'cron.storage':
 							return false;
 							break;
 					}

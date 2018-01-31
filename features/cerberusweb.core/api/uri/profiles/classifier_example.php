@@ -17,7 +17,7 @@
 
 class PageSection_ProfilesClassifierExample extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$visit = CerberusApplication::getVisit();
 		$translate = DevblocksPlatform::getTranslationService();
 		$active_worker = CerberusApplication::getActiveWorker();
@@ -107,14 +107,6 @@ class PageSection_ProfilesClassifierExample extends Extension_PageSection {
 		
 		$tpl->assign('properties', $properties);
 			
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.classifier_example'
-		);
-		$tpl->assign('macros', $macros);
-
 		// Tabs
 		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_CLASSIFIER_EXAMPLE);
 		$tpl->assign('tab_manifests', $tab_manifests);
@@ -130,12 +122,15 @@ class PageSection_ProfilesClassifierExample extends Extension_PageSection {
 		@$do_delete = DevblocksPlatform::importGPC($_REQUEST['do_delete'], 'string', '');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$bayes = DevblocksPlatform::getBayesClassifierService();
+		$bayes = DevblocksPlatform::services()->bayesClassifier();
 		
 		header('Content-Type: application/json; charset=utf-8');
 		
 		try {
 			if(!empty($id) && !empty($do_delete)) { // Delete
+				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_CLASSIFIER_EXAMPLE)))
+					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
+				
 				if(false == ($example = DAO_ClassifierExample::get($id)))
 					throw new Exception_DevblocksAjaxValidationError("The record does not exist.");
 				
@@ -156,9 +151,6 @@ class PageSection_ProfilesClassifierExample extends Extension_PageSection {
 				@$classifier_id = DevblocksPlatform::importGPC($_REQUEST['classifier_id'], 'integer', 0);
 				@$class_id = DevblocksPlatform::importGPC($_REQUEST['class_id'], 'integer', 0);
 				
-				if(empty($classifier_id))
-					throw new Exception_DevblocksAjaxValidationError("The 'Classifier' field is required.", 'classifier_id');
-				
 				if(false == ($classifier = DAO_Classifier::get($classifier_id)))
 					throw new Exception_DevblocksAjaxValidationError("The 'Classifier' is invalid.", 'classifier_id');
 				
@@ -172,9 +164,6 @@ class PageSection_ProfilesClassifierExample extends Extension_PageSection {
 				if(!Context_Classifier::isWriteableByActor($classifier, $active_worker))
 					throw new Exception_DevblocksAjaxValidationError("You do not have permission to modify this record.", 'classifier_id');
 				
-				if(empty($expression))
-					throw new Exception_DevblocksAjaxValidationError("The 'Expression' field is required.", 'expression');
-				
 				$fields = array(
 					DAO_ClassifierExample::EXPRESSION => $expression,
 					DAO_ClassifierExample::CLASSIFIER_ID => $classifier_id,
@@ -183,17 +172,27 @@ class PageSection_ProfilesClassifierExample extends Extension_PageSection {
 				);
 				
 				if(empty($id)) { // New
-					$id = DAO_ClassifierExample::create($fields);
+					if(!DAO_ClassifierExample::validate($fields, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
 					
-					// Train the model (online learning)
-					if($class_id)
-						$bayes::train($expression, $classifier_id, $class_id);
+					if(!DAO_ClassifierExample::onBeforeUpdateByActor($active_worker, $fields, null, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					$id = DAO_ClassifierExample::create($fields);
+					DAO_ClassifierExample::onUpdateByActor($active_worker, $fields, $id);
 					
 					if(!empty($view_id) && !empty($id))
 						C4_AbstractView::setMarqueeContextCreated($view_id, CerberusContexts::CONTEXT_CLASSIFIER_EXAMPLE, $id);
 					
 				} else { // Edit
+					if(!DAO_ClassifierExample::validate($fields, $error, $id))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					if(!DAO_ClassifierExample::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
 					DAO_ClassifierExample::update($id, $fields);
+					DAO_ClassifierExample::onUpdateByActor($active_worker, $fields, $id);
 				}
 	
 				// Custom fields
@@ -231,7 +230,7 @@ class PageSection_ProfilesClassifierExample extends Extension_PageSection {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		// Generate hash
 		$hash = md5($view_id.$active_worker->id.time());

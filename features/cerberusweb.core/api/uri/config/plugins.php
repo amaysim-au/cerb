@@ -20,7 +20,7 @@ class PageSection_SetupPlugins extends Extension_PageSection {
 	
 	function render() {
 		$visit = CerberusApplication::getVisit();
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$response = DevblocksPlatform::getHttpResponse();
 		
 		$stack = $response->path;
@@ -47,7 +47,7 @@ class PageSection_SetupPlugins extends Extension_PageSection {
 	}
 
 	function showTabAction() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		$defaults = C4_AbstractViewModel::loadFromClass('View_CerbPlugin');
 		$defaults->id = self::VIEW_PLUGINS;
@@ -79,12 +79,14 @@ class PageSection_SetupPlugins extends Extension_PageSection {
 			return;
 		}
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		if(empty($plugin_id))
 			return;
 		
-		$plugin = DevblocksPlatform::getPlugin($plugin_id);
+		if(false == ($plugin = DevblocksPlatform::getPlugin($plugin_id)))
+			return;
+		
 		$tpl->assign('plugin', $plugin);
 
 		$is_uninstallable = CERB_FEATURES_PLUGIN_LIBRARY && (APP_STORAGE_PATH == substr($plugin->getStoragePath(), 0, strlen(APP_STORAGE_PATH)));

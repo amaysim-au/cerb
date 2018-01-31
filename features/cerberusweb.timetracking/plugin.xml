@@ -4,20 +4,20 @@
 	<name>Time Tracking</name>
 	<description>Track time spent on various helpdesk activities (replying to tickets, etc).  This adds a Track Time button to Display Ticket and Organizations, and a Time Tracking tab to the Activity page.</description>
 	<author>Webgroup Media, LLC.</author>
-	<version>7.3.12</version>
+	<version>8.2.9</version>
 	<link>http://wiki.cerbweb.com/Features:Time_Tracking</link>
 	<image>plugin.png</image>
 	
 	<!-- Requirements -->
 
 	<requires>
-		<app_version min="7.3" max="7.3.99" />
+		<app_version min="8.2" max="8.2.99" />
 	</requires>
 	
 	<!-- Plugin Dependencies -->
 	
 	<dependencies>
-		<require plugin_id="cerberusweb.core" version="5.0.0-beta" />
+		<require plugin_id="cerberusweb.core" version="8.1.0" />
 	</dependencies>
 	
 	<!-- Patches -->
@@ -63,10 +63,7 @@
 	</activity_points>
 	
 	<acl>
-		<priv id="timetracking.actions.create" label="acl.timetracking.actions.create" />
-		<priv id="timetracking.actions.update_all" label="acl.timetracking.actions.update_all" />
 		<priv id="timetracking.report.group.time" label="acl.timetracking.report.group.time" />
-		<priv id="timetracking.view.actions.export" label="acl.timetracking.view.actions.export" />
 	</acl>
 	
 	<extensions>
@@ -98,13 +95,24 @@
 				<param key="options">
 					<value>
 						<data key="cards" />
-						<data key="create" />
 						<data key="custom_fields" />
 						<data key="links" />
+						<data key="records" />
 						<data key="search" />
 						<data key="snippets" />
 						<data key="va_variable" />
+						<data key="watchers" />
 						<data key="workspace" />
+					</value>
+				</param>
+				<param key="acl">
+					<value>
+						<data key="comment" />
+						<data key="create" />
+						<data key="delete" />
+						<data key="export" />
+						<data key="update" />
+						<data key="update.bulk" />
 					</value>
 				</param>
 			</params>
@@ -114,7 +122,7 @@
 		
 		<extension point="devblocks.event">
 			<id>event.macro.timetracking</id>
-			<name>Custom time tracking behavior</name>
+			<name>Custom behavior on time tracking entry</name>
 			<class>
 				<file>api/events/timetracking_macro.php</file>
 				<name>Event_TimeTrackingMacro</name>
@@ -127,6 +135,11 @@
 						<data key="cerberusweb.contexts.group" />
 						<data key="cerberusweb.contexts.role" />
 						<data key="cerberusweb.contexts.worker" />
+					</value>
+				</param>
+				<param key="options">
+					<value>
+						<data key="visibility" />
 					</value>
 				</param>
 			</params>
@@ -227,7 +240,7 @@
 	
 		<!-- Pages -->
 		
- 		<extension point="cerberusweb.page">
+		<extension point="cerberusweb.page">
 			<id>timetracking.page</id>
 			<name>Time Tracking Page</name>
 			<class>
@@ -239,7 +252,7 @@
 				<param key="menutitle" value="" />
 			</params>
 		</extension>
-		 
+		
 		<!-- Profile Page Sections -->
 		
 		<extension point="cerberusweb.ui.page.section">
@@ -254,7 +267,7 @@
 				<param key="uri" value="time_tracking" />
 			</params>
 		</extension>
-		 
+		
 		<!-- REST Controllers -->
 		
 		<extension point="cerberusweb.rest.controller">
@@ -268,7 +281,7 @@
 				<param key="uri" value="timetracking" />
 			</params>
 		</extension>
-		 
+		
 		<!-- Report Groups -->
 		
 		<extension point="cerberusweb.report.group">

@@ -9,19 +9,22 @@
 	</div>
 	
 	<div style="float:left;">
-		<h1 style="color:inherit;">
+		<h1>
 			{$dict->_label}
 		</h1>
 		
 		<div style="margin-top:5px;">
+			{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.tpl"}
+		
+			{if $dict->id}<button type="button" class="cerb-peek-profile"><span class="glyphicons glyphicons-nameplate"></span> {'common.profile'|devblocks_translate|capitalize}</button>{/if}
+			{if $is_writeable && $active_worker->hasPriv("contexts.{$peek_context}.update")}<button type="button" class="cerb-peek-edit" data-context="{$peek_context}" data-context-id="{$dict->id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span> {'common.edit'|devblocks_translate|capitalize}</button>{/if}
+			
 			{if !empty($dict->id)}
 				{$object_watchers = DAO_ContextLink::getContextLinks($peek_context, array($dict->id), CerberusContexts::CONTEXT_WORKER)}
 				{include file="devblocks:cerberusweb.core::internal/watchers/context_follow_button.tpl" context=$peek_context context_id=$dict->id full=true}
 			{/if}
-		
-			{if $is_writeable}<button type="button" class="cerb-peek-edit" data-context="{$peek_context}" data-context-id="{$dict->id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span> {'common.edit'|devblocks_translate|capitalize}</button>{/if}
-			{if $dict->id}<button type="button" class="cerb-peek-profile"><span class="glyphicons glyphicons-nameplate"></span> {'common.profile'|devblocks_translate|capitalize}</button>{/if}
-			<button type="button" class="cerb-peek-comments-add" data-context="{CerberusContexts::CONTEXT_COMMENT}" data-context-id="0" data-edit="context:{$peek_context} context.id:{$dict->id}"><span class="glyphicons glyphicons-conversation"></span> {'common.comment'|devblocks_translate|capitalize}</button>
+
+			{if $active_worker->hasPriv("contexts.{$peek_context}.comment")}<button type="button" class="cerb-peek-comments-add" data-context="{CerberusContexts::CONTEXT_COMMENT}" data-context-id="0" data-edit="context:{$peek_context} context.id:{$dict->id}"><span class="glyphicons glyphicons-conversation"></span> {'common.comment'|devblocks_translate|capitalize}</button>{/if}
 		</div>
 	</div>
 </div>
@@ -85,7 +88,7 @@ $(function() {
 		// Properties grid
 		$popup.find('div.cerb-properties-grid').cerbPropertyGrid();
 		
-		{if $is_writeable}
+		{if $is_writeable && $active_worker->hasPriv("contexts.{$peek_context}.update")}
 		// Edit button
 		$popup.find('button.cerb-peek-edit')
 			.cerbPeekTrigger({ 'view_id': '{$view_id}' })
@@ -128,6 +131,10 @@ $(function() {
 				document.location='{devblocks_url}c=profiles&type=bot&id={$dict->id}-{$dict->_label|devblocks_permalink}{/devblocks_url}';
 			}
 		});
+		
+		// Interactions
+		var $interaction_container = $popup;
+		{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.js.tpl"}
 		
 		// Timeline
 		{include file="devblocks:cerberusweb.core::internal/peek/card_timeline_script.tpl"}

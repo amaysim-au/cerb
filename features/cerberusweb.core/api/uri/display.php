@@ -41,7 +41,7 @@ class ChDisplayPage extends CerberusPageExtension {
 		@$id = DevblocksPlatform::importGPC($_REQUEST['id']); // message id
 		@$hide = DevblocksPlatform::importGPC($_REQUEST['hide'],'integer',0);
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		$message = DAO_Message::get($id);
@@ -49,8 +49,8 @@ class ChDisplayPage extends CerberusPageExtension {
 		$tpl->assign('message_id', $message->id);
 		
 		// Sender info
-		$message_senders = array();
-		$message_sender_orgs = array();
+		$message_senders = [];
+		$message_sender_orgs = [];
 		
 		if(null != ($sender_addy = CerberusApplication::hashLookupAddress($message->address_id))) {
 			$message_senders[$sender_addy->id] = $sender_addy;
@@ -78,12 +78,12 @@ class ChDisplayPage extends CerberusPageExtension {
 		// Expanded/Collapsed
 		if(empty($hide)) {
 			$notes = DAO_Comment::getByContext(CerberusContexts::CONTEXT_MESSAGE, $message->id);
-			$message_notes = array();
+			$message_notes = [];
 			// Index notes by message id
 			if(is_array($notes))
 			foreach($notes as $note) {
 				if(!isset($message_notes[$note->context_id]))
-					$message_notes[$note->context_id] = array();
+					$message_notes[$note->context_id] = [];
 				$message_notes[$note->context_id][$note->id] = $note;
 			}
 			$tpl->assign('message_notes', $message_notes);
@@ -115,7 +115,7 @@ class ChDisplayPage extends CerberusPageExtension {
 			return;
 		
 		// Group security
-		if(!$active_worker->isGroupMember($ticket->group_id))
+		if(!Context_Ticket::isWriteableByActor($ticket, $active_worker))
 			return;
 			
 		// Anti-Spam
@@ -155,7 +155,7 @@ class ChDisplayPage extends CerberusPageExtension {
 	function showMessagePeekPopupAction() {
 		@$context_id = DevblocksPlatform::importGPC($_REQUEST['id'],'integer',0);
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		if(false == ($message = DAO_Message::get($context_id)))
 			return;
@@ -190,7 +190,7 @@ class ChDisplayPage extends CerberusPageExtension {
 				throw new Exception_DevblocksAjaxValidationError("You are not authorized to modify this record.");
 			
 			if(!empty($id) && !empty($do_delete)) { // Delete
-				if(!$active_worker->hasPriv('core.display.message.actions.delete'))
+				if(!$active_worker->hasPriv('contexts.cerberusweb.contexts.message.delete'))
 					throw new Exception_DevblocksAjaxValidationError("You are not authorized to delete this record.");
 				
 				DAO_Message::delete($id);
@@ -205,7 +205,7 @@ class ChDisplayPage extends CerberusPageExtension {
 			} else {
 				
 				// Custom fields
-				@$field_ids = DevblocksPlatform::importGPC($_REQUEST['field_ids'], 'array', array());
+				@$field_ids = DevblocksPlatform::importGPC($_REQUEST['field_ids'], 'array', []);
 				DAO_CustomFieldValue::handleFormPost(CerberusContexts::CONTEXT_MESSAGE, $id, $field_ids);
 			}
 		
@@ -241,11 +241,11 @@ class ChDisplayPage extends CerberusPageExtension {
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		// ACL
-		if(!$active_worker->hasPriv('core.ticket.view.actions.merge')) {
+		if(!$active_worker->hasPriv('contexts.cerberusweb.contexts.ticket.merge')) {
 			return;
 		}
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 				
 		$tpl->assign('ticket_id', $ticket_id);
 		
@@ -262,13 +262,13 @@ class ChDisplayPage extends CerberusPageExtension {
 			return;
 			
 		// Group security
-		if(!$active_worker->isGroupMember($src_ticket->group_id))
+		if(!Context_Ticket::isWriteableByActor($src_ticket, $active_worker))
 			return;
 		
 		$refresh_id = !empty($src_ticket) ? $src_ticket->mask : $src_ticket_id;
 		
 		// ACL
-		if(!$active_worker->hasPriv('core.ticket.view.actions.merge')) {
+		if(!$active_worker->hasPriv('contexts.cerberusweb.contexts.ticket.merge')) {
 			DevblocksPlatform::redirect(new DevblocksHttpResponse(array('profiles','ticket',$refresh_id)));
 			exit;
 		}
@@ -308,11 +308,11 @@ class ChDisplayPage extends CerberusPageExtension {
 	private function _checkRecentTicketActivity($ticket_id, $since_timestamp) {
 		$active_worker = CerberusApplication::getActiveWorker();
 		$workers = DAO_Worker::getAll();
-		$activities = array();
+		$activities = [];
 		
 		// Check drafts
 		list($results, $null) = DAO_MailQueue::search(
-			array(),
+			[],
 			array(
 				SearchFields_MailQueue::IS_QUEUED => new DevblocksSearchCriteria(SearchFields_MailQueue::IS_QUEUED, '=', 0),
 				SearchFields_MailQueue::TICKET_ID => new DevblocksSearchCriteria(SearchFields_MailQueue::TICKET_ID, '=', $ticket_id),
@@ -350,7 +350,7 @@ class ChDisplayPage extends CerberusPageExtension {
 		);
 		
 		list($results, $null) = DAO_ContextActivityLog::search(
-			array(),
+			[],
 			array(
 				SearchFields_ContextActivityLog::TARGET_CONTEXT => new DevblocksSearchCriteria(SearchFields_ContextActivityLog::TARGET_CONTEXT, '=', CerberusContexts::CONTEXT_TICKET),
 				SearchFields_ContextActivityLog::TARGET_CONTEXT_ID => new DevblocksSearchCriteria(SearchFields_ContextActivityLog::TARGET_CONTEXT_ID, '=', $ticket_id),
@@ -375,7 +375,7 @@ class ChDisplayPage extends CerberusPageExtension {
 						continue;
 			
 			$activities[] = array(
-				'message' => CerberusContexts::formatActivityLogEntry($json, array(), array('target')),
+				'message' => CerberusContexts::formatActivityLogEntry($json, [], array('target')),
 				'timestamp' => intval($row['c_created']),
 			);
 		}
@@ -400,7 +400,7 @@ class ChDisplayPage extends CerberusPageExtension {
 		
 		header("Content-Type: text/html; charset=" . LANG_CHARSET_CODE);
 
-		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		// Determine if we have an HTML template
@@ -420,7 +420,7 @@ class ChDisplayPage extends CerberusPageExtension {
 			'html_template_id' => ($html_template) ? $html_template->id : 0,
 		);
 		
-		$hash_commands = array();
+		$hash_commands = [];
 		
 		$this->_parseReplyHashCommands($active_worker, $message_properties, $hash_commands);
 		
@@ -463,7 +463,7 @@ class ChDisplayPage extends CerberusPageExtension {
 			'content' => $content,
 		);
 		
-		$hash_commands = array();
+		$hash_commands = [];
 		
 		$this->_parseReplyHashCommands($active_worker, $message_properties, $hash_commands);
 		
@@ -481,10 +481,10 @@ class ChDisplayPage extends CerberusPageExtension {
 		@$reply_mode = DevblocksPlatform::importGPC($_REQUEST['reply_mode'],'integer',0);
 		@$draft_id = DevblocksPlatform::importGPC($_REQUEST['draft_id'],'integer',0);
 
-		$settings = DevblocksPlatform::getPluginSettingsService();
+		$settings = DevblocksPlatform::services()->pluginSettings();
 		$active_worker = CerberusApplication::getActiveWorker();  /* @var $active_worker Model_Worker */
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id',$id);
 		$tpl->assign('is_forward',$is_forward);
 		$tpl->assign('reply_mode',$reply_mode);
@@ -513,12 +513,21 @@ class ChDisplayPage extends CerberusPageExtension {
 		$ticket = DAO_Ticket::get($message->ticket_id);
 		$tpl->assign('ticket',$ticket);
 		
+		
+		// Transport
+		
+		$reply_from = $ticket->getBucket()->getReplyTo();
+		$reply_as = $ticket->getBucket()->getReplyPersonal($active_worker);
+		$reply_transport = $reply_from->getMailTransport();
+		$tpl->assign('reply_from', $reply_from);
+		$tpl->assign('reply_as', $reply_as);
+		$tpl->assign('reply_transport', $reply_transport);
+
+		// Requesters
+		
 		$requesters = $ticket->getRequesters();
 		
 		// Workers
-		
-		$object_recommendations = DAO_ContextRecommendation::getByContexts(CerberusContexts::CONTEXT_TICKET, $ticket->id);
-		$tpl->assign('object_recommendations', $object_recommendations);
 		
 		$object_watchers = DAO_ContextLink::getContextLinks(CerberusContexts::CONTEXT_TICKET, array($ticket->id), CerberusContexts::CONTEXT_WORKER);
 		$tpl->assign('object_watchers', $object_watchers);
@@ -561,7 +570,7 @@ class ChDisplayPage extends CerberusPageExtension {
 				if(isset($message_headers['to'])) {
 					$from = isset($message_headers['reply-to']) ? $message_headers['reply-to'] : $message_headers['from'];
 					$addys = CerberusMail::parseRfcAddresses($from . ', ' . $message_headers['to'], true);
-					$recipients = array();
+					$recipients = [];
 					
 					if(is_array($addys))
 					foreach($addys as $addy) {
@@ -573,7 +582,7 @@ class ChDisplayPage extends CerberusPageExtension {
 				
 				if(isset($message_headers['cc'])) {
 					$addys = CerberusMail::parseRfcAddresses($message_headers['cc'], true);
-					$recipients = array();
+					$recipients = [];
 					
 					if(is_array($addys))
 					foreach($addys as $addy) {
@@ -591,7 +600,7 @@ class ChDisplayPage extends CerberusPageExtension {
 				
 			// Normal reply quoted or not
 			} else {
-				$recipients = array();
+				$recipients = [];
 				
 				if(is_array($requesters))
 				foreach($requesters as $requester) {
@@ -660,29 +669,25 @@ class ChDisplayPage extends CerberusPageExtension {
 		if(isset($custom_field_values[$ticket->id]))
 			$tpl->assign('custom_field_values', $custom_field_values[$ticket->id]);
 		
+		// GPG
+		$gpg = DevblocksPlatform::services()->gpg();
+		$tpl->assign('gpg', $gpg);
+		
 		// HTML templates
 		
 		$html_templates = DAO_MailHtmlTemplate::getAll();
 		$tpl->assign('html_templates', $html_templates);
 		
-		// VA macros
-		
-		// [TODO] Filter by $ticket->group_id
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			Event_MailDuringUiReplyByWorker::ID
-		);
-		$tpl->assign('macros', $macros);
-		
 		// VA behavior
 		
 		if(null != $active_worker) {
-			$actions = array();
+			$actions = [];
 
 			// [TODO] Filter by $ticket->group_id
 			$macros = DAO_TriggerEvent::getReadableByActor(
 				$active_worker,
-				Event_MailBeforeUiReplyByWorker::ID
+				Event_MailBeforeUiReplyByWorker::ID,
+				false
 			);
 
 			if(is_array($macros))
@@ -694,9 +699,125 @@ class ChDisplayPage extends CerberusPageExtension {
 			}
 		}
 		
+		// Dictionary
+		$labels = [];
+		$values = [];
+		CerberusContexts::getContext(CerberusContexts::CONTEXT_MESSAGE, $message, $labels, $values, '', true, false);
+		$dict = DevblocksDictionaryDelegate::instance($values);
+		//$tpl->assign('dict', $dict);
+		
+		// Interactions
+		$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('mail.reply', $dict, $active_worker);
+		$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
+		$tpl->assign('interactions_menu', $interactions_menu);
+		
 		// Display template
 		
 		$tpl->display('devblocks:cerberusweb.core::display/rpc/reply.tpl');
+	}
+	
+	function validateReplyJsonAction() {
+		header('Content-Type: application/json; charset=utf-8');
+		
+		@$ticket_id = DevblocksPlatform::importGPC($_REQUEST['ticket_id'],'integer');
+		@$ticket_mask = DevblocksPlatform::importGPC($_REQUEST['ticket_mask'],'string');
+		@$draft_id = DevblocksPlatform::importGPC($_REQUEST['draft_id'],'integer');
+		@$is_forward = DevblocksPlatform::importGPC($_REQUEST['is_forward'],'integer',0);
+		@$reply_mode = DevblocksPlatform::importGPC($_REQUEST['reply_mode'],'string','');
+		
+		@$to = DevblocksPlatform::importGPC(@$_REQUEST['to']);
+		
+		// Attachments
+		@$file_ids = DevblocksPlatform::importGPC($_POST['file_ids'],'array',[]);
+		$file_ids = DevblocksPlatform::sanitizeArray($file_ids, 'integer', array('unique', 'nonzero'));
+		
+		try {
+			if(null == ($worker = CerberusApplication::getActiveWorker()))
+				throw new Exception_DevblocksAjaxValidationError("You're not signed in.");
+			
+			if(null == ($ticket = DAO_Ticket::get($ticket_id)))
+				throw new Exception_DevblocksAjaxValidationError("You're replying to an invalid ticket.");
+			
+			$properties = array(
+				'draft_id' => $draft_id,
+				'message_id' => DevblocksPlatform::importGPC(@$_REQUEST['id']),
+				'ticket_id' => $ticket_id,
+				'is_forward' => $is_forward,
+				'to' => $to,
+				'cc' => DevblocksPlatform::importGPC(@$_REQUEST['cc']),
+				'bcc' => DevblocksPlatform::importGPC(@$_REQUEST['bcc']),
+				'subject' => DevblocksPlatform::importGPC(@$_REQUEST['subject'],'string'),
+				'content' => DevblocksPlatform::importGPC(@$_REQUEST['content']),
+				'content_format' => DevblocksPlatform::importGPC(@$_REQUEST['format'],'string',''),
+				'html_template_id' => DevblocksPlatform::importGPC(@$_REQUEST['html_template_id'],'integer',0),
+				'status_id' => DevblocksPlatform::importGPC(@$_REQUEST['status_id'],'integer',0),
+				'group_id' => DevblocksPlatform::importGPC(@$_REQUEST['group_id'],'integer',0),
+				'bucket_id' => DevblocksPlatform::importGPC(@$_REQUEST['bucket_id'],'integer',0),
+				'owner_id' => DevblocksPlatform::importGPC(@$_REQUEST['owner_id'],'integer',0),
+				'ticket_reopen' => DevblocksPlatform::importGPC(@$_REQUEST['ticket_reopen'],'string',''),
+				'gpg_encrypt' => DevblocksPlatform::importGPC(@$_REQUEST['options_gpg_encrypt'],'integer',0),
+				'gpg_sign' => DevblocksPlatform::importGPC(@$_REQUEST['options_gpg_sign'],'integer',0),
+				'worker_id' => @$worker->id,
+				'forward_files' => $file_ids,
+				'link_forward_files' => true,
+			);
+			
+			if(empty($properties['to']))
+				throw new Exception_DevblocksAjaxValidationError("The 'To:' is required.");
+			
+			if(empty($properties['subject']))
+				throw new Exception_DevblocksAjaxValidationError("The 'Subject:' is required.");
+			
+			// Validate GPG if used (we need public keys for all recipients)
+			if($properties['gpg_encrypt']) {
+				if(false == ($gpg = DevblocksPlatform::services()->gpg()) ||!$gpg->isEnabled())
+					throw new Exception_DevblocksAjaxValidationError("The 'gnupg' PHP extension is not installed.");
+				
+				$email_addresses = DevblocksPlatform::parseCsvString(sprintf("%s%s%s",
+					!empty($properties['to']) ? ($properties['to'] . ', ') : '',
+					!empty($properties['cc']) ? ($properties['cc'] . ', ') : '',
+					!empty($properties['bcc']) ? ($properties['bcc'] . ', ') : ''
+				));
+				
+				$email_models = DAO_Address::lookupAddresses($email_addresses, true);
+				$emails_to_check = array_flip(array_column(DevblocksPlatform::objectsToArrays($email_models), 'email'));
+				
+				foreach($email_models as $email_model) {
+					if(false == ($info = $gpg->keyinfo(sprintf("<%s>", $email_model->email))) || !is_array($info))
+						continue;
+					
+					foreach($info as $key) {
+						foreach($key['uids'] as $uid) {
+							unset($emails_to_check[$uid['email']]);
+						}
+					}
+				}
+				
+				if(!empty($emails_to_check)) {
+					throw new Exception_DevblocksAjaxValidationError("Can't send encrypted message. We don't have a GPG public key for: " . implode(', ', array_keys($emails_to_check)));
+				}
+			}
+			
+			//throw new Exception_DevblocksAjaxValidationError("You did it!");
+			
+			// [TODO] Give bot behaviors a stab at it
+			
+			echo json_encode([
+				'status' => true,
+			]);
+			
+		} catch (Exception_DevblocksAjaxValidationError $e) {
+			echo json_encode([
+				'status' => false,
+				'message' => $e->getMessage(),
+			]);
+			
+		} catch (Exception $e) {
+			echo json_encode([
+				'status' => false,
+				'message' => 'An unexpected error occurred.',
+			]);
+		}
 	}
 
 	function sendReplyAction() {
@@ -709,7 +830,7 @@ class ChDisplayPage extends CerberusPageExtension {
 		@$to = DevblocksPlatform::importGPC(@$_REQUEST['to']);
 
 		// Attachments
-		@$file_ids = DevblocksPlatform::importGPC($_POST['file_ids'],'array',array());
+		@$file_ids = DevblocksPlatform::importGPC($_POST['file_ids'],'array',[]);
 		$file_ids = DevblocksPlatform::sanitizeArray($file_ids, 'integer', array('unique', 'nonzero'));
 		
 		if(null == ($worker = CerberusApplication::getActiveWorker()))
@@ -735,17 +856,19 @@ class ChDisplayPage extends CerberusPageExtension {
 			'bucket_id' => DevblocksPlatform::importGPC(@$_REQUEST['bucket_id'],'integer',0),
 			'owner_id' => DevblocksPlatform::importGPC(@$_REQUEST['owner_id'],'integer',0),
 			'ticket_reopen' => DevblocksPlatform::importGPC(@$_REQUEST['ticket_reopen'],'string',''),
+			'gpg_encrypt' => DevblocksPlatform::importGPC(@$_REQUEST['options_gpg_encrypt'],'integer',0),
+			'gpg_sign' => DevblocksPlatform::importGPC(@$_REQUEST['options_gpg_sign'],'integer',0),
 			'worker_id' => @$worker->id,
 			'forward_files' => $file_ids,
 			'link_forward_files' => true,
 		);
 		
-		$hash_commands = array();
+		$hash_commands = [];
 		
 		$this->_parseReplyHashCommands($worker, $properties, $hash_commands);
 		
 		// Custom fields
-		@$field_ids = DevblocksPlatform::importGPC($_POST['field_ids'], 'array', array());
+		@$field_ids = DevblocksPlatform::importGPC($_POST['field_ids'], 'array', []);
 		$field_values = DAO_CustomFieldValue::parseFormPost(CerberusContexts::CONTEXT_TICKET, $field_ids);
 		if(!empty($field_values)) {
 			$properties['custom_fields'] = $field_values;
@@ -793,7 +916,7 @@ class ChDisplayPage extends CerberusPageExtension {
 	
 	private function _parseReplyHashCommands(Model_worker $worker, array &$message_properties, array &$commands) {
 		$lines_in = DevblocksPlatform::parseCrlfString($message_properties['content'], true, false);
-		$lines_out = array();
+		$lines_out = [];
 		
 		$is_cut = false;
 		
@@ -820,7 +943,7 @@ class ChDisplayPage extends CerberusPageExtension {
 						$message_properties['link_forward_files'] = true;
 						
 						if(!isset($message_properties['forward_files']))
-							$message_properties['forward_files'] = array();
+							$message_properties['forward_files'] = [];
 						
 						$message_properties['forward_files'] = array_merge($message_properties['forward_files'], array_keys($attachments));
 						break;
@@ -929,7 +1052,7 @@ class ChDisplayPage extends CerberusPageExtension {
 		@$ticket_id = DevblocksPlatform::importGPC($_REQUEST['ticket_id'],'integer',0);
 		@$msg_id = DevblocksPlatform::importGPC($_REQUEST['id'],'integer',0);
 		@$draft_id = DevblocksPlatform::importGPC($_REQUEST['draft_id'],'integer',0);
-		 
+		
 		@$is_forward = DevblocksPlatform::importGPC($_REQUEST['is_forward'],'integer',0);
 
 		@$to = DevblocksPlatform::importGPC($_REQUEST['to'],'string','');
@@ -943,14 +1066,14 @@ class ChDisplayPage extends CerberusPageExtension {
 			return false;
 		
 		// Params
-		$params = array();
+		$params = [];
 		
 		foreach($_POST as $k => $v) {
 			if(is_string($v)) {
 				$v = DevblocksPlatform::importGPC($_POST[$k], 'string', null);
 				
 			} elseif(is_array($v)) {
-				$v = DevblocksPlatform::importGPC($_POST[$k], 'array', array());
+				$v = DevblocksPlatform::importGPC($_POST[$k], 'array', []);
 				
 			} else {
 				continue;
@@ -970,7 +1093,7 @@ class ChDisplayPage extends CerberusPageExtension {
 		unset($params['is_ajax']);
 		unset($params['reply_mode']);
 		
-		@$field_ids = DevblocksPlatform::importGPC($_REQUEST['field_ids'],'array',array());
+		@$field_ids = DevblocksPlatform::importGPC($_REQUEST['field_ids'],'array',[]);
 		$field_ids = DevblocksPlatform::sanitizeArray($field_ids, 'integer', array('nonzero','unique'));
 
 		if(!empty($field_ids)) {
@@ -991,7 +1114,7 @@ class ChDisplayPage extends CerberusPageExtension {
 			
 		} else {
 			$reqs = $ticket->getRequesters();
-			$addys = array();
+			$addys = [];
 			
 			if(is_array($reqs))
 			foreach($reqs as $addy) {
@@ -1048,6 +1171,10 @@ class ChDisplayPage extends CerberusPageExtension {
 			DAO_MailQueue::update($draft_id, $fields);
 		}
 		
+		// If there are attachments, link them to this draft record
+		if(isset($params['file_ids']) && is_array($params['file_ids']))
+			DAO_Attachment::setLinks(CerberusContexts::CONTEXT_DRAFT, $draft_id, $params['file_ids']);
+		
 		return array(
 			'draft_id' => $draft_id,
 			'ticket' => $ticket,
@@ -1065,7 +1192,7 @@ class ChDisplayPage extends CerberusPageExtension {
 		
 		if($is_ajax) {
 			// Template
-			$tpl = DevblocksPlatform::getTemplateService();
+			$tpl = DevblocksPlatform::services()->template();
 			$tpl->assign('timestamp', time());
 			$html = $tpl->fetch('devblocks:cerberusweb.core::mail/queue/saved.tpl');
 			
@@ -1082,7 +1209,7 @@ class ChDisplayPage extends CerberusPageExtension {
 	function showRelayMessagePopupAction() {
 		@$message_id = DevblocksPlatform::importGPC($_REQUEST['id'],'integer',0);
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$active_worker = CerberusApplication::getActiveWorker();
 
 		if(false == ($message = DAO_Message::get($message_id)))
@@ -1108,94 +1235,13 @@ class ChDisplayPage extends CerberusPageExtension {
 	
 	function saveRelayMessagePopupAction() {
 		@$message_id = DevblocksPlatform::importGPC($_REQUEST['id'],'integer',0);
-		@$emails = DevblocksPlatform::importGPC($_REQUEST['emails'],'array',array());
+		@$emails = DevblocksPlatform::importGPC($_REQUEST['emails'],'array',[]);
 		@$content = DevblocksPlatform::importGPC($_REQUEST['content'], 'string', '');
 		@$include_attachments = DevblocksPlatform::importGPC($_REQUEST['include_attachments'], 'integer', 0);
 
 		$active_worker = CerberusApplication::getActiveWorker();
 
 		CerberusMail::relay($message_id, $emails, $include_attachments, $content, CerberusContexts::CONTEXT_WORKER, $active_worker->id);
-	}
-	
-	function showMacroReplyPopupAction() {
-		@$macro_id = DevblocksPlatform::importGPC($_REQUEST['macro'],'integer',0);
-		@$ticket_id = DevblocksPlatform::importGPC($_REQUEST['ticket_id'],'integer',0);
-		@$message_id = DevblocksPlatform::importGPC($_REQUEST['message_id'],'integer',0);
-		
-		$tpl = DevblocksPlatform::getTemplateService();
-		$active_worker = CerberusApplication::getActiveWorker();
-		
-		try {
-			if(null == ($macro = DAO_TriggerEvent::get($macro_id)))
-				throw new Exception("Missing macro.");
-			
-			$tpl->assign('macro', $macro);
-			
-		} catch(Exception $e) {
-			DevblocksPlatform::redirectURL($return_url);
-			exit;
-		}
-			
-		$tpl->assign('ticket_id', $ticket_id);
-		$tpl->assign('message_id', $message_id);
-		
-		// Verify permission
-		$editable = Context_Ticket::isWriteableByActor($ticket_id, $active_worker);
-		
-		if(!$editable)
-			return;
-
-		$event = $macro->getEvent();
-		$conditions = $event->getConditions($macro);
-		
-		$tpl->display('devblocks:cerberusweb.core::internal/macros/reply/run_popup.tpl');
-	}
-	
-	function getMacroReplyAction() {
-		@$macro_id = DevblocksPlatform::importGPC($_REQUEST['macro'],'integer',0);
-		@$ticket_id = DevblocksPlatform::importGPC($_REQUEST['ticket_id'],'integer',0);
-		@$message_id = DevblocksPlatform::importGPC($_REQUEST['message_id'],'integer',0);
-		
-		$active_worker = CerberusApplication::getActiveWorker();
-		
-		try {
-			if(null == ($macro = DAO_TriggerEvent::get($macro_id)))
-				throw new Exception("Missing macro.");
-			
-		} catch(Exception $e) {
-			return;
-		}
-			
-		// Verify permission
-		$editable = Context_Ticket::isWriteableByActor($ticket_id, $active_worker);
-		
-		if(!$editable)
-			return;
-
-		$event = $macro->getEvent();
-		$conditions = $event->getConditions($macro);
-		
-		$actions = array();
-		
-		// Variables
-		@$var_keys = DevblocksPlatform::importGPC($_REQUEST['var_keys'],'array',array());
-		@$var_vals = DevblocksPlatform::importGPC($_REQUEST['var_vals'],'array',array());
-
-		// [TODO] Abstract this?
-		$vars = DAO_ContextScheduledBehavior::buildVariables($var_keys, $var_vals, $macro);
-		
-		Event_MailDuringUiReplyByWorker::trigger($macro_id, $message_id, $active_worker->id, $actions, $vars);
-
-		// [TODO] Move script block to template?
-		if(isset($actions['jquery_scripts'])) {
-			echo '<script type="text/javascript">';
-			echo '$("#reply' . $message_id . '_part1").closest("div.reply_frame").each(function(e) { try {';
-			echo implode("\n", $actions['jquery_scripts']);
-			echo ' } catch(e) {} });';
-			echo '</script>';
-		}
-		
-		exit;
 	}
 	
 	function showConversationAction() {
@@ -1205,7 +1251,7 @@ class ChDisplayPage extends CerberusPageExtension {
 		@$expand_all = DevblocksPlatform::importGPC($_REQUEST['expand_all'],'integer',0);
 		@$point = DevblocksPlatform::importGPC($_REQUEST['point'],'string','');
 
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 
 		@$active_worker = CerberusApplication::getActiveWorker();
 		
@@ -1231,7 +1277,7 @@ class ChDisplayPage extends CerberusPageExtension {
 			$tpl->assign('drafts', $drafts);
 		
 		// Only unqueued drafts
-		$pending_drafts = array();
+		$pending_drafts = [];
 		
 		if(!empty($drafts) && is_array($drafts))
 		foreach($drafts as $draft_id => $draft) {
@@ -1251,11 +1297,11 @@ class ChDisplayPage extends CerberusPageExtension {
 		$tpl->assign('messages', $messages);
 
 		// Thread comments and messages on the same level
-		$convo_timeline = array();
+		$convo_timeline = [];
 
 		// Track senders and their orgs
-		$message_senders = array();
-		$message_sender_orgs = array();
+		$message_senders = [];
+		$message_sender_orgs = [];
 
 		// Loop messages
 		if(is_array($messages))
@@ -1353,24 +1399,24 @@ class ChDisplayPage extends CerberusPageExtension {
 		
 		// Message Notes
 		$notes = DAO_Comment::getByContext(CerberusContexts::CONTEXT_MESSAGE, array_keys($messages));
-		$message_notes = array();
+		$message_notes = [];
 		// Index notes by message id
 		if(is_array($notes))
 		foreach($notes as $note) {
 			if(!isset($message_notes[$note->context_id]))
-				$message_notes[$note->context_id] = array();
+				$message_notes[$note->context_id] = [];
 			$message_notes[$note->context_id][$note->id] = $note;
 		}
 		$tpl->assign('message_notes', $message_notes);
 		
 		// Draft Notes
 		$notes = DAO_Comment::getByContext(CerberusContexts::CONTEXT_DRAFT, array_keys($drafts));
-		$draft_notes = array();
+		$draft_notes = [];
 		// Index notes by draft id
 		if(is_array($notes))
 		foreach($notes as $note) {
 			if(!isset($draft_notes[$note->context_id]))
-				$draft_notes[$note->context_id] = array();
+				$draft_notes[$note->context_id] = [];
 			$draft_notes[$note->context_id][$note->id] = $note;
 		}
 		$tpl->assign('draft_notes', $draft_notes);
@@ -1396,7 +1442,7 @@ class ChDisplayPage extends CerberusPageExtension {
 		
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		if(!$active_worker->hasPriv('core.display.message.actions.delete'))
+		if(!$active_worker->hasPriv('contexts.cerberusweb.contexts.message.delete'))
 			return;
 		
 		if(null == ($message = DAO_Message::get($id)))
@@ -1431,10 +1477,6 @@ class ChDisplayPage extends CerberusPageExtension {
 		$fields = array(
 			DAO_Ticket::CREATED_DATE => $orig_message->created_date,
 			DAO_Ticket::UPDATED_DATE => $orig_message->created_date,
-			DAO_Ticket::FIRST_MESSAGE_ID => $orig_message->id,
-			DAO_Ticket::LAST_MESSAGE_ID => $orig_message->id,
-			DAO_Ticket::FIRST_WROTE_ID => $orig_message->address_id,
-			DAO_Ticket::LAST_WROTE_ID => $orig_message->address_id,
 			DAO_Ticket::STATUS_ID => Model_Ticket::STATUS_OPEN,
 			DAO_Ticket::MASK => $new_ticket_mask,
 			DAO_Ticket::SUBJECT => (isset($orig_headers['subject']) ? $orig_headers['subject'] : $orig_ticket->subject),
@@ -1462,19 +1504,9 @@ class ChDisplayPage extends CerberusPageExtension {
 			DAO_Message::TICKET_ID => $new_ticket_id
 		));
 		
-		// Reindex the original ticket (last wrote, etc.)
-		$last_message = end($messages); /* @var Model_Message $last_message */
+		DAO_Ticket::rebuild($new_ticket_id);
+		DAO_Ticket::rebuild($orig_ticket->id);
 		
-		$fields = array(
-			DAO_Ticket::LAST_MESSAGE_ID => $last_message->id,
-			DAO_Ticket::LAST_WROTE_ID => $last_message->address_id
-		);
-		
-		DAO_Ticket::update($orig_ticket->id, $fields, false);
-		
-		DAO_Ticket::updateMessageCount($new_ticket_id);
-		DAO_Ticket::updateMessageCount($orig_ticket->id);
-			
 		/*
 		 * Log activity (Ticket Split)
 		 */
@@ -1528,7 +1560,7 @@ class ChDisplayPage extends CerberusPageExtension {
 	
 	function showContactHistoryAction() {
 		$visit = CerberusApplication::getVisit(); /* @var $visit CerberusVisit */
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		@$ticket_id = DevblocksPlatform::importGPC($_REQUEST['ticket_id'],'integer');
 		@$point = DevblocksPlatform::importGPC($_REQUEST['point'],'string','');
@@ -1536,14 +1568,17 @@ class ChDisplayPage extends CerberusPageExtension {
 		// Scope
 		$scope = $visit->get('display.history.scope', '');
 		
-		// Ticket
-		$ticket = DAO_Ticket::get($ticket_id);
-		$tpl->assign('ticket', $ticket);
+		// Dictionary
+		$labels = [];
+		$values = [];
+		CerberusContexts::getContext(CerberusContexts::CONTEXT_TICKET, $ticket_id, $labels, $values, '', true, false);
+		$dict = DevblocksDictionaryDelegate::instance($values);
+		$tpl->assign('dict', $dict);
 
 		// Scope
 		$tpl->assign('scope', $scope);
 
-		$view = DAO_Ticket::getViewForRequesterHistory('contact_history', $ticket, $scope);
+		$view = DAO_Ticket::getViewForRequesterHistory('contact_history', $dict, $scope);
 		$tpl->assign('view', $view);
 		
 		$tpl->display('devblocks:cerberusweb.core::display/modules/history/index.tpl');
@@ -1595,47 +1630,6 @@ class ChDisplayPage extends CerberusPageExtension {
 		}
 	}
 	
-	// Requesters
-	
-	function showRequestersPanelAction() {
-		$tpl = DevblocksPlatform::getTemplateService();
-		
-		@$ticket_id = DevblocksPlatform::importGPC($_REQUEST['ticket_id'],'integer');
-		
-		$tpl->assign('ticket_id', $ticket_id);
-		
-		$requesters = DAO_Ticket::getRequestersByTicket($ticket_id);
-		$tpl->assign('requesters', $requesters);
-		
-		$tpl->display('devblocks:cerberusweb.core::display/rpc/requester_panel.tpl');
-	}
-	
-	function saveRequestersPanelAction() {
-		@$ticket_id = DevblocksPlatform::importGPC($_POST['ticket_id'],'integer');
-		@$address_ids = DevblocksPlatform::importGPC($_POST['address_id'],'array',array());
-
-		if(empty($ticket_id))
-			return;
-		
-		$requesters = DAO_Ticket::getRequestersByTicket($ticket_id);
-		
-		// Delete requesters we've removed
-		foreach($requesters as $req_id => $req_addy) {
-			if(false === array_search($req_id, $address_ids))
-				DAO_Ticket::deleteRequester($ticket_id, $req_id);
-		}
-		
-		// Add chooser requesters
-		foreach($address_ids as $id) {
-			if(is_numeric($id) && !isset($requesters[$id])) {
-				if(null != ($address = DAO_Address::get($id)))
-					DAO_Ticket::createRequester($address->email, $ticket_id);
-			}
-		}
-		
-		exit;
-	}
-	
 	function requesterAddAction() {
 		@$ticket_id = DevblocksPlatform::importGPC($_REQUEST['ticket_id'],'integer');
 		@$email = DevblocksPlatform::importGPC($_REQUEST['email'],'string');
@@ -1655,7 +1649,7 @@ class ChDisplayPage extends CerberusPageExtension {
 		
 		$requesters = DAO_Ticket::getRequestersByTicket($ticket_id);
 
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 				
 		$tpl->assign('ticket_id', $ticket_id);
 		$tpl->assign('requesters', $requesters);

@@ -1,6 +1,6 @@
 <?php
 /***********************************************************************
- | Cerb(tm) developed by Webgroup Media, LLC.
+| Cerb(tm) developed by Webgroup Media, LLC.
 |-----------------------------------------------------------------------
 | All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
 |   unless specifically noted otherwise.
@@ -16,17 +16,61 @@
 ***********************************************************************/
 
 class DAO_FileBundle extends Cerb_ORMHelper {
-	const CACHE_ALL = 'cerb.dao.file_bundles.all';
-	
 	const ID = 'id';
 	const NAME = 'name';
-	const TAG = 'tag';
-	const UPDATED_AT = 'updated_at';
 	const OWNER_CONTEXT = 'owner_context';
 	const OWNER_CONTEXT_ID = 'owner_context_id';
+	const TAG = 'tag';
+	const UPDATED_AT = 'updated_at';
+	
+	const CACHE_ALL = 'cerb.dao.file_bundles.all';
+	
+	private function __construct() {}
+	
+	static function getFields() {
+		$validation = DevblocksPlatform::services()->validation();
+		
+		$validation
+			->addField(self::ID)
+			->id()
+			->setEditable(false)
+			;
+		$validation
+			->addField(self::NAME)
+			->string()
+			->setRequired(true)
+			;
+		$validation
+			->addField(self::OWNER_CONTEXT)
+			->context()
+			->setRequired(true)
+			;
+		$validation
+			->addField(self::OWNER_CONTEXT_ID)
+			->id()
+			->setRequired(true)
+			;
+		$validation
+			->addField(self::TAG)
+			->string()
+			->setMaxLength(128)
+			->setUnique('DAO_FileBundle')
+			;
+		$validation
+			->addField(self::UPDATED_AT)
+			->timestamp()
+			;
+		$validation
+			->addField('_links')
+			->string()
+			->setMaxLength(65535)
+			;
+			
+		return $validation->getFields();
+	}
 
 	static function create($fields) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		$sql = "INSERT INTO file_bundle () VALUES ()";
 		$db->ExecuteMaster($sql);
@@ -40,6 +84,12 @@ class DAO_FileBundle extends Cerb_ORMHelper {
 	static function update($ids, $fields, $check_deltas=true) {
 		if(!is_array($ids))
 			$ids = array($ids);
+		
+		$context = CerberusContexts::CONTEXT_FILE_BUNDLE;
+		self::_updateAbstract($context, $ids, $fields);
+		
+		if(!isset($fields[self::UPDATED_AT]))
+			$fields[self::UPDATED_AT] = time();
 
 		// Make a diff for the requested objects in batches
 
@@ -50,7 +100,7 @@ class DAO_FileBundle extends Cerb_ORMHelper {
 
 			// Send events
 			if($check_deltas) {
-				CerberusContexts::checkpointChanges(CerberusContexts::CONTEXT_FILE_BUNDLE, $batch_ids);
+				CerberusContexts::checkpointChanges($context, $batch_ids);
 			}
 				
 			// Make changes
@@ -59,7 +109,7 @@ class DAO_FileBundle extends Cerb_ORMHelper {
 			// Send events
 			if($check_deltas) {
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::getEventService();
+				$eventMgr = DevblocksPlatform::services()->event();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.file_bundle.update',
@@ -70,7 +120,7 @@ class DAO_FileBundle extends Cerb_ORMHelper {
 				);
 
 				// Log the context update
-				DevblocksPlatform::markContextChanged(CerberusContexts::CONTEXT_FILE_BUNDLE, $batch_ids);
+				DevblocksPlatform::markContextChanged($context, $batch_ids);
 			}
 		}
 		
@@ -82,13 +132,33 @@ class DAO_FileBundle extends Cerb_ORMHelper {
 		self::clearCache();
 	}
 	
+	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
+		$context = CerberusContexts::CONTEXT_FILE_BUNDLE;
+		
+		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
+			return false;
+		
+		@$owner_context = $fields[self::OWNER_CONTEXT];
+		@$owner_context_id = intval($fields[self::OWNER_CONTEXT_ID]);
+		
+		// Verify that the actor can use this new owner
+		if($owner_context) {
+			if(!CerberusContexts::isOwnableBy($owner_context, $owner_context_id, $actor)) {
+				$error = DevblocksPlatform::translate('error.core.no_acl.owner');
+				return false;
+			}
+		}
+		
+		return true;
+	}
+	
 	/**
 	 *
 	 * @param bool $nocache
 	 * @return Model_FileBundle[]
 	 */
 	static function getAll($nocache=false) {
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		
 		if($nocache || null === ($bundles = $cache->load(self::CACHE_ALL))) {
 			$bundles = self::getWhere(
@@ -116,7 +186,7 @@ class DAO_FileBundle extends Cerb_ORMHelper {
 	 * @return Model_FileBundle[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null, $options=null) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 
@@ -206,7 +276,7 @@ class DAO_FileBundle extends Cerb_ORMHelper {
 
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		if(empty($ids))
 			return;
@@ -216,7 +286,7 @@ class DAO_FileBundle extends Cerb_ORMHelper {
 		$db->ExecuteMaster(sprintf("DELETE FROM file_bundle WHERE id IN (%s)", $ids_list));
 
 		// Fire event
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -367,7 +437,6 @@ class DAO_FileBundle extends Cerb_ORMHelper {
 	}
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -379,7 +448,7 @@ class DAO_FileBundle extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -433,7 +502,7 @@ class DAO_FileBundle extends Cerb_ORMHelper {
 	}
 
 	static public function clearCache() {
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		$cache->remove(self::CACHE_ALL);
 	}
 };
@@ -640,7 +709,7 @@ class View_FileBundle extends C4_AbstractView implements IAbstractView_Subtotals
 						
 					// Valid custom fields
 				default:
-					if('cf_' == substr($field_key,0,3))
+					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
 						$pass = $this->_canSubtotalCustomField($field_key);
 						break;
 			}
@@ -789,7 +858,7 @@ class View_FileBundle extends C4_AbstractView implements IAbstractView_Subtotals
 	function render() {
 		$this->_sanitize();
 
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -802,7 +871,7 @@ class View_FileBundle extends C4_AbstractView implements IAbstractView_Subtotals
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {
@@ -987,14 +1056,14 @@ class Context_FileBundle extends Extension_DevblocksContext implements IDevblock
 		if(empty($context_id))
 			return '';
 	
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		$url = $url_writer->writeNoProxy('c=profiles&type=file_bundle&id='.$context_id, true);
 		return $url;
 	}
 	
 	function getMeta($context_id) {
 		$file_bundle = DAO_FileBundle::get($context_id);
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		$url = $this->profileGetUrl($context_id);
 		$friendly = DevblocksPlatform::strToPermalink($file_bundle->name);
@@ -1057,6 +1126,7 @@ class Context_FileBundle extends Extension_DevblocksContext implements IDevblock
 			'_label' => $prefix,
 			'id' => $prefix.$translate->_('common.id'),
 			'name' => $prefix.$translate->_('common.name'),
+			'owner__label' => $prefix.$translate->_('common.owner'),
 			'tag' => $prefix.$translate->_('common.tag'),
 			'updated_at' => $prefix.$translate->_('common.updated'),
 			'record_url' => $prefix.$translate->_('common.url.record'),
@@ -1067,6 +1137,7 @@ class Context_FileBundle extends Extension_DevblocksContext implements IDevblock
 			'_label' => 'context_url',
 			'id' => Model_CustomField::TYPE_NUMBER,
 			'name' => Model_CustomField::TYPE_SINGLE_LINE,
+			'owner__label' => 'context_url',
 			'tag' => Model_CustomField::TYPE_SINGLE_LINE,
 			'updated_at' => Model_CustomField::TYPE_DATE,
 			'record_url' => Model_CustomField::TYPE_URL,
@@ -1091,6 +1162,8 @@ class Context_FileBundle extends Extension_DevblocksContext implements IDevblock
 			$token_values['_label'] = $file_bundle->name;
 			$token_values['id'] = $file_bundle->id;
 			$token_values['name'] = $file_bundle->name;
+			$token_values['owner__context'] = $file_bundle->owner_context;
+			$token_values['owner_id'] = $file_bundle->owner_context_id;
 			$token_values['tag'] = $file_bundle->tag;
 			$token_values['updated_at'] = $file_bundle->updated_at;
 			
@@ -1098,8 +1171,30 @@ class Context_FileBundle extends Extension_DevblocksContext implements IDevblock
 			$token_values = $this->_importModelCustomFieldsAsValues($file_bundle, $token_values);
 			
 			// URL
-			$url_writer = DevblocksPlatform::getUrlService();
+			$url_writer = DevblocksPlatform::services()->url();
 			$token_values['record_url'] = $url_writer->writeNoProxy(sprintf("c=profiles&type=file_bundle&id=%d-%s",$file_bundle->id, DevblocksPlatform::strToPermalink($file_bundle->name)), true);
+		}
+		
+		return true;
+	}
+	
+	function getKeyToDaoFieldMap() {
+		return [
+			'id' => DAO_FileBundle::ID,
+			'links' => '_links',
+			'name' => DAO_FileBundle::NAME,
+			'owner__context' => DAO_FileBundle::OWNER_CONTEXT,
+			'owner_id' => DAO_FileBundle::OWNER_CONTEXT_ID,
+			'tag' => DAO_FileBundle::TAG,
+			'updated_at' => DAO_FileBundle::UPDATED_AT,
+		];
+	}
+	
+	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
+		switch(DevblocksPlatform::strLower($key)) {
+			case 'links':
+				$this->_getDaoFieldsLinks($value, $out_fields, $error);
+				break;
 		}
 		
 		return true;
@@ -1158,35 +1253,6 @@ class Context_FileBundle extends Extension_DevblocksContext implements IDevblock
 		$view = C4_AbstractViewLoader::getView($view_id, $defaults);
 		$view->name = 'File Bundles';
 
-		$params_required = array();
-		
-		$worker_group_ids = array_keys($active_worker->getMemberships());
-		$worker_role_ids = array_keys(DAO_WorkerRole::getRolesByWorker($active_worker->id));
-		
-		// Restrict owners
-		$param_ownership = array(
-			DevblocksSearchCriteria::GROUP_OR,
-			SearchFields_FileBundle::OWNER_CONTEXT => new DevblocksSearchCriteria(SearchFields_FileBundle::OWNER_CONTEXT,DevblocksSearchCriteria::OPER_EQ,CerberusContexts::CONTEXT_APPLICATION),
-			array(
-				DevblocksSearchCriteria::GROUP_AND,
-				SearchFields_FileBundle::OWNER_CONTEXT => new DevblocksSearchCriteria(SearchFields_FileBundle::OWNER_CONTEXT,DevblocksSearchCriteria::OPER_EQ,CerberusContexts::CONTEXT_WORKER),
-				SearchFields_FileBundle::OWNER_CONTEXT_ID => new DevblocksSearchCriteria(SearchFields_FileBundle::OWNER_CONTEXT_ID,DevblocksSearchCriteria::OPER_EQ,$active_worker->id),
-			),
-			array(
-				DevblocksSearchCriteria::GROUP_AND,
-				SearchFields_FileBundle::OWNER_CONTEXT => new DevblocksSearchCriteria(SearchFields_FileBundle::OWNER_CONTEXT,DevblocksSearchCriteria::OPER_EQ,CerberusContexts::CONTEXT_GROUP),
-				SearchFields_FileBundle::OWNER_CONTEXT_ID => new DevblocksSearchCriteria(SearchFields_FileBundle::OWNER_CONTEXT_ID,DevblocksSearchCriteria::OPER_IN,$worker_group_ids),
-			),
-			array(
-				DevblocksSearchCriteria::GROUP_AND,
-				SearchFields_FileBundle::OWNER_CONTEXT => new DevblocksSearchCriteria(SearchFields_FileBundle::OWNER_CONTEXT,DevblocksSearchCriteria::OPER_EQ,CerberusContexts::CONTEXT_ROLE),
-				SearchFields_FileBundle::OWNER_CONTEXT_ID => new DevblocksSearchCriteria(SearchFields_FileBundle::OWNER_CONTEXT_ID,DevblocksSearchCriteria::OPER_IN,$worker_role_ids),
-			),
-		);
-		$params_required['_ownership'] = $param_ownership;
-		
-		$view->addParamsRequired($params_required, true);
-		
 		$view->renderSortBy = SearchFields_FileBundle::UPDATED_AT;
 		$view->renderSortAsc = false;
 		$view->renderLimit = 10;
@@ -1222,44 +1288,91 @@ class Context_FileBundle extends Extension_DevblocksContext implements IDevblock
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$context = CerberusContexts::CONTEXT_FILE_BUNDLE;
+		
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('view_id', $view_id);
 		
-		if(!empty($context_id) && null != ($file_bundle = DAO_FileBundle::get($context_id))) {
-			// ACL
-			if(!Context_FileBundle::isWriteableByActor($file_bundle, $active_worker))
+		$model = null;
+		
+		if(!empty($context_id) && null != ($model = DAO_FileBundle::get($context_id))) {
+			$tpl->assign('model', $model);
+		}
+		
+		if($edit) {
+			// Custom fields
+			
+			$custom_fields = DAO_CustomField::getByContext($context, false);
+			$tpl->assign('custom_fields', $custom_fields);
+			
+			if(!empty($context_id)) {
+				$custom_field_values = DAO_CustomFieldValue::getValuesByContextIds($context, $context_id);
+				if(isset($custom_field_values[$context_id]))
+					$tpl->assign('custom_field_values', $custom_field_values[$context_id]);
+			}
+	
+			// Ownership
+	
+			$owners_menu = Extension_DevblocksContext::getOwnerTree([CerberusContexts::CONTEXT_APPLICATION, CerberusContexts::CONTEXT_ROLE, CerberusContexts::CONTEXT_GROUP, CerberusContexts::CONTEXT_WORKER]);
+			$tpl->assign('owners_menu', $owners_menu);
+			
+			// Attachments
+			
+			$attachments = DAO_Attachment::getByContextIds($context, $context_id);
+			$tpl->assign('attachments', $attachments);
+			
+			// Comments
+			
+			$comments = DAO_Comment::getByContext($context, $context_id);
+			$comments = array_reverse($comments, true);
+			$tpl->assign('comments', $comments);
+			
+			$tpl->display('devblocks:cerberusweb.core::internal/file_bundle/peek_edit.tpl');
+			
+		} else {
+			// Dictionary
+			$labels = array();
+			$values = array();
+			CerberusContexts::getContext($context, $model, $labels, $values, '', true, false);
+			$dict = DevblocksDictionaryDelegate::instance($values);
+			$tpl->assign('dict', $dict);
+			
+			$activity_counts = array(
+				'comments' => DAO_Comment::count($context, $context_id),
+			);
+			$tpl->assign('activity_counts', $activity_counts);
+			
+			$links = array(
+				$context => array(
+					$context_id => 
+						DAO_ContextLink::getContextLinkCounts(
+							$context,
+							$context_id,
+							array(CerberusContexts::CONTEXT_CUSTOM_FIELDSET)
+						),
+				),
+			);
+			$tpl->assign('links', $links);
+			
+			// Timeline
+			if($context_id) {
+				$timeline_json = Page_Profiles::getTimelineJson(Extension_DevblocksContext::getTimelineComments($context, $context_id));
+				$tpl->assign('timeline_json', $timeline_json);
+			}
+			
+			// Context
+			if(false == ($context_ext = Extension_DevblocksContext::get($context)))
 				return;
 			
-			$tpl->assign('model', $file_bundle);
+			$properties = $context_ext->getCardProperties();
+			$tpl->assign('properties', $properties);
+			
+			// Interactions
+			$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
+			$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
+			$tpl->assign('interactions_menu', $interactions_menu);
+			
+			$tpl->display('devblocks:cerberusweb.core::internal/file_bundle/peek.tpl');
 		}
-		
-		// Custom fields
-		
-		$custom_fields = DAO_CustomField::getByContext(CerberusContexts::CONTEXT_FILE_BUNDLE, false);
-		$tpl->assign('custom_fields', $custom_fields);
-		
-		if(!empty($context_id)) {
-			$custom_field_values = DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_FILE_BUNDLE, $context_id);
-			if(isset($custom_field_values[$context_id]))
-				$tpl->assign('custom_field_values', $custom_field_values[$context_id]);
-		}
-
-		// Ownership
-
-		$owners_menu = Extension_DevblocksContext::getOwnerTree(['app','group','role','worker']);
-		$tpl->assign('owners_menu', $owners_menu);
-		
-		// Attachments
-		
-		$attachments = DAO_Attachment::getByContextIds(CerberusContexts::CONTEXT_FILE_BUNDLE, $context_id);
-		$tpl->assign('attachments', $attachments);
-		
-		// Comments
-		
-		$comments = DAO_Comment::getByContext(CerberusContexts::CONTEXT_FILE_BUNDLE, $context_id);
-		$comments = array_reverse($comments, true);
-		$tpl->assign('comments', $comments);
-		
-		$tpl->display('devblocks:cerberusweb.core::internal/file_bundle/peek.tpl');
 	}
 };

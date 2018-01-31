@@ -1,3 +1,4 @@
+{$peek_context = CerberusContexts::CONTEXT_WORKSPACE_WIDGET}
 <form action="{devblocks_url}{/devblocks_url}" method="post" id="frmWidgetEdit">
 <input type="hidden" name="c" value="internal">
 <input type="hidden" name="a" value="handleSectionAction">
@@ -41,50 +42,53 @@
 {$extension->renderConfig($widget)}
 {/if}
 
+{if $active_worker->hasPriv("contexts.{$peek_context}.delete")}
 <fieldset class="delete" style="display:none;">
 	<legend>Are you sure you want to delete this widget?</legend>
 	<button type="button" class="red delete">{'common.yes'|devblocks_translate|capitalize}</button>
 	<button type="button" onclick="$(this).closest('fieldset').fadeOut().siblings('div.toolbar').fadeIn();">{'common.no'|devblocks_translate|capitalize}</button>
 </fieldset>
+{/if}
 
 <div style="margin-top:10px;" class="toolbar">
-	<button type="button" class="submit"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate|capitalize}</button>
-	{if !empty($widget) && !empty($widget->id)}<button type="button" onclick="$(this).closest('div.toolbar').fadeOut().siblings('fieldset.delete').fadeIn();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
+	{if (!$widget->id && $active_worker->hasPriv("contexts.{CerberusContexts::CONTEXT_WORKSPACE_WIDGET}.create")) || ($widget->id && $active_worker->hasPriv("contexts.{CerberusContexts::CONTEXT_WORKSPACE_WIDGET}.update"))}<button type="button" class="submit"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate|capitalize}</button>{/if}
+	{if !empty($widget->id) && $active_worker->hasPriv("contexts.{$peek_context}.delete")}<button type="button" onclick="$(this).closest('div.toolbar').fadeOut().siblings('fieldset.delete').fadeIn();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
 </div>
 
 </form>
 
 <script type="text/javascript">
-$popup = genericAjaxPopupFind('#frmWidgetEdit');
-$popup.one('popup_open', function(event,ui) {
-	$(this).dialog('option','title',"{'Widget'|escape:'javascript' nofilter}");
+$(function() {
+	var $popup = genericAjaxPopupFind('#frmWidgetEdit');
 	
-	var $frm = $(this).find('form');
-	
-	$frm.find('button.delete').click(function(e) {
-		$frm = $(this).closest('form');
-		$frm.find('input:hidden[name=do_delete]').val('1');
+	$popup.one('popup_open', function(event,ui) {
+		$popup.dialog('option','title',"{'Widget'|escape:'javascript' nofilter}");
+		$popup.css('overflow', 'inherit');
 		
-		genericAjaxPost('frmWidgetEdit','',null,function(out) {
-			$popup = genericAjaxPopupFind('#frmWidgetEdit');
-			widget_id = $popup.find('form input:hidden[name=id]').val();
-
-			// Nuke the widget DOM
-			$('#widget' + widget_id).remove();
+		var $frm = $popup.find('form');
+		
+		$frm.find('button.delete').click(function(e) {
+			$frm.find('input:hidden[name=do_delete]').val('1');
 			
-			// Close the popup
-			$popup.dialog('close');
-		});
-	});
+			genericAjaxPost('frmWidgetEdit','',null,function(out) {
+				var widget_id = $frm.find('input:hidden[name=id]').val();
 	
-	$frm.find('button.submit').click(function(e) {
-		genericAjaxPost('frmWidgetEdit','',null,function(out) {
-			$popup = genericAjaxPopupFind('#frmWidgetEdit');
-			widget_id = $popup.find('form input:hidden[name=id]').val();
-			// Reload the widget
-			genericAjaxGet('widget' + widget_id,'c=internal&a=handleSectionAction&section=dashboards&action=renderWidget&widget_id=' + widget_id + '&nocache=1');
-			// Close the popup
-			$popup.dialog('close');
+				// Nuke the widget DOM
+				$('#widget' + widget_id).remove();
+				
+				// Close the popup
+				$popup.dialog('close');
+			});
+		});
+		
+		$frm.find('button.submit').click(function(e) {
+			genericAjaxPost('frmWidgetEdit','',null,function(out) {
+				var widget_id = $frm.find('input:hidden[name=id]').val();
+				// Reload the widget
+				genericAjaxGet('widget' + widget_id,'c=internal&a=handleSectionAction&section=dashboards&action=renderWidget&widget_id=' + widget_id + '&nocache=1');
+				// Close the popup
+				$popup.dialog('close');
+			});
 		});
 	});
 });

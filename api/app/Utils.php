@@ -41,13 +41,12 @@
  */
 class CerberusUtils {
 	/**
-	 * Enter description here...
 	 *
 	 * @param string $string
 	 * @return array
 	 */
 	static function parseRfcAddressList($input) {
-		$addys = array();
+		$addys = [];
 		
 		if(!is_array($input))
 			$input = array($input);
@@ -82,7 +81,7 @@ class CerberusUtils {
 	
 	static private function _parseRfcAddress($string) {
 		@$addy_rows = imap_rfc822_parse_adrlist($string, '');
-		$results = array();
+		$results = [];
 		
 		if(is_array($addy_rows))
 		foreach($addy_rows as $idx => $addy_row) {

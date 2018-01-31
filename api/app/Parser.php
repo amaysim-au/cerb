@@ -42,13 +42,15 @@
 
 class CerberusParserMessage {
 	public $encoding = '';
-	public $headers = array();
+	public $headers = [];
 	public $raw_headers = '';
 	public $body = '';
 	public $body_encoding = '';
 	public $htmlbody = '';
-	public $files = array();
-	public $custom_fields = array();
+	public $files = [];
+	public $custom_fields = [];
+	public $was_encrypted = false;
+	public $was_signed = false;
 	
 	function build() {
 		$this->_buildHeaders();
@@ -91,7 +93,7 @@ class CerberusParserMessage {
 class CerberusParserModel {
 	private $_message = null;
 	
-	private $_pre_actions = array();
+	private $_pre_actions = [];
 	
 	private $_is_new = true;
 	private $_sender_address_model = null;
@@ -113,7 +115,7 @@ class CerberusParserModel {
 	}
 	
 	public function validate() {
-		$logger = DevblocksPlatform::getConsoleLog('Parser');
+		$logger = DevblocksPlatform::services()->log('Parser');
 		
 		// [TODO] Try...Catch
 		
@@ -143,7 +145,7 @@ class CerberusParserModel {
 			@$sReplyTo = $this->_message->headers['reply-to'];
 			@$sFrom = $this->_message->headers['from'];
 			
-			$from = array();
+			$from = [];
 			
 			if(empty($from) && !empty($sReplyTo))
 				$from = CerberusParser::parseRfcAddress($sReplyTo);
@@ -224,6 +226,10 @@ class CerberusParserModel {
 		return $this->_parseHeadersIsNew();
 	}
 	
+	public function updateSender() {
+		$this->_parseHeadersFrom();
+	}
+	
 	/**
 	 * First we check the references and in-reply-to headers to find a
 	 * historical match in the database. If those don't match we check
@@ -239,7 +245,7 @@ class CerberusParserModel {
 
 		@$senderWorker = $this->getSenderWorkerModel();
 		
-		$aReferences = array();
+		$aReferences = [];
 		
 		// Add all References
 		if(!empty($sReferences)) {
@@ -308,11 +314,11 @@ class CerberusParserModel {
 			if(preg_match("/.*\[.*?\#(.*?)\].*/", $subject, $matches)) {
 				if(isset($matches[1])) {
 					$mask = $matches[1];
-					if(null != ($ticket = DAO_Ticket::getTicketByMask($mask))) {
+					if($mask && null != ($ticket = DAO_Ticket::getTicketByMask($mask))) {
 						$this->_is_new = false;
 						$this->_ticket_id = $ticket->id;
 						$this->_ticket_model = $ticket;
-						$this->_message_id = $ticket->last_message_id; // [TODO] ???
+						$this->_message_id = $ticket->last_message_id;
 						return;
 					}
 				}
@@ -327,7 +333,7 @@ class CerberusParserModel {
 	
 	public function getRecipients() {
 		$headers =& $this->_message->headers;
-		$sources = array();
+		$sources = [];
 		
 		if(isset($headers['to']))
 			$sources = array_merge($sources, is_array($headers['to']) ? $headers['to'] : array($headers['to']));
@@ -344,13 +350,13 @@ class CerberusParserModel {
 		if(isset($headers['delivered-to']))
 			$sources = array_merge($sources, is_array($headers['delivered-to']) ? $headers['delivered-to'] : array($headers['delivered-to']));
 		
-		$destinations = array();
+		$destinations = [];
 		foreach($sources as $source) {
 			@$parsed = imap_rfc822_parse_adrlist($source,'localhost');
 			$destinations = array_merge($destinations, is_array($parsed) ? $parsed : array($parsed));
 		}
 		
-		$addresses = array();
+		$addresses = [];
 		foreach($destinations as $destination) {
 			if(empty($destination->mailbox) || empty($destination->host))
 				continue;
@@ -413,7 +419,7 @@ class CerberusParserModel {
 		return $this->_pre_actions;
 	}
 	
-	public function addPreAction($action, $params=array()) {
+	public function addPreAction($action, $params=[]) {
 		$this->_pre_actions[$action] = $params;
 	}
 	
@@ -598,7 +604,7 @@ class CerberusParser {
 				@unlink($file);
 			
 			if(is_numeric($ticket_id)) {
-				$values = array();
+				$values = [];
 				CerberusContexts::getContext(CerberusContexts::CONTEXT_TICKET, $ticket_id, $null, $values);
 				$dict = new DevblocksDictionaryDelegate($values);
 				return $dict;
@@ -626,12 +632,12 @@ class CerberusParser {
 		return self::_parseMime($mm);
 	}
 	
-	static private function _recurseMimeParts($part, &$results) {
+	static private function _recurseMimeParts($part, &$results, &$mime_meta=[]) {
 		if(!($part instanceof MimeMessage))
 			return false;
 		
 		if(!is_array($results))
-			$results = array();
+			$results = [];
 		
 		// Normalize charsets
 		switch(DevblocksPlatform::strLower($part->data['charset'])) {
@@ -644,6 +650,80 @@ class CerberusParser {
 		$do_recurse = true;
 		
 		switch(DevblocksPlatform::strLower($part->data['content-type'])) {
+			case 'multipart/signed':
+				// We only care about PGP signatures
+				if(0 != strcasecmp('application/pgp-signature', $part->data['content-protocol']))
+					break;
+				
+				if($part->get_child_count() != 3)
+					break;
+				
+				$part_signed = $part->get_child(1);
+				$part_signature = $part->get_child(2);
+				
+				$signed_content = $part_signed->extract_body(MAILPARSE_EXTRACT_RETURN);
+				$signature = $part_signature->extract_body(MAILPARSE_EXTRACT_RETURN);
+
+				$gpg = DevblocksPlatform::services()->gpg();
+				
+				// Denote valid signature on saved message
+				if(false != ($info = $gpg->verify($signed_content, $signature))) {
+					$mime_meta['gpg_signed_verified'] = $info;
+				}
+				break;
+				
+			case 'multipart/encrypted':
+				$do_ignore = true;
+				$do_recurse = false;
+				
+				for($n = 1; $n < $part->get_child_count(); $n++) {
+					$child = $part->get_child($n);
+					
+					if(0 == strcasecmp(@$child->data['content-name'], 'encrypted.asc')) {
+						$encrypted_content = $child->extract_body(MAILPARSE_EXTRACT_RETURN);
+						
+						try {
+							if(false == ($gpg = DevblocksPlatform::services()->gpg()))
+								throw new Exception("The gnupg PHP extension is not installed.");
+								
+							if(false == ($decrypted_content = $gpg->decrypt($encrypted_content)))
+								throw new Exception("Failed to find a decryption key for PGP message content.");
+							
+							if(false == ($decrypted_mime = new MimeMessage("var", rtrim($decrypted_content, PHP_EOL) . PHP_EOL)))
+								throw new Exception("Failed to parse decrypted MIME content.");
+							
+							// Denote encryption on saved message
+							$mime_meta['gpg_encrypted'] = true;
+								
+							// Add to the mime tree
+							$new_mime_parts = [];
+							
+							self::_recurseMimeParts($decrypted_mime, $new_mime_parts, $mime_meta);
+							
+							foreach($new_mime_parts as $k => $v) {
+								$results[$k] = $v;
+							}
+							
+						} catch(Exception $e) {
+							// If we failed, keep the whole part
+							$results[spl_object_hash($part)] = $part;
+						}
+						
+					} else {
+						switch(DevblocksPlatform::strLower($child->data['content-type'])) {
+							// We don't want to add these parts
+							case 'application/pgp-encrypted':
+							case 'multipart/encrypted':
+								break;
+							
+							default:
+								$results[spl_object_hash($child)] = $child;
+								break;
+						}
+					}
+				}
+				break;
+				
 			case 'multipart/alternative':
 			case 'multipart/mixed':
 			case 'multipart/related':
@@ -654,14 +734,16 @@ class CerberusParser {
 				
 			case 'message/rfc822':
 				$do_recurse = false;
+				break;
 		}
 		
 		if(!$do_ignore)
 			$results[spl_object_hash($part)] = $part;
 		
 		if($do_recurse)
-		for($n = 0; $n < $part->get_child_count(); $n++)
-			self::_recurseMimeParts($part->get_child($n), $results);
+		for($n = 1; $n < $part->get_child_count(); $n++) {
+			self::_recurseMimeParts($part->get_child($n), $results, $mime_meta);
+		}
 	}
 	
 	static private function _getMimePartFilename($part) {
@@ -688,8 +770,20 @@ class CerberusParser {
 		$message->raw_headers = $mm->extract_headers(MAILPARSE_EXTRACT_RETURN);
 		$message->headers = CerberusParser::fixQuotePrintableArray($mm->data['headers']);
 		
-		$mime_parts = array();
-		self::_recurseMimeParts($mm, $mime_parts);
+		$mime_parts = [];
+		$mime_meta = [];
+
+		self::_recurseMimeParts($mm, $mime_parts, $mime_meta);
+		
+		// Was it encrypted?
+		if(isset($mime_meta['gpg_encrypted']) && $mime_meta['gpg_encrypted']) {
+			$message->was_encrypted = true;
+		}
+		
+		// Was it signed?
+		if(isset($mime_meta['gpg_signed_verified']) && $mime_meta['gpg_signed_verified']) {
+			$message->was_signed = true;
+		}
 		
 		if(is_array($mime_parts))
 		foreach($mime_parts as $section_idx => $section) {
@@ -778,10 +872,10 @@ class CerberusParser {
 					unset($mime_parts[$section_idx]);
 			}
 		}
-
+		
 		// Handle file attachments
 		
-		$settings = DevblocksPlatform::getPluginSettingsService();
+		$settings = DevblocksPlatform::services()->pluginSettings();
 		$is_attachments_enabled = $settings->get('cerberusweb.core',CerberusSettings::ATTACHMENTS_ENABLED,CerberusSettingsDefaults::ATTACHMENTS_ENABLED);
 		$attachments_max_size = $settings->get('cerberusweb.core',CerberusSettings::ATTACHMENTS_MAX_SIZE,CerberusSettingsDefaults::ATTACHMENTS_MAX_SIZE);
 		
@@ -795,6 +889,11 @@ class CerberusParser {
 			$content_type = DevblocksPlatform::strLower(isset($section->data['content-type']) ? $section->data['content-type'] : '');
 			$content_filename = self::_getMimePartFilename($section);
 			
+			if(DevblocksPlatform::strLower(@$section->data['content-type']) == 'multipart/signed') {
+				$content_filename = sprintf('signed_message_source_%s.txt', uniqid());
+				continue;
+			}
+			
 			$attach = new ParseFileBuffer($section);
 			
 			// Make sure our attachment is under the max preferred size
@@ -805,6 +904,22 @@ class CerberusParser {
 			
 			if(empty($content_filename))
 				$content_filename = sprintf("unnamed_attachment_%s", uniqid());
+			
+			// If the filename already exists, make it unique
+			if(isset($message->files[$content_filename])) {
+				$file_parts = pathinfo($content_filename);
+				$counter = 1;
+				
+				do {
+					$content_filename = sprintf("%s-%d%s%s",
+						$file_parts['filename'],
+						$counter++,
+						!empty($file_parts['extension']) ? '.' : '',
+						$file_parts['extension']
+					);
+					
+				} while(isset($message->files[$content_filename]));
+			}
 			
 			$message->files[$content_filename] = $attach;
 		}
@@ -872,19 +987,25 @@ class CerberusParser {
 	 * @param CerberusParserMessage $message
 	 * @return integer
 	 */
-	static public function parseMessage(CerberusParserMessage $message, $options=array()) {
+	static public function parseMessage(CerberusParserMessage $message, $options=[]) {
 		/*
 		 * options:
 		 * 'no_autoreply'
 		 */
-		$logger = DevblocksPlatform::getConsoleLog();
-		$url_writer = DevblocksPlatform::getUrlService();
+		$logger = DevblocksPlatform::services()->log();
+		$url_writer = DevblocksPlatform::services()->url();
 
 		// Make sure the object is well-formatted and ready to send
 		$message->build();
 		
 		// Parse headers into $model
 		$model = new CerberusParserModel($message); /* @var $model CerberusParserModel */
+		
+		// Pre-parse mail filters
+		// Changing the incoming message through a VA
+		Event_MailReceivedByApp::trigger($model);
+		
+		// Log headers after bots run
 		
 		$log_headers = array(
 			'from' => 'From',
@@ -911,13 +1032,6 @@ class CerberusParser {
 				$logger->info("[Parser] [Headers] " . $log_label . ': ' . $val);
 		}
 		
-		if(false == ($validated = $model->validate()))
-			return $validated; // false or null
-		
-		// Pre-parse mail filters
-		// Changing the incoming message through a VA
-		Event_MailReceivedByApp::trigger($model);
-		
 		$pre_actions = $model->getPreActions();
 		
 		// Reject?
@@ -926,13 +1040,11 @@ class CerberusParser {
 			return NULL;
 		}
 		
-		// Rewrote threading headers?
 		if(isset($pre_actions['headers_dirty'])) {
-			$model->updateThreadHeaders();
+			// [TODO] Rewrite raw_headers
 		}
 		
 		// Filter attachments?
-		// [TODO] Encapsulate this somewhere
 		if(isset($pre_actions['attachment_filters']) && !empty($message->files)) {
 			foreach($message->files as $filename => $file) {
 				$matched = false;
@@ -982,6 +1094,9 @@ class CerberusParser {
 			}
 		}
 		
+		if(false == ($validated = $model->validate()))
+			return $validated; // false or null
+		
 		// Overloadable
 		$enumSpamTraining = '';
 
@@ -1021,7 +1136,7 @@ class CerberusParser {
 					CerberusContexts::pushActivityDefaultActor(CerberusContexts::CONTEXT_WORKER, $proxy_worker->id);
 					
 					$parser_message = $model->getMessage();
-					$attachment_file_ids = array();
+					$attachment_file_ids = [];
 					
 					foreach($parser_message->files as $filename => $file) {
 						if(0 == strcasecmp($filename, 'original_message.html'))
@@ -1060,13 +1175,13 @@ class CerberusParser {
 						'link_forward_files' => true,
 						'worker_id' => $proxy_worker->id,
 					);
-					 
+					
 					// Clean the reply body
 					$body = '';
 					$lines = DevblocksPlatform::parseCrlfString($message->body, true);
 					
 					$state = '';
-					$comments = array();
+					$comments = [];
 					$comment_ptr = null;
 					
 					if(is_array($lines))
@@ -1207,7 +1322,7 @@ class CerberusParser {
 			if(!empty($sender)) {
 				DAO_Ticket::createRequester($sender->email, $model->getTicketId());
 			}
-				
+			
 			// Add the other TO/CC addresses to the ticket
 			if(DevblocksPlatform::getPluginSetting('cerberusweb.core', CerberusSettings::PARSER_AUTO_REQ, CerberusSettingsDefaults::PARSER_AUTO_REQ)) {
 				$destinations = $model->getRecipients();
@@ -1246,16 +1361,30 @@ class CerberusParser {
 			}
 
 		} // endif ($model->getIsNew())
-		 
+		
 		$fields = array(
 			DAO_Message::TICKET_ID => $model->getTicketId(),
 			DAO_Message::CREATED_DATE => $model->getDate(),
 			DAO_Message::ADDRESS_ID => $model->getSenderAddressModel()->id,
 			DAO_Message::WORKER_ID => $model->isSenderWorker() ? $model->getSenderWorkerModel()->id : 0,
+			DAO_Message::WAS_ENCRYPTED => $message->was_encrypted ? 1 : 0,
+			DAO_Message::WAS_SIGNED => $message->was_signed ? 1 : 0,
 		);
 		
-		if(isset($message->headers['message-id']))
-			$fields[DAO_Message::HASH_HEADER_MESSAGE_ID] = sha1($message->headers['message-id']);
+		if(!isset($message->headers['message-id'])) {
+			$new_message_id = sprintf("<%s.%s@%s>", 
+				base_convert(microtime(true)*1000, 10, 36),
+				base_convert(bin2hex(openssl_random_pseudo_bytes(8)), 16, 36),
+				DevblocksPlatform::getHostname()
+			);
+			$message->headers['message-id'] = $new_message_id;
+			$message->raw_headers = sprintf("Message-Id: %s\r\n%s",
+				$new_message_id,
+				$message->raw_headers
+			);
+		}
+		
+		$fields[DAO_Message::HASH_HEADER_MESSAGE_ID] = sha1($message->headers['message-id']);
 		
 		$model->setMessageId(DAO_Message::create($fields));
 
@@ -1292,7 +1421,7 @@ class CerberusParser {
 					if($status_code >= 500 && $status_code < 600) {
 						$logger->info(sprintf("[Parser] This is a permanent failure delivery-status (%d)", $status_code));
 						
-						$matches = array();
+						$matches = [];
 						
 						if(preg_match('#Original-Recipient:\s*(.*)#i', $message_content, $matches)) {
 							// Use the original address if provided
@@ -1349,7 +1478,7 @@ class CerberusParser {
 				// Link
 				if($file_id) {
 					$file->parsed_attachment_id = $file_id;
-					DAO_Attachment::setLinks(CerberusContexts::CONTEXT_MESSAGE, $model->getMessageId(), $file_id);
+					DAO_Attachment::addLinks(CerberusContexts::CONTEXT_MESSAGE, $model->getMessageId(), $file_id);
 				}
 				
 				// Rewrite any inline content-id images in the HTML part
@@ -1382,7 +1511,7 @@ class CerberusParser {
 			
 			// Link the HTML part to the message
 			if(!empty($file_id)) {
-				DAO_Attachment::setLinks(CerberusContexts::CONTEXT_MESSAGE, $model->getMessageId(), $file_id);
+				DAO_Attachment::addLinks(CerberusContexts::CONTEXT_MESSAGE, $model->getMessageId(), $file_id);
 				
 				// This built-in field is faster than searching for the HTML part again in the attachments
 				DAO_Message::update($message_id, array(
@@ -1393,13 +1522,13 @@ class CerberusParser {
 		
 		// Pre-load custom fields
 		
-		$cf_values = array();
+		$cf_values = [];
 		
 		if(isset($message->custom_fields) && !empty($message->custom_fields))
 		foreach($message->custom_fields as $cf_data) {
 			if(!is_array($cf_data))
 				continue;
-		
+			
 			@$cf_id = $cf_data['field_id'];
 			@$cf_context = $cf_data['context'];
 			@$cf_context_id = $cf_data['context_id'];
@@ -1411,12 +1540,20 @@ class CerberusParser {
 			
 			if((is_array($cf_val) && !empty($cf_val))
 				|| (!is_array($cf_val) && 0 != strlen($cf_val))) {
-					$cf_values[$cf_id] = $cf_val;
+					$cf_key = sprintf("%s:%d", $cf_context, $cf_context_id);
+					
+					if(!isset($cf_values[$cf_key]))
+						$cf_values[$cf_key] = [];
+					
+					$cf_values[$cf_key][$cf_id] = $cf_val;
 			}
 		}
 		
 		if(!empty($cf_values))
-			DAO_CustomFieldValue::formatAndSetFieldValues($cf_context, $cf_context_id, $cf_values);
+		foreach($cf_values as $ctx_pair => $cf_data) {
+			list($cf_context, $cf_context_id) = explode(':', $ctx_pair, 2);
+			DAO_CustomFieldValue::formatAndSetFieldValues($cf_context, $cf_context_id, $cf_data);
+		}
 
 		// If the sender was previously defunct, remove the flag
 		
@@ -1521,6 +1658,7 @@ class CerberusParser {
 	}
 	
 	static function convertEncoding($text, $charset=null) {
+		$has_iconv = extension_loaded('iconv') ? true : false;
 		$charset = DevblocksPlatform::strLower($charset);
 		
 		// Otherwise, fall back to mbstring's auto-detection
@@ -1559,21 +1697,13 @@ class CerberusParser {
 			);
 		}
 		
-		if($charset 
-			&& mb_check_encoding($text, $charset)
-			&& false !== ($out = mb_convert_encoding($text, LANG_CHARSET_CODE, $charset))
-			) {
-				return $out;
-			
-		} else {
-			$has_iconv = extension_loaded('iconv') ? true : false;
-			$charset = mb_detect_encoding($text);
-			
-			// If we can use iconv, do so first
-			if($has_iconv && false !== ($out = iconv($charset, LANG_CHARSET_CODE . '//TRANSLIT//IGNORE', $text)))
-				return $out;
-			
-			// Then try mbstring
+		// If we can use iconv, do so first
+		if($has_iconv && false !== ($out = @iconv($charset, LANG_CHARSET_CODE . '//TRANSLIT//IGNORE', $text))) {
+			return $out;
+		}
+		
+		// Otherwise, try mbstring
+		if(@mb_check_encoding($text, $charset)) {
 			if(false !== ($out = mb_convert_encoding($text, LANG_CHARSET_CODE, $charset)))
 				return $out;
 			
@@ -1612,10 +1742,6 @@ class CerberusParser {
 			foreach($parts as $part) {
 				try {
 					$charset = ($part->charset != 'default') ? $part->charset : $encoding;
-
-					if(empty($charset))
-						$charset = 'auto';
-
 					$out .= CerberusParser::convertEncoding($part->text, $charset);
 					
 				} catch(Exception $e) {}

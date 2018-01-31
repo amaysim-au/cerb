@@ -9,11 +9,11 @@ class UmScHistoryController extends Extension_UmScController {
 	}
 	
 	function renderSidebar(DevblocksHttpResponse $response) {
-//		$tpl = DevblocksPlatform::getTemplateSandboxService();
+//		$tpl = DevblocksPlatform::services()->templateSandbox();
 	}
 	
 	function writeResponse(DevblocksHttpResponse $response) {
-		$tpl = DevblocksPlatform::getTemplateSandboxService();
+		$tpl = DevblocksPlatform::services()->templateSandbox();
 		
 		$umsession = ChPortalHelper::getSession();
 		$active_contact = $umsession->getProperty('sc_login', null);
@@ -94,7 +94,7 @@ class UmScHistoryController extends Extension_UmScController {
 	}
 	
 	function configure(Model_CommunityTool $instance) {
-		$tpl = DevblocksPlatform::getTemplateSandboxService();
+		$tpl = DevblocksPlatform::services()->templateSandbox();
 
 		$params = array(
 			'columns' => DAO_CommunityToolProperty::get($instance->code, self::PARAM_WORKLIST_COLUMNS_JSON, '[]', true),
@@ -318,7 +318,7 @@ class UmSc_TicketHistoryView extends C4_AbstractView {
 	function render() {
 		//$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::getTemplateSandboxService();
+		$tpl = DevblocksPlatform::services()->templateSandbox();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -333,6 +333,35 @@ class UmSc_TicketHistoryView extends C4_AbstractView {
 		
 		$custom_fields = DAO_CustomField::getAll();
 		$tpl->assign('custom_fields', $custom_fields);
+		
+		$results = $this->getData();
+		$tpl->assign('results', $results);
+		$tpl->assign('total', $results[1]);
+		$tpl->assign('data', $results[0]);
+		
+		// Bulk lazy load first wrote
+		$object_first_wrotes = [];
+		if(in_array('t_first_wrote_address_id', $this->view_columns)) {
+			$first_wrote_ids = DevblocksPlatform::extractArrayValues($results, 't_first_wrote_address_id');
+			$object_first_wrotes = DAO_Address::getIds($first_wrote_ids);
+			$tpl->assign('object_first_wrotes', $object_first_wrotes);
+		}
+		
+		// Bulk lazy load last wrote
+		$object_last_wrotes = [];
+		if(in_array('t_last_wrote_address_id', $this->view_columns)) {
+			$last_wrote_ids = DevblocksPlatform::extractArrayValues($results, 't_last_wrote_address_id');
+			$object_last_wrotes = DAO_Address::getIds($last_wrote_ids);
+			$tpl->assign('object_last_wrotes', $object_last_wrotes);
+		}
+		
+		// Bulk lazy load orgs
+		$object_orgs = [];
+		if(in_array('t_org_id', $this->view_columns)) {
+			$org_ids = DevblocksPlatform::extractArrayValues($results, 't_org_id');
+			$object_orgs = DAO_ContactOrg::getIds($org_ids);
+			$tpl->assign('object_orgs', $object_orgs);
+		}
 		
 		$tpl->display("devblocks:cerberusweb.support_center:portal_".ChPortalHelper::getCode() . ":support_center/history/view.tpl");
 	}
@@ -365,7 +394,7 @@ class UmSc_TicketHistoryView extends C4_AbstractView {
 	function renderCriteria($field) {
 		$umsession = ChPortalHelper::getSession();
 		$active_contact = $umsession->getProperty('sc_login', null);
-		$tpl = DevblocksPlatform::getTemplateSandboxService();
+		$tpl = DevblocksPlatform::services()->templateSandbox();
 		
 		$tpl->assign('id', $this->id);
 

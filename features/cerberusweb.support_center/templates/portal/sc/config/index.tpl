@@ -24,7 +24,7 @@
 	
 	<div>
 		<div class="headings">
-			<div style="margin-left:24px;float:left;width:150px;"><b>Visibility</b></div>
+			<div style="margin-left:24px;float:left;width:150px;"><b>{'common.visibility'|devblocks_translate|capitalize}</b></div>
 			<div style="margin-left:5px;float:left;"><b>Module</b></div>
 		</div>
 		
@@ -70,6 +70,20 @@
 {/foreach}
 
 <script type="text/javascript">
-	$('FIELDSET#setupPortalModules DIV.container')
-	.sortable({ items: 'DIV.drag', placeholder:'ui-state-highlight' });
+$(function() {
+	var $modules = $('FIELDSET#setupPortalModules');
+	var $form = $modules.closest('form');
+	
+	$modules.find('DIV.container')
+		.sortable({ items: 'DIV.drag', placeholder:'ui-state-highlight' })
+	;
+	
+	$form.find('.cerb-peek-trigger')
+		.cerbPeekTrigger()
+	;
+	
+	$form.find('.cerb-chooser-trigger')
+		.cerbChooserTrigger()
+	;
+});
 </script>

@@ -1,6 +1,10 @@
 {if !empty($custom_fields)}
 {$uniqid = uniqid()}
+{if $tbody}
+<tbody id="cfields{$uniqid}">
+{else}
 <table cellspacing="0" cellpadding="2" width="100%" id="cfields{$uniqid}">
+{/if}
 	<!-- Custom Fields -->
 	{foreach from=$custom_fields item=f key=f_id}
 		{if !empty($field_wrapper)}
@@ -27,6 +31,15 @@
 					<input type="text" name="{$field_name}" size="45" style="width:98%;" maxlength="255" value="{$custom_field_values.$f_id}">
 				{elseif $f->type==Model_CustomField::TYPE_URL}
 					<input type="text" name="{$field_name}" size="45" style="width:98%;" maxlength="255" value="{$custom_field_values.$f_id}" class="url">
+				{elseif $f->type==Model_CustomField::TYPE_LIST}
+					<div>
+						{foreach from=$custom_field_values.$f_id item=val}
+						<div>
+							<input type="text" name="{$field_name}[]" size="45" style="width:98%;" maxlength="255" value="{$val}">
+						</div>
+						{/foreach}
+						<button type="button" class="multi-text-add" data-field-name="{$field_name}"><span class="glyphicons glyphicons-circle-plus"></span></button>
+					</div>
 				{elseif $f->type==Model_CustomField::TYPE_NUMBER}
 					<input type="text" name="{$field_name}" size="45" style="width:98%;" maxlength="255" value="{$custom_field_values.$f_id}" class="number">
 				{elseif $f->type==Model_CustomField::TYPE_MULTI_LINE}
@@ -75,7 +88,11 @@
 					<ul class="bubbles chooser-container">
 						{if $custom_field_values.$f_id}
 							{CerberusContexts::getContext($f->params.context, $custom_field_values.$f_id, $cf_link_labels, $cf_link_values, null, true)}
-							<li><input type="hidden" name="{$field_name}" value="{$custom_field_values.$f_id}">{$cf_link_values._label} <a href="javascript:;" onclick="$(this).parent().remove();"><span class="glyphicons glyphicons-circle-remove"></span></a></li>
+							<li>
+								<a href="javascript:;" class="peek-cfield-link no-underline" data-context="{$cf_link_values._context}" data-context-id="{$cf_link_values.id}">{$cf_link_values._label}</a>
+								<input type="hidden" name="{$field_name}" value="{$custom_field_values.$f_id}">
+								<a href="javascript:;" onclick="$(this).parent().remove();"><span class="glyphicons glyphicons-circle-remove"></span></a>
+							</li>
 						{/if}
 					</ul>
 				{elseif $f->type==Model_CustomField::TYPE_FILE}
@@ -103,7 +120,11 @@
 			</td>
 		</tr>
 	{/foreach}
+{if $tbody}
+</tbody>
+{else}
 </table>
+{/if}
 
 <script type="text/javascript">
 $(function() {
@@ -126,6 +147,7 @@ $(function() {
 	
 	// Links
 	$cfields.find('button.chooser-cfield-link').cerbChooserTrigger();
+	$cfields.find('a.peek-cfield-link').cerbPeekTrigger();
 	
 	$cfields.find('button.chooser-cfield-file').each(function() {
 		var options = {
@@ -134,8 +156,21 @@ $(function() {
 		ajax.chooserFile(this,$(this).attr('field_name'),options);
 	});
 	
+	// Files
 	$cfields.find('button.chooser-cfield-files').each(function() {
 		ajax.chooserFile(this,$(this).attr('field_name'));
+	});
+	
+	// Multi-text
+	$cfields.find('button.multi-text-add').click(function() {
+		var $button = $(this);
+		var field_name = $button.attr('data-field-name');
+		var $container = $button.closest('div');
+		var $input = $('<input type="text" size="45" style="width:98%;" maxlength="255" class="multi-text">')
+			.attr('name', field_name + '[]')
+			;
+		var $div = $('<div/>').append($input);
+		$div.insertBefore($button);
 	});
 });
 </script>

@@ -17,7 +17,7 @@
 		<tr>
 			<td width="0%" nowrap="nowrap" align="right">Subject: </td>
 			<td width="100%">
-				<input type="text" name="subject" size="45" maxlength="255" style="width:98%;" autofocus="true" value="{$ticket->subject}">
+				<input type="text" name="subject" size="45" maxlength="255" style="width:98%;" autofocus="autofocus" value="{$ticket->subject}">
 			</td>
 		</tr>
 		
@@ -37,7 +37,6 @@
 		</tr>
 		
 		{* Group/Bucket *}
-		{if $active_worker->hasPriv('core.ticket.actions.move')}
 		<tr>
 			<td width="0%" nowrap="nowrap" valign="middle" align="right">Bucket: </td>
 			<td width="100%">
@@ -62,7 +61,6 @@
 				</div>
 			</td>
 		</tr>
-		{/if}
 		
 		{* Status *}
 		<tr>
@@ -71,7 +69,7 @@
 				<label><input type="radio" name="status_id" value="{Model_Ticket::STATUS_OPEN}" onclick="toggleDiv('ticketClosed','none');" {if $ticket->status_id == Model_Ticket::STATUS_OPEN}checked{/if}> {'status.open'|devblocks_translate|capitalize}</label>
 				<label><input type="radio" name="status_id" value="{Model_Ticket::STATUS_WAITING}" onclick="toggleDiv('ticketClosed','block');" {if $ticket->status_id == Model_Ticket::STATUS_WAITING}checked{/if}> {'status.waiting'|devblocks_translate|capitalize}</label>
 				{if $active_worker->hasPriv('core.ticket.actions.close') || ($ticket->status_id == Model_Ticket::STATUS_CLOSED)}<label><input type="radio" name="status_id" value="{Model_Ticket::STATUS_CLOSED}" onclick="toggleDiv('ticketClosed','block');" {if $ticket->status_id == Model_Ticket::STATUS_CLOSED}checked{/if}> {'status.closed'|devblocks_translate|capitalize}</label>{/if}
-				{if $active_worker->hasPriv('core.ticket.actions.delete') || ($ticket->status_id == Model_Ticket::STATUS_DELETED)}<label><input type="radio" name="status_id" value="{Model_Ticket::STATUS_DELETED}" onclick="toggleDiv('ticketClosed','none');" {if $ticket->status_id == Model_Ticket::STATUS_DELETED}checked{/if}> {'status.deleted'|devblocks_translate|capitalize}</label>{/if}
+				{if $active_worker->hasPriv("contexts.{$peek_context}.delete") || ($ticket->status_id == Model_Ticket::STATUS_DELETED)}<label><input type="radio" name="status_id" value="{Model_Ticket::STATUS_DELETED}" onclick="toggleDiv('ticketClosed','none');" {if $ticket->status_id == Model_Ticket::STATUS_DELETED}checked{/if}> {'status.deleted'|devblocks_translate|capitalize}</label>{/if}
 				
 				<div id="ticketClosed" style="display:{if in_array($ticket->status_id,[Model_Ticket::STATUS_WAITING,Model_Ticket::STATUS_CLOSED])}block{else}none{/if};margin:5px 0px 5px 15px;">
 					<b>{'display.reply.next.resume'|devblocks_translate}:</b><br>
@@ -119,6 +117,22 @@
 						<li><img class="cerb-avatar" src="{devblocks_url}c=avatars&context=worker&context_id={$owner->id}{/devblocks_url}?v={$owner->updated}"><input type="hidden" name="owner_id" value="{$owner->id}"><a href="javascript:;" class="cerb-peek-trigger no-underline" data-context="{CerberusContexts::CONTEXT_WORKER}" data-context-id="{$owner->id}">{$owner->getName()}</a></li>
 					{/if}
 				</ul>
+			</td>
+		</tr>
+		
+		{* Participants *}
+		<tr>
+			<td width="1%" nowrap="nowrap" align="right" valign="top">{'common.participants'|devblocks_translate|capitalize}:</td>
+			<td width="99%" valign="top">
+				<ul class="bubbles chooser-container" style="display:block;">
+					{if !empty($requesters)}
+					{foreach from=$requesters item=requester}
+						<li><img class="cerb-avatar" src="{devblocks_url}c=avatars&context=address&context_id={$requester->id}{/devblocks_url}?v={$requester->updated}"><input type="hidden" name="participants[]" value="{$requester->id}"><a href="javascript:;" class="cerb-peek-trigger no-underline" data-context="{CerberusContexts::CONTEXT_ADDRESS}" data-context-id="{$requester->id}">{$requester->getNameWithEmail()}</a></li>
+					{/foreach}
+					{/if}
+				</ul>
+				
+				<button type="button" class="chooser-abstract" data-field-name="participants[]" data-context="{CerberusContexts::CONTEXT_ADDRESS}" data-query="isBanned:n isDefunct:n" data-autocomplete="" data-create="true"><span class="glyphicons glyphicons-search"></span></button>
 			</td>
 		</tr>
 		

@@ -8,6 +8,203 @@ include_once(DEVBLOCKS_PATH . "api/services/bootstrap/classloader.php");
 
 define('PLATFORM_BUILD', 2016122701);
 
+class _DevblocksServices {
+	private static $_instance = null;
+	
+	private function __construct() {}
+	
+	static function getInstance() {
+		if(is_null(self::$_instance))
+			self::$_instance = new _DevblocksServices();
+		
+		return self::$_instance;
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksBayesClassifierService
+	 */
+	function bayesClassifier() {
+		return _DevblocksBayesClassifierService::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksCacheManager
+	 */
+	function cache() {
+		return _DevblocksCacheManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksClassLoadManager
+	 */
+	function classloader() {
+		return _DevblocksClassLoadManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksDatabaseManager|NULL
+	 */
+	function database() {
+		return _DevblocksDatabaseManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksDateManager
+	 */
+	function date() {
+		return _DevblocksDateManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksEncryptionService
+	 */
+	function encryption() {
+		return _DevblocksEncryptionService::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksEventManager
+	 */
+	function event() {
+		return _DevblocksEventManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksGPGService
+	 */
+	function gpg() {
+		return _DevblocksGPGService::getInstance();;
+	}
+	
+	/**
+	 * 
+	 * @param string $prefix
+	 * @return _DevblocksLogManager
+	 */
+	function log($prefix=null) {
+		return _DevblocksLogManager::getConsoleLog($prefix);
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksEmailManager
+	 */
+	function mail() {
+		return _DevblocksEmailManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @param string $consumer_key
+	 * @param string $consumer_secret
+	 * @param string $signature_method
+	 * @return _DevblocksOAuthService
+	 */
+	function oauth($consumer_key, $consumer_secret, $signature_method='HMAC-SHA1') {
+		return new _DevblocksOAuthService($consumer_key, $consumer_secret, $signature_method);
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksOpenIDManager
+	 */
+	function openid() {
+		return _DevblocksOpenIDManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksNaturalLanguageManager
+	 */
+	function nlp() {
+		return _DevblocksNaturalLanguageManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @param integer $inputs
+	 * @param integer $hiddens
+	 * @param integer $outputs
+	 * @param float $learning_rate
+	 * @return DevblocksNeuralNetwork
+	 */
+	function neuralNetwork($inputs, $hiddens, $outputs, $learning_rate) {
+		return _DevblocksNeuralNetworkService::createNeuralNetwork($inputs, $hiddens, $outputs, $learning_rate);
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksPluginSettingsManager
+	 */
+	function pluginSettings() {
+		return _DevblocksPluginSettingsManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksRegistryManager
+	 */
+	function registry() {
+		return _DevblocksRegistryManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksSessionManager
+	 */
+	function session() {
+		return _DevblocksSessionManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return Smarty
+	 */
+	function template() {
+		return _DevblocksTemplateManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksTemplateBuilder
+	 */
+	function templateBuilder() {
+		return _DevblocksTemplateBuilder::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return Smarty
+	 */
+	function templateSandbox() {
+		return _DevblocksTemplateManager::getInstanceSandbox();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksUrlManager
+	 */
+	function url() {
+		return _DevblocksUrlManager::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @return _DevblocksValidationService
+	 */
+	function validation() {
+		return new _DevblocksValidationService();
+	}
+}
+
 /**
  * A platform container for plugin/extension registries.
  *
@@ -150,7 +347,7 @@ class DevblocksPlatform extends DevblocksEngine {
 		if(is_null($value) && !is_null($default))
 			$value = $default;
 		
-		if(substr($type,0,6) == 'array:') {
+		if(DevblocksPlatform::strStartsWith($type, 'array:')) {
 			list($type, $array_cast) = explode(':', $type, 2);
 		}
 		
@@ -259,54 +456,114 @@ class DevblocksPlatform extends DevblocksEngine {
 		return min(max((float)$n, $min), $max);
 	}
 
-    static function curlInit($url=null) {
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 90);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 90);
-        if(CURL_DEBUG_PATH != '') {
-            curl_setopt($ch, CURLINFO_HEADER_OUT, true);
-            curl_setopt($ch, CURLOPT_VERBOSE, true);
-        }
-        return $ch;
+	
+	/**
+	 * 
+	 * See: http://stackoverflow.com/questions/20903106/interpolating-colors-in-php
+	 * 
+	 * @param string $from_hex (e.g. FF0000)
+	 * @param string $to_hex (e.g. 00FF00)
+	 * @param float $ratio (0.0-1.0)
+	 * @return string
+	 */
+	static function colorLerp($from_hex, $to_hex, $ratio) {
+		$from_hex = hexdec(ltrim($from_hex,'#'));
+		$to_hex = hexdec(ltrim($to_hex,'#'));
+		
+		$from_r = $from_hex & 0xFF0000;
+		$from_g = $from_hex & 0x00FF00;
+		$from_b = $from_hex & 0x0000FF;
+		$to_r = $to_hex & 0xFF0000;
+		$to_g = $to_hex & 0x00FF00;
+		$to_b = $to_hex & 0x0000FF;
+		
+		$lerp_r = $from_r + (($to_r - $from_r) * $ratio) & 0xFF0000;
+		$lerp_g = $from_g + (($to_g - $from_g) * $ratio) & 0x00FF00;
+		$lerp_b = $from_b + (($to_b - $from_b) * $ratio) & 0x0000FF;
+		
+		$color = dechex($lerp_r | $lerp_g | $lerp_b);
+		$color = str_pad($color, 6, '0', STR_PAD_LEFT);
+		
+		return '#' . DevblocksPlatform::strUpper($color);
+	}
+	
+	static function 
+    (array $colors) {
+		if(!is_array($colors))
+			return [];
+		
+		$len = count($colors);
+		
+		foreach($colors as $pos => $color) {
+			if(!in_array($color, [null, '#FFFFFF']))
+				continue;
+			
+			$from_color = '#FFFFFF';
+			$to_color = '#FFFFFF';
+			
+			for($last=$pos-1; $last >= 0; $last--) {
+				if($colors[$last] != '#FFFFFF') {
+					$from_color = $colors[$last];
+					break;
+				}
+			}
+			
+			for($next=$pos+1; $next < $len; $next++) {
+				if($colors[$next] != '#FFFFFF') {
+					$to_color = $colors[$next];
+					break;
+				}
+			}
+			
+			$colors[$pos] = DevblocksPlatform::colorLerp($from_color, $to_color, ($pos-$last)/($next-$last));
+		}
+		
+		return $colors;
+	}
+  
+  
+  static function curlInit($url=null) {
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 90);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+    if(CURL_DEBUG_PATH != '') {
+        curl_setopt($ch, CURLINFO_HEADER_OUT, true);
+        curl_setopt($ch, CURLOPT_VERBOSE, true);
+    }
+    return $ch;
+  }
+  
+  static function curlExec($ch, $follow=false, $return=true) {
+    // Proxy
+    if(defined('DEVBLOCKS_HTTP_PROXY') && DEVBLOCKS_HTTP_PROXY) {
+      curl_setopt($ch, CURLOPT_PROXY, DEVBLOCKS_HTTP_PROXY);
     }
 
-    static function curlExec($ch, $follow=false, $return=true) {
-        // Proxy
-        if(defined('DEVBLOCKS_HTTP_PROXY') && DEVBLOCKS_HTTP_PROXY) {
-            curl_setopt($ch, CURLOPT_PROXY, DEVBLOCKS_HTTP_PROXY);
-        }
+    // Return transfer
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, $return);
 
-        // Return transfer
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, $return);
-
-        // Follow redirects
-        if($follow) {
-            curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
-            $out = curl_exec($ch);
-            $curl_info = curl_getinfo($ch);
-
-            // It's a 3xx redirect
-            // [TODO] Catch redirect loops
-            if(isset($curl_info['redirect_url']) && $curl_info['redirect_url'] && floor($curl_info['http_code']/100) == 3) {
-                curl_setopt($ch, CURLOPT_URL, $curl_info['redirect_url']);
-
-                return self::curlExec($ch, $follow, $return);
-            }
-
-            self::curlDebug($curl_info,$out);
-
-            return $out;
-        }
-
+    // Follow redirects
+    if($follow) {
+        curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
         $out = curl_exec($ch);
-        $curl_info = curl_getinfo($ch);
+        $status = curl_getinfo($ch);
 
+        // It's a 3xx redirect
+        // [TODO] Catch redirect loops
+        if(isset($status['redirect_url']) && $status['redirect_url'] && floor($status['http_code']/100) == 3) {
+            curl_setopt($ch, CURLOPT_URL, $status['redirect_url']);
+            return self::curlExec($ch, $follow, $return);
+        }
         self::curlDebug($curl_info,$out);
-
         return $out;
-    }
+     }
+     $out = curl_exec($ch);
+     $curl_info = curl_getinfo($ch);
+     self::curlDebug($curl_info,$out);
+     return $out;
+  }
 
-    static function curlDebug($curl_info,$out){
+  static function curlDebug($curl_info,$out){
         if(CURL_DEBUG_PATH != ''){
             $log_file = CURL_DEBUG_PATH;
             $output = self::getDebugString($curl_info['content_type'],$out);
@@ -316,28 +573,33 @@ class DevblocksPlatform extends DevblocksEngine {
             $log = $dateTime . PHP_EOL . "Info: " . $_info . PHP_EOL . PHP_EOL .  "ResponsePayload: " . $output . PHP_EOL . "---" . PHP_EOL . PHP_EOL;
             file_put_contents($log_file, $log,FILE_APPEND);
         }
-    }
+  }
 
-    static function getDebugString($contentType, $out){
-        $allowedTypes = array("application/json","application/xml","text/xml","application/soap+xml","text/plain");
-        foreach ($allowedTypes as &$cType){
-            if (preg_match('#^'.$contentType .'#i', $cType) === 1) {
-                return $out;
-            }
+  static function getDebugString($contentType, $out){
+    $allowedTypes = array("application/json","application/xml","text/xml","application/soap+xml","text/plain");
+    foreach ($allowedTypes as &$cType){
+        if (preg_match('#^'.$contentType .'#i', $cType) === 1) {
+             return $out;
         }
-        return "Binary output, suppressed...";
     }
+    return "Binary output, suppressed...";
+  =====
 	
 	/**
 	 * Returns a string as a regexp.
 	 * "*bob" returns "/(.*?)bob/".
 	 * @param string $string
+	 * @param boolean $is_substring
 	 * @return string
 	 * @test DevblocksPlatformTest
 	 */
-	static function parseStringAsRegExp($string) {
+	static function parseStringAsRegExp($string, $is_substring=false) {
 		$pattern = str_replace(array('*'),'__any__', $string);
-		$pattern = sprintf("/%s/i",str_replace(array('__any__'),'(.*?)', preg_quote($pattern)));
+		$pattern = sprintf("/%s%s%s/i",
+			!$is_substring ? '^' : '',
+			str_replace(array('__any__'),'(.*?)', preg_quote($pattern)),
+			!$is_substring ? '$' : ''
+		);
 		return $pattern;
 	}
 	
@@ -421,8 +683,32 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 	
 	/**
+	 * Parse HTTP header attribute strings, like: charset=utf-8
 	 * 
-	 * @param unknown $string
+	 * @param string $header_value
+	 * @return boolean|array
+	 */
+	static function parseHttpHeaderAttributes($header_value) {
+		$results = [];
+		
+		if(
+			empty($header_value)
+			|| false == ($attributes = explode(';', $header_value)) 
+			|| !is_array($attributes)
+			)
+			return false;
+		
+		foreach($attributes as $attribute) {
+			list($k, $v) = array_map('trim', explode('=', $attribute, 2));
+			$results[DevblocksPlatform::strLower($k)] = $v;
+		}
+		
+		return $results;
+	}
+	
+	/**
+	 * 
+	 * @param string $string
 	 * @return array
 	 * @test DevblocksPlatformTest
 	 */
@@ -499,13 +785,89 @@ class DevblocksPlatform extends DevblocksEngine {
 		return implode('.', $parts);
 	}
 	
+	static function arrayDictSet($var, $path, $val) {
+		if(empty($var))
+			$var = is_array($var) ? [] : new stdClass();
+		
+		$parts = explode('.', $path);
+		$ptr =& $var;
+		
+		if(is_array($parts))
+		foreach($parts as $part) {
+			$part = str_replace('{DOT}', '.', $part);
+			
+			if('[]' == $part) {
+				if(is_array($ptr))
+					$ptr =& $ptr[];
+				
+			} elseif(is_array($ptr)) {
+				if(!isset($ptr[$part]))
+					$ptr[$part] = [];
+
+				$ptr =& $ptr[$part];
+				
+			} elseif(is_object($ptr)) {
+				if(!isset($ptr->$part))
+					$ptr->$part = [];
+				
+				$ptr =& $ptr->$part;
+			}
+		}
+		
+		$ptr = $val;
+		
+		return $var;
+	}
+	
+	static function arrayBuildQueryString(array $args, $sort=true, $fix_numeric_indices=true) {
+		if($sort)
+			ksort($args);
+		
+		$str = http_build_query($args, null, '&', PHP_QUERY_RFC3986);
+		
+		// Fix numeric indices
+		if($fix_numeric_indices)
+			$str = preg_replace('#%5B[0-9]+%5D#simU', '%5B%5D', $str);
+		
+		return $str;
+	}
+	
+	static function strParseQueryString($string) {
+		if(empty($string))
+			return [];
+		
+		$tuples = explode('&', $string);
+		$vars = [];
+		
+		foreach($tuples as $tuple) {
+			@list($key, $value) = explode('=', $tuple);
+			
+			if(empty($key))
+				continue;
+			
+			$key = urldecode($key);
+			$value = urldecode($value);
+			
+			// Rewrite field[key] to field.key
+			$key = str_replace('.', '{DOT}', $key);
+			$key = preg_replace('#\[(.+?)\]#', '.\1', $key);
+			$key = preg_replace('#\[\]#', '.[]', $key);
+			$vars = DevblocksPlatform::arrayDictSet($vars, $key, $value);
+		}
+		
+		return $vars;
+	}
+	
 	static function strUpper($string) {
 		return mb_convert_case($string, MB_CASE_UPPER);
 	}
 	
 	static function strUpperFirst($string, $lower_rest=false) {
-		if(!is_string($string))
-			return null;
+		if(is_array($string)) {
+			$string = implode(', ', $string);
+		} elseif (!is_string($string)) {
+			@$string = strval($string);
+		}
 		
 		if($lower_rest)
 			$string = mb_strtolower($string);
@@ -514,6 +876,12 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 	
 	static function strLower($string) {
+		if(is_array($string)) {
+			$string = implode(', ', $string);
+		} elseif (!is_string($string)) {
+			@$string = strval($string);
+		}
+		
 		return mb_convert_case($string, MB_CASE_LOWER);
 	}
 	
@@ -576,6 +944,64 @@ class DevblocksPlatform extends DevblocksEngine {
 		}
 		
 		return intval($v);
+	}
+	
+	/**
+	 * 
+	 * @param string|int $bits
+	 * @return int|false
+	 */
+	static function strBitsToInt($bits) {
+		// Handle int param
+		if(is_numeric($bits)) {
+			$bits = intval($bits);
+			
+		// Handle string param
+		} else if(is_string($bits)) {
+			$parts = explode(' ', $bits, 2);
+			
+			switch(count($parts)) {
+				case 1:
+					$bits = intval($parts[0]);
+					break;
+					
+				case 2:
+					$value = intval($parts[0]);
+					
+					switch(DevblocksPlatform::strLower($parts[1])) {
+						case 'byte':
+						case 'bytes':
+							$bits = intval($value) * 8;
+							break;
+							
+						case 'bit':
+						case 'bits':
+							break;
+							
+						default:
+							return false;
+							break;
+					}
+					break;
+				
+				default:
+					return false;
+					break;
+			}
+		}
+		
+		@$bits = intval($bits);
+		
+		// Handle negatives
+		if($bits < 1)
+			return 0;
+		
+		// 32-bit overflow?
+		$max_bits = (PHP_INT_SIZE * 8)-1; // PHP ints are always signed
+		if($bits > $max_bits)
+			$bits = $max_bits;
+		
+		return pow(2, $bits);
 	}
 	
 	/**
@@ -1217,7 +1643,7 @@ class DevblocksPlatform extends DevblocksEngine {
 			curl_close($ch);
 			
 		} else {
-			$logger = DevblocksPlatform::getConsoleLog();
+			$logger = DevblocksPlatform::services()->log();
 			$logger->error("[Platform] 'curl' extension is not enabled. Can not load a URL.");
 			return;
 		}
@@ -1265,7 +1691,7 @@ class DevblocksPlatform extends DevblocksEngine {
 						}
 					}
 				}
-				 
+				
 				$feed['items'][] = array(
 					'date' => empty($date_timestamp) ? time() : $date_timestamp,
 					'link' => $link,
@@ -1334,6 +1760,8 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 	
 	static function strEscapeHtml($string) {
+		$string = strval($string);
+		
 		if(0 == strlen($string))
 			return '';
 		
@@ -1341,6 +1769,8 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 
 	static function strToInitials($string) {
+		$string = strval($string);
+		
 		$strings = explode(' ', $string);
 		
 		// Two parts max
@@ -1365,6 +1795,8 @@ class DevblocksPlatform extends DevblocksEngine {
 	 * @test DevblocksPlatformTest
 	 */
 	static function strToPermalink($string, $spaces_as='-') {
+		$string = strval($string);
+		
 		if(0 == strlen($string))
 			return '';
 		
@@ -1670,7 +2102,7 @@ class DevblocksPlatform extends DevblocksEngine {
 			$json = json_decode($json, true);
 		
 		if(is_array($json))
-			return json_encode($json, JSON_PRETTY_PRINT);
+			return json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 		
 		return false;
 	}
@@ -1724,7 +2156,7 @@ class DevblocksPlatform extends DevblocksEngine {
 	 *
 	 */
 	static function clearCache($one_cache=null) {
-		$cache = self::getCacheService(); /* @var $cache _DevblocksCacheManager */
+		$cache = DevblocksPlatform::services()->cache();
 
 		if(!empty($one_cache)) {
 			$cache->remove($one_cache);
@@ -1744,12 +2176,12 @@ class DevblocksPlatform extends DevblocksEngine {
 			
 			// Flush template cache
 			if(!APP_SMARTY_COMPILE_PATH_MULTI_TENANT) {
-				$tpl = DevblocksPlatform::getTemplateService();
+				$tpl = DevblocksPlatform::services()->template();
 				$tpl->clearCompiledTemplate();
 			}
 			
 			if(!APP_SMARTY_SANDBOX_COMPILE_PATH_MULTI_TENANT) {
-				$tpl = DevblocksPlatform::getTemplateSandboxService();
+				$tpl = DevblocksPlatform::services()->templateSandbox();
 				$tpl->clearCompiledTemplate();
 			}
 			
@@ -1773,7 +2205,7 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 
 	public static function registerClasses($file,$classes=array()) {
-		$classloader = self::getClassLoaderService();
+		$classloader = DevblocksPlatform::services()->classloader();
 		return $classloader->registerClasses($file,$classes);
 	}
 	
@@ -1824,7 +2256,7 @@ class DevblocksPlatform extends DevblocksEngine {
 	 * @return boolean
 	 */
 	static function isDatabaseEmpty() {
-		if(false == ($db = DevblocksPlatform::getDatabaseService()))
+		if(false == ($db = DevblocksPlatform::services()->database()))
 			return true;
 		
 		$tables = self::getDatabaseTables();
@@ -1832,12 +2264,12 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 	
 	static function getDatabaseTables($nocache=false) {
-		$cache = self::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		$tables = array();
 		
 		if($nocache || null === ($tables = $cache->load(self::CACHE_TABLES))) {
 			// Make sure the database connection is valid or error out.
-			if(false == ($db = self::getDatabaseService()))
+			if(false == ($db = DevblocksPlatform::services()->database()))
 				return array();
 			
 			$tables = $db->metaTables();
@@ -1864,34 +2296,33 @@ class DevblocksPlatform extends DevblocksEngine {
 			return true;
 		
 		// If build changed, clear cache regardless of patch status
-		$cache = DevblocksPlatform::getCacheService(); /* @var $cache _DevblocksCacheManager */
+		$cache = DevblocksPlatform::services()->cache();
 		$cache->clean();
 		
 		return false;
 	}
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @return boolean
 	 */
 	static private function _needsToPatch() {
-		 $plugins = DevblocksPlatform::getPluginRegistry();
-		 
-		 // First install or upgrade
-		 if(empty($plugins))
-		 	return true;
+		$plugins = DevblocksPlatform::getPluginRegistry();
+		
+		// First install or upgrade
+		if(empty($plugins))
+			return true;
 
-		 foreach($plugins as $plugin) { /* @var $plugin DevblocksPluginManifest */
-		 	if($plugin->enabled) {
-		 		foreach($plugin->getPatches() as $patch) { /* @var $patch DevblocksPatch */
-		 			if(!$patch->hasRun())
-		 				return true;
-		 		}
-		 	}
-		 }
-		 
-		 return false;
+		foreach($plugins as $plugin) { /* @var $plugin DevblocksPluginManifest */
+			if($plugin->enabled) {
+				foreach($plugin->getPatches() as $patch) { /* @var $patch DevblocksPatch */
+					if(!$patch->hasRun())
+						return true;
+				}
+			}
+		}
+		
+		return false;
 	}
 	
 	/**
@@ -1911,6 +2342,12 @@ class DevblocksPlatform extends DevblocksEngine {
 				$results[$extension->id] = ($as_instances) ? $extension->createInstance() : $extension;
 			}
 		}
+		
+		if($as_instances)
+			DevblocksPlatform::sortObjects($results, 'manifest->name');
+		else
+			DevblocksPlatform::sortObjects($results, 'name');
+		
 		return $results;
 	}
 
@@ -1943,7 +2380,7 @@ class DevblocksPlatform extends DevblocksEngine {
 	 * @return DevblocksExtensionManifest[]
 	 */
 	static function getExtensionRegistry($nocache=false, $with_disabled=false) {
-		$cache = self::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		
 		// Forced
 		if($with_disabled)
@@ -1951,7 +2388,7 @@ class DevblocksPlatform extends DevblocksEngine {
 		
 		// Retrieve and cache
 		if($nocache || null === ($extensions = $cache->load(self::CACHE_EXTENSIONS))) {
-			$db = DevblocksPlatform::getDatabaseService();
+			$db = DevblocksPlatform::services()->database();
 			if(is_null($db))
 				return;
 			
@@ -1996,7 +2433,7 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 
 	static function getActivityPointRegistry() {
-		$cache = self::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		$plugins = DevblocksPlatform::getPluginRegistry();
 		
 		if(empty($plugins))
@@ -2024,13 +2461,13 @@ class DevblocksPlatform extends DevblocksEngine {
 	 * @return DevblocksEventPoint[]
 	 */
 	static function getEventPointRegistry() {
-		$cache = self::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		if(null !== ($events = $cache->load(self::CACHE_EVENT_POINTS)))
 			return $events;
 
 		$events = array();
 		$plugins = self::getPluginRegistry();
-		 
+		
 		// [JAS]: Event point hashing/caching
 		if(is_array($plugins))
 		foreach($plugins as $plugin) { /* @var $plugin DevblocksPluginManifest */
@@ -2047,13 +2484,13 @@ class DevblocksPlatform extends DevblocksEngine {
 	 * @return DevblocksAclPrivilege[]
 	 */
 	static function getAclRegistry() {
-		$cache = self::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		if(null !== ($acl = $cache->load(self::CACHE_ACL)))
 			return $acl;
 
 		$acl = array();
 
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		if(is_null($db)) return;
 
 		//$plugins = self::getPluginRegistry();
@@ -2085,13 +2522,13 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 	
 	static function getEventRegistry() {
-		$cache = self::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		if(null !== ($events = $cache->load(self::CACHE_EVENTS)))
 			return $events;
 		
 		$extensions = self::getExtensions('devblocks.listener.event',false);
 		$events = array('*');
-		 
+		
 		// [JAS]: Event point hashing/caching
 		if(is_array($extensions))
 		foreach($extensions as $extension) { /* @var $extension DevblocksExtensionManifest */
@@ -2122,12 +2559,12 @@ class DevblocksPlatform extends DevblocksEngine {
 	 * @return DevblocksPluginManifest[]
 	 */
 	static function getPluginRegistry() {
-		$cache = self::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		
 		if(null !== ($plugins = $cache->load(self::CACHE_PLUGINS)))
 			return $plugins;
 		
-		if(false == ($db = DevblocksPlatform::getDatabaseService()) || DevblocksPlatform::isDatabaseEmpty())
+		if(false == ($db = DevblocksPlatform::services()->database()) || DevblocksPlatform::isDatabaseEmpty())
 			return;
 			
 		$plugins = array();
@@ -2244,7 +2681,6 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @param string $id
 	 * @return DevblocksPluginManifest
@@ -2314,6 +2750,15 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 
 	/**
+	 * @return _DevblocksServices
+	 */
+	static function services() {
+		return _DevblocksServices::getInstance();
+	}
+	
+	/**
+	 * 
+	 * @deprecated
 	 * @return _DevblocksPluginSettingsManager
 	 */
 	static function getPluginSettingsService() {
@@ -2321,23 +2766,26 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 	
 	static function getPluginSetting($plugin_id, $key, $default=null, $json_decode=false, $encrypted=false) {
-		$settings = self::getPluginSettingsService();
+		$settings = DevblocksPlatform::services()->pluginSettings();
 		return $settings->get($plugin_id, $key, $default, $json_decode, $encrypted);
 	}
 	
 	static function setPluginSetting($plugin_id, $key, $value, $json_encode=false, $encrypted=false) {
-		$settings = self::getPluginSettingsService();
+		$settings = DevblocksPlatform::services()->pluginSettings();
 		return $settings->set($plugin_id, $key, $value, $json_encode, $encrypted);
 	}
 
 	/**
+	 * @deprecated
 	 * @return _DevblocksLogManager
 	 */
 	static function getConsoleLog($prefix='') {
-		return _DevblocksLogManager::getConsoleLog($prefix);
+		return DevblocksPlatform::services()->log($prefix);
 	}
 	
 	/**
+	 *
+	 * @deprecated
 	 * @return _DevblocksCacheManager
 	 */
 	static function getCacheService() {
@@ -2345,8 +2793,8 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 	
 	/**
-	 * Enter description here...
 	 *
+	 * @deprecated
 	 * @return _DevblocksDatabaseManager
 	 */
 	static function getDatabaseService() {
@@ -2354,27 +2802,7 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 
 	/**
-	 * @return _DevblocksNaturalLanguageManager
-	 */
-	static function getNaturalLanguageService() {
-		return _DevblocksNaturalLanguageManager::getInstance();
-	}
-	
-	/**
-	 * @return _DevblocksBayesClassifierService
-	 */
-	static function getBayesClassifierService() {
-		return _DevblocksBayesClassifierService::getInstance();
-	}
-	
-	/**
-	 * @return DevblocksNeuralNetwork
-	 */
-	static function getNeuralNetwork($inputs, $hiddens, $outputs, $learning_rate) {
-		return _DevblocksNeuralNetworkService::createNeuralNetwork($inputs, $hiddens, $outputs, $learning_rate);
-	}
-	
-	/**
+	 * @deprecated
 	 * @return _DevblocksUrlManager
 	 */
 	static function getUrlService() {
@@ -2382,13 +2810,7 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 
 	/**
-	 * @return _DevblocksEmailManager
-	 */
-	static function getMailService() {
-		return _DevblocksEmailManager::getInstance();
-	}
-	
-	/**
+	 * @deprecated
 	 * @return _DevblocksEncryptionService
 	 */
 	static function getEncryptionService() {
@@ -2396,27 +2818,21 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 
 	/**
+	 * @deprecated
 	 * @return _DevblocksEventManager
 	 */
 	static function getEventService() {
 		return _DevblocksEventManager::getInstance();
 	}
 	
-	/**
-	 * @return _DevblocksRegistryManager
-	 */
-	static function getRegistryService() {
-		return _DevblocksRegistryManager::getInstance();
-	}
-	
 	static function setRegistryKey($key, $value, $as=DevblocksRegistryEntry::TYPE_STRING, $persist=false) {
-		$registry = self::getRegistryService();
+		$registry = DevblocksPlatform::services()->registry();
 		$registry->set($key, $value, $as);
 		$registry->persist($key, $persist);
 	}
 	
 	static function getRegistryKey($key, $as=DevblocksRegistryEntry::TYPE_STRING, $default=null) {
-		$registry = self::getRegistryService();
+		$registry = DevblocksPlatform::services()->registry();
 		
 		if(null == ($value = $registry->get($key, $as, $default)))
 			return null;
@@ -2425,31 +2841,11 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 	
 	/**
-	 * @return _DevblocksClassLoadManager
-	 */
-	static function getClassLoaderService() {
-		return _DevblocksClassLoadManager::getInstance();
-	}
-	
-	/**
-	 * @return _DevblocksSessionManager
-	 */
-	static function getSessionService() {
-		return _DevblocksSessionManager::getInstance();
-	}
-	
-	/**
+	 * @deprecated
 	 * @return _DevblocksOAuthService
 	 */
 	static function getOAuthService($consumer_key, $consumer_secret, $signature_method='HMAC-SHA1') {
 		return new _DevblocksOAuthService($consumer_key, $consumer_secret, $signature_method);
-	}
-	
-	/**
-	 * @return _DevblocksOpenIDManager
-	 */
-	static function getOpenIDService() {
-		return _DevblocksOpenIDManager::getInstance();
 	}
 	
 	static private function _deepCloneArray(&$array) {
@@ -2597,6 +2993,7 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 
 	/**
+	 * @deprecated
 	 * @return Smarty
 	 */
 	static function getTemplateService() {
@@ -2604,6 +3001,7 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 	
 	/**
+	 * @deprecated
 	 * @return Smarty
 	 */
 	static function getTemplateSandboxService() {
@@ -2638,19 +3036,13 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 	
 	/**
+	 * @deprecated
 	 * @return _DevblocksTemplateBuilder
 	 */
 	static function getTemplateBuilder() {
 		return _DevblocksTemplateBuilder::getInstance();
 	}
 
-	/**
-	 * @return _DevblocksDateManager
-	 */
-	static function getDateService($datestamp=null) {
-		return _DevblocksDateManager::getInstance();
-	}
-	
 	private static function _discoverTimezone() {
 		$timezone = null;
 		
@@ -2738,7 +3130,7 @@ class DevblocksPlatform extends DevblocksEngine {
 			return $languages[$locale];
 		}
 
-		$cache = self::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		
 		if(null === ($map = $cache->load(self::CACHE_TAG_TRANSLATIONS.'_'.$locale))) { /* @var $cache _DevblocksCacheManager */
 			$map = array();
@@ -2791,7 +3183,6 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 
 	/**
-	 * Enter description here...
 	 *
 	 * @return DevblocksHttpRequest
 	 */
@@ -2807,7 +3198,6 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 
 	/**
-	 * Enter description here...
 	 *
 	 * @return DevblocksHttpRequest
 	 */
@@ -2820,6 +3210,50 @@ class DevblocksPlatform extends DevblocksEngine {
 	 */
 	static function setHttpResponse(DevblocksHttpResponse $response) {
 		self::$response = $response;
+	}
+	
+	static function getHttpHeaders() {
+		$headers = [];
+		
+		foreach($_SERVER as $k => $v) {
+			if('HTTP_' == substr($k, 0, 5)) {
+				$headers[DevblocksPlatform::strLower(substr($k, 5))] = $v;
+			}
+		}
+		
+		return $headers;
+	}
+	
+	static function getHttpParams() {
+		$params = [];
+		
+		foreach($_GET as $k => $v) {
+			$params[DevblocksPlatform::strLower(DevblocksPlatform::strAlphaNum(str_replace('-', '_', $k), '_', ''))] = $v;
+		}
+		foreach($_POST as $k => $v) {
+			$params[DevblocksPlatform::strLower(DevblocksPlatform::strAlphaNum(str_replace('-', '_', $k), '_', ''))] = $v;
+		}
+		
+		return $params;
+	}
+	
+	static function getHttpBody() {
+		$contents = "";
+		
+		$body_data = fopen("php://input" , "rb");
+		while(!feof($body_data))
+			$contents .= fread($body_data, 4096);
+		fclose($body_data);
+		
+		return $contents;
+	}
+	
+	static function isStateless() {
+		return self::$is_stateless;
+	}
+	
+	static function setStateless($bool) {
+		self::$is_stateless = $bool;
 	}
 
 	/**
@@ -2870,7 +3304,7 @@ class DevblocksPlatform extends DevblocksEngine {
 		
 		// Enable the second-level cache
 		
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		
 		if(false != ($cacher_extension_id = DevblocksPlatform::getPluginSetting('devblocks.core', 'cacher.extension_id', null))) {
 			$cacher_params = DevblocksPlatform::getPluginSetting('devblocks.core', 'cacher.params_json', array(), true);
@@ -2894,7 +3328,7 @@ class DevblocksPlatform extends DevblocksEngine {
 		}
 		
 		// Persist the registry
-		$registry = DevblocksPlatform::getRegistryService();
+		$registry = DevblocksPlatform::services()->registry();
 		$registry->save();
 	}
 
@@ -2908,7 +3342,7 @@ class DevblocksPlatform extends DevblocksEngine {
 	}
 	
 	static function redirect(DevblocksHttpIO $httpIO, $wait_secs=0) {
-		$url_service = self::getUrlService();
+		$url_service = DevblocksPlatform::services()->url();
 		session_write_close();
 		$url = $url_service->writeDevblocksHttpIO($httpIO, true);
 		header('Location: '.$url);
@@ -2921,7 +3355,7 @@ class DevblocksPlatform extends DevblocksEngine {
 	
 	static function redirectURL($url, $wait_secs=0) {
 		if(empty($url)) {
-			$url_service = self::getUrlService();
+			$url_service = DevblocksPlatform::services()->url();
 			$url = $url_service->writeNoProxy('', true);
 		}
 		session_write_close();
@@ -2937,28 +3371,16 @@ class DevblocksPlatform extends DevblocksEngine {
 		
 		if(php_sapi_name() != 'cli')
 		switch($status_code) {
-			case 403:
-				header('Status: 403 Forbidden');
-				break;
-				
-			case 404:
-				header('Status: 404 Not Found');
-				break;
-				
-			case 500:
-				header('Status: 500 Internal Server Error');
-				break;
-				
-			case 501:
-				header('Status: 501 Not Implemented');
-				break;
-				
-			case 503:
-				header('Status: 503 Service Unavailable');
+			case 403: // Forbidden
+			case 404: // Not found
+			case 500: // Internal server error
+			case 501: // Not implemented
+			case 503: // Service unavailable
+				http_response_code($status_code);
 				break;
 				
 			default:
-				header('Status: ' . intval($status_code));
+				http_response_code($status_code);
 				break;
 		}
 		

@@ -7,14 +7,16 @@
 	</div>
 	
 	<div style="float:left;">
-		<h1 style="color:inherit;">
+		<h1>
 			{$group->name}
 		</h1>
 		
 		<div style="margin-top:5px;">
-			{if $active_worker->is_superuser || $active_worker->isGroupManager($group->id)}<button type="button" class="cerb-peek-edit" data-context="{$peek_context}" data-context-id="{$group->id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span> {'common.edit'|devblocks_translate|capitalize}</button>{/if}
+			{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.tpl"}
+		
 			{if $group}<button type="button" class="cerb-peek-profile"><span class="glyphicons glyphicons-nameplate"></span> {'common.profile'|devblocks_translate|capitalize}</button>{/if}
-			<button type="button" class="cerb-peek-comments-add" data-context="{CerberusContexts::CONTEXT_COMMENT}" data-context-id="0" data-edit="context:{$peek_context} context.id:{$group->id}"><span class="glyphicons glyphicons-conversation"></span> {'common.comment'|devblocks_translate|capitalize}</button>
+			{if $active_worker->hasPriv("contexts.{$peek_context}.update") && ($active_worker->is_superuser || $active_worker->isGroupManager($group->id))}<button type="button" class="cerb-peek-edit" data-context="{$peek_context}" data-context-id="{$group->id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span> {'common.edit'|devblocks_translate|capitalize}</button>{/if}
+			{if $active_worker->hasPriv("contexts.{$peek_context}.comment")}<button type="button" class="cerb-peek-comments-add" data-context="{CerberusContexts::CONTEXT_COMMENT}" data-context-id="0" data-edit="context:{$peek_context} context.id:{$group->id}"><span class="glyphicons glyphicons-conversation"></span> {'common.comment'|devblocks_translate|capitalize}</button>{/if}
 		</div>
 	</div>
 </div>
@@ -78,6 +80,7 @@ $(function() {
 
 	$popup.one('popup_open',function(event,ui) {
 		$popup.dialog('option','title', "{'common.group'|devblocks_translate|capitalize|escape:'javascript' nofilter}");
+		$popup.css('overflow', 'inherit');
 		
 		// Properties grid
 		$popup.find('div.cerb-properties-grid').cerbPropertyGrid();
@@ -101,6 +104,11 @@ $(function() {
 			})
 			;
 		
+		// Peeks
+		$popup.find('.cerb-peek-trigger')
+			.cerbPeekTrigger()
+			;
+		
 		// Searches
 		$popup.find('button.cerb-search-trigger')
 			.cerbSearchTrigger()
@@ -115,6 +123,10 @@ $(function() {
 				document.location='{devblocks_url}c=profiles&type=group&id={$group->id}-{$group->name|devblocks_permalink}{/devblocks_url}';
 			}
 		});
+		
+		// Interactions
+		var $interaction_container = $popup;
+		{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.js.tpl"}
 		
 		// Timeline
 		{include file="devblocks:cerberusweb.core::internal/peek/card_timeline_script.tpl"}

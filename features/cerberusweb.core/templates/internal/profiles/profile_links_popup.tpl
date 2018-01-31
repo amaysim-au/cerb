@@ -52,8 +52,8 @@ $(function() {
 					}
 					
 					var options = { };
-					options.async = false;	
 					options.type = 'POST';
+					options.async = false;
 					options.data = $data.join('&');
 					options.url = DevblocksAppPath+'ajax.php',
 					options.cache = false;

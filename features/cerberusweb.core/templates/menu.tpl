@@ -30,13 +30,12 @@
 
 	<li class="tour-navmenu-search{if $page->id=='core.page.search'} selected{/if}" style="float:right;">
 		<a href="javascript:;" class="submenu"><span class="glyphicons glyphicons-search"></span> <span class="glyphicons glyphicons-chevron-down" style="{if $page->id=='core.page.search'}color:white;{else}{/if}"></span></a>
-		<ul class="cerb-popupmenu cerb-float" style="margin-top:-2px;">
+		<ul class="cerb-popupmenu cerb-float" style="min-width:80%;margin-top:-2px;column-width:175px;column-count:auto;column-gap:10px;">
 			{foreach from=$search_menu item=label key=context_id}
 				<li><a href="javascript:;" data-context="{$context_id}">{$label|capitalize}</a></li>
 			{/foreach}
 		</ul>
 	</li>
-
 </ul>
 <div style="clear:both;background-color:rgb(100,135,225);height:5px;"></div>
 
@@ -93,9 +92,7 @@ $(function() {
 				$menu = $(this).find('ul:first');
 				$menu
 					.show()
-					.css('position','absolute')
-					.css('top',$(this).offset().top+7+($(this).height())+'px')
-					.css('left',$(this).offset().left+10-($menu.width()-$(this).width())+'px')
+					.position({ my: "right top", at: "right bottom", of: $(this), collision: "fit" })
 				;
 			},
 			timeout:500,
@@ -107,9 +104,7 @@ $(function() {
 			$menu = $(this).find('ul:first');
 			$menu
 				.show()
-				.css('position','absolute')
-				.css('top',$(this).offset().top+7+($(this).height())+'px')
-				.css('left',$(this).offset().left+10-($menu.width()-$(this).width())+'px')
+				.position({ my: "right top", at: "right bottom", of: $(this), collision: "fit" })
 			;
 			$menu.find('li:first a')
 				.focus()

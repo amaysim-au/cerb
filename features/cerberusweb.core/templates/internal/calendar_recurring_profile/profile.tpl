@@ -2,33 +2,30 @@
 {$page_context_id = $calendar_recurring_profile->id}
 {$is_writeable = Context_CalendarRecurringProfile::isWriteableByActor($calendar_recurring_profile, $active_worker)}
 
-<div style="float:left">
+<div>
 	<h1>{$calendar_recurring_profile->event_name}</h1>
 </div>
 
-<div style="float:right;">
-{$ctx = Extension_DevblocksContext::get($page_context)}
-{include file="devblocks:cerberusweb.core::search/quick_search.tpl" view=$ctx->getSearchView() return_url="{devblocks_url}c=search&context={$ctx->manifest->params.alias}{/devblocks_url}"}
-</div>
-
-<div style="clear:both;"></div>
-
 <div class="cerb-profile-toolbar">
 	<form class="toolbar" action="{devblocks_url}{/devblocks_url}" onsubmit="return false;" style="margin-bottom:5px;">
-		<!-- Toolbar -->
+		<span id="spanInteractions">
+		{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.tpl"}
+		</span>
+	
+		<!-- Card -->
+		<button type="button" id="btnProfileCard" title="{'common.card'|devblocks_translate|capitalize}" data-context="{$page_context}" data-context-id="{$page_context_id}"><span class="glyphicons glyphicons-nameplate"></span></button>
+
+		<!-- Edit -->
+		{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
+		<button type="button" id="btnDisplayCalendarRecurringProfileEdit" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_CALENDAR_EVENT_RECURRING}" data-context-id="{$page_context_id}" data-edit="true" title="{'common.edit'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-cogwheel"></span></button>
+		{/if}
 		
 		<span>
 		{$object_watchers = DAO_ContextLink::getContextLinks($page_context, array($page_context_id), CerberusContexts::CONTEXT_WORKER)}
 		{include file="devblocks:cerberusweb.core::internal/watchers/context_follow_button.tpl" context=$page_context context_id=$page_context_id full=true}
 		</span>
 		
-		<!-- Macros -->
-		{devblocks_url assign=return_url full=true}c=profiles&type=calendar_recurring_profile&id={$page_context_id}-{$calendar_recurring_profile->event_name|devblocks_permalink}{/devblocks_url}
-		{include file="devblocks:cerberusweb.core::internal/macros/display/button.tpl" context=$page_context context_id=$page_context_id macros=$macros return_url=$return_url}
-		
-		<!-- Edit -->
-		{if $is_writeable}
-		<button type="button" id="btnDisplayCalendarRecurringProfileEdit" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_CALENDAR_EVENT_RECURRING}" data-context-id="{$page_context_id}" data-edit="true" title="{'common.edit'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-cogwheel"></span></button>
+		{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.comment")}
 		<button type="button" id="btnProfileAddComment" data-context="{CerberusContexts::CONTEXT_COMMENT}" data-context-id="0" data-edit="context:{$page_context} context.id:{$page_context_id}"><span class="glyphicons glyphicons-conversation"></span> {'common.comment'|devblocks_translate|capitalize}</button>
 		{/if}
 	</form>
@@ -37,7 +34,7 @@
 		<small>
 		{'common.keyboard'|devblocks_translate|lower}:
 		(<b>e</b>) {'common.edit'|devblocks_translate|lower}
-		{if !empty($macros)}(<b>m</b>) {'common.macros'|devblocks_translate|lower} {/if}
+		(<b>i</b>) {'common.interactions'|devblocks_translate|lower}
 		(<b>1-9</b>) change tab
 		</small>
 	{/if}
@@ -100,8 +97,17 @@ $(function() {
 	
 	var tabs = $("#calendar_recurring_profileTabs").tabs(tabOptions);
 	
+	// Card
+	$('#btnProfileCard')
+		.cerbPeekTrigger()
+	;
+	
+	// Interactions
+	var $interaction_container = $('#spanInteractions');
+	{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.js.tpl"}
+	
 	// Edit
-	{if $is_writeable}
+	{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
 	$('#btnDisplayCalendarRecurringProfileEdit')
 		.cerbPeekTrigger()
 		.on('cerb-peek-opened', function(e) {
@@ -126,8 +132,6 @@ $(function() {
 		})
 		;
 	{/if}
-
-	{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_button=null selector_menu=null}
 });
 </script>
 
@@ -163,6 +167,11 @@ $(function() {
 			case 101:  // (E) edit
 				try {
 					$('#btnDisplayCalendarRecurringProfileEdit').click();
+				} catch(ex) { }
+				break;
+			case 105:  // (I) interactions
+				try {
+					$('#spanInteractions > button').click();
 				} catch(ex) { }
 				break;
 			case 109:  // (M) macros

@@ -54,7 +54,7 @@ class Page_Custom extends CerberusPageExtension {
 		$inst = DevblocksPlatform::getExtension($extension_id, true);
 		
 		if($inst instanceof Extension_WorkspaceTab && method_exists($inst, $action.'Action')) {
-			$tpl = DevblocksPlatform::getTemplateService();
+			$tpl = DevblocksPlatform::services()->template();
 			$tpl->assign('tab', $tab);
 			$tpl->assign('tab_extension', $inst);
 			
@@ -91,7 +91,7 @@ class Page_Custom extends CerberusPageExtension {
 	}
 	
 	private function _renderIndex() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		$pages = DAO_WorkspacePage::getAll();
@@ -124,7 +124,7 @@ class Page_Custom extends CerberusPageExtension {
 	}
 	
 	private function _renderPage($page_id) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		if(null == ($page = DAO_WorkspacePage::get($page_id)))
@@ -150,7 +150,7 @@ class Page_Custom extends CerberusPageExtension {
 	function showPageWizardPopupAction() {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string',null);
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		$tpl->assign('view_id', $view_id);
 		
@@ -163,26 +163,39 @@ class Page_Custom extends CerberusPageExtension {
 		@$page_type = DevblocksPlatform::importGPC($_REQUEST['page_type'],'string',null);
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$page_id = null;
 
 		switch($page_type) {
 			case 'mail':
-				$page_id = $this->_createWizardMailPage();
+				$page = $this->_createWizardMailPage();
 				break;
 				
 			case 'kb':
-				$page_id = $this->_createWizardKbPage();
+				$page = $this->_createWizardKbPage();
 				break;
 				
 			case 'reports':
-				$page_id = $this->_createWizardReportsPage();
+				$page = $this->_createWizardReportsPage();
+				break;
+				
+			default:
+				$page = null;
 				break;
 		}
 		
-		// Add to the current worker's menu pref
-		if(!empty($page_id)) {
+		if($page && is_array($page)) {
+			// Add to marquee
+			$url_writer = DevblocksPlatform::services()->url();
+			C4_AbstractView::setMarquee($view_id, sprintf("New page created: <a href='%s'><b>%s</b></a>",
+				$url_writer->write(sprintf("c=pages&a=%d-%s",
+					$page['id'],
+					DevblocksPlatform::strToPermalink($page['label']))
+				),
+				htmlspecialchars($page['label'], ENT_QUOTES, LANG_CHARSET_CODE)
+			));
+			
+			// Add to menu
 			$menu_json = json_decode(DAO_WorkerPref::get($active_worker->id, 'menu_json'), true);
-			$menu_json[] = $page_id;
+			$menu_json[] = $page['id'];
 			DAO_WorkerPref::set($active_worker->id, 'menu_json', json_encode($menu_json));
 		}
 	}
@@ -193,41 +206,22 @@ class Page_Custom extends CerberusPageExtension {
 		if(!DevblocksPlatform::isPluginEnabled('cerberusweb.kb'))
 			return;
 		
-		$view_id = 'pages';
-		$page_name = 'Knowledgebase';
+		// Import as a package
 		
-		$page_id = DAO_WorkspacePage::create(array(
-			DAO_WorkspacePage::NAME => $page_name,
-			DAO_WorkspacePage::EXTENSION_ID => 'core.workspace.page.workspace',
-			DAO_WorkspacePage::OWNER_CONTEXT => CerberusContexts::CONTEXT_WORKER,
-			DAO_WorkspacePage::OWNER_CONTEXT_ID => $active_worker->id,
-		));
+		if(false == ($package_json = file_get_contents(APP_PATH . '/features/cerberusweb.core/packages/wizard_kb_page_package.json')))
+			return false;
 		
-		$pos = 0;
+		$records_created = [];
 		
-		// Knowledgebase browser
+		$prompts = [
+			'target_worker_id' => $active_worker->id,
+		];
 		
-		$tab_id = DAO_WorkspaceTab::create(array(
-			DAO_WorkspaceTab::NAME => 'Topics',
-			DAO_WorkspaceTab::EXTENSION_ID => 'cerberusweb.kb.tab.browse',
-			DAO_WorkspaceTab::POS => $pos++,
-			DAO_WorkspaceTab::WORKSPACE_PAGE_ID => $page_id,
-		));
+		CerberusApplication::packages()->import($package_json, $prompts, $records_created);
 		
-		// Marquee
+		@$page = $records_created[CerberusContexts::CONTEXT_WORKSPACE_PAGE]['workspace_kb'];
 		
-		if(!empty($page_id) && !empty($view_id)) {
-			$url_writer = DevblocksPlatform::getUrlService();
-			C4_AbstractView::setMarquee($view_id, sprintf("New page created: <a href='%s'><b>%s</b></a>",
-				$url_writer->write(sprintf("c=pages&a=%d-%s",
-					$page_id,
-					DevblocksPlatform::strToPermalink($page_name))
-				),
-				htmlspecialchars($page_name, ENT_QUOTES, LANG_CHARSET_CODE)
-			));
-		}
-		
-		return $page_id;
+		return $page;
 	}
 	
 	private function _createWizardReportsPage() {
@@ -236,222 +230,43 @@ class Page_Custom extends CerberusPageExtension {
 		if(!DevblocksPlatform::isPluginEnabled('cerberusweb.reports'))
 			return;
 		
-		$view_id = 'pages';
-		$page_name = 'Reports';
+		// Import as a package
 		
-		// Reports page
+		if(false == ($package_json = file_get_contents(APP_PATH . '/features/cerberusweb.core/packages/wizard_reports_page_package.json')))
+			return false;
 		
-		$page_id = DAO_WorkspacePage::create(array(
-			DAO_WorkspacePage::NAME => $page_name,
-			DAO_WorkspacePage::EXTENSION_ID => 'reports.workspace.page',
-			DAO_WorkspacePage::OWNER_CONTEXT => CerberusContexts::CONTEXT_WORKER,
-			DAO_WorkspacePage::OWNER_CONTEXT_ID => $active_worker->id,
-		));
+		$records_created = [];
 		
-		// Marquee
+		$prompts = [
+			'target_worker_id' => $active_worker->id,
+		];
 		
-		if(!empty($page_id) && !empty($view_id)) {
-			$url_writer = DevblocksPlatform::getUrlService();
-			C4_AbstractView::setMarquee($view_id, sprintf("New page created: <a href='%s'><b>%s</b></a>",
-				$url_writer->write(sprintf("c=pages&a=%d-%s",
-					$page_id,
-					DevblocksPlatform::strToPermalink($page_name))
-				),
-				htmlspecialchars($page_name, ENT_QUOTES, LANG_CHARSET_CODE)
-			));
-		}
+		CerberusApplication::packages()->import($package_json, $prompts, $records_created);
 		
-		return $page_id;
+		@$page = $records_created[CerberusContexts::CONTEXT_WORKSPACE_PAGE]['workspace_reports'];
+		
+		return $page;
 	}
 	
 	private function _createWizardMailPage() {
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$view_id = 'pages';
-		$page_name = 'Mail';
+		// Import as a package
 		
-		$page_id = DAO_WorkspacePage::create(array(
-			DAO_WorkspacePage::NAME => $page_name,
-			DAO_WorkspacePage::EXTENSION_ID => 'core.workspace.page.workspace',
-			DAO_WorkspacePage::OWNER_CONTEXT => CerberusContexts::CONTEXT_WORKER,
-			DAO_WorkspacePage::OWNER_CONTEXT_ID => $active_worker->id,
-		));
+		if(false == ($package_json = file_get_contents(APP_PATH . '/features/cerberusweb.core/packages/wizard_mail_page_package.json')))
+			return false;
 		
-		$pos = 0;
+		$records_created = [];
 		
-		// Workflow
+		$prompts = [
+			'target_worker_id' => $active_worker->id,
+		];
 		
-		$tab_id = DAO_WorkspaceTab::create(array(
-			DAO_WorkspaceTab::NAME => 'Inbox',
-			DAO_WorkspaceTab::EXTENSION_ID => 'core.workspace.tab.worklists',
-			DAO_WorkspaceTab::POS => $pos++,
-			DAO_WorkspaceTab::WORKSPACE_PAGE_ID => $page_id,
-		));
+		CerberusApplication::packages()->import($package_json, $prompts, $records_created);
 		
-		$list_pos = 0;
-
-		// Workflow: Open conversations
+		@$page = $records_created[CerberusContexts::CONTEXT_WORKSPACE_PAGE]['workspace_mail'];
 		
-			// [TODO] Recommended
-		
-			$context = CerberusContexts::CONTEXT_TICKET;
-			$context_ext = Extension_DevblocksContext::get($context);
-			$view = $context_ext->getChooserView(); /* @var $view C4_AbstractView */
-			
-			$view->name = 'Needs attention';
-			$view->renderLimit = 10;
-			$view->view_columns = array(
-				SearchFields_Ticket::BUCKET_RESPONSIBILITY,
-				SearchFields_Ticket::TICKET_LAST_WROTE_ID,
-				SearchFields_Ticket::TICKET_UPDATED_DATE,
-				SearchFields_Ticket::TICKET_GROUP_ID,
-				SearchFields_Ticket::TICKET_BUCKET_ID,
-				SearchFields_Ticket::TICKET_OWNER_ID,
-			);
-			$view->options = array('disable_watchers' => true);
-			$view->renderSortBy = SearchFields_Ticket::BUCKET_RESPONSIBILITY;
-			$view->renderSortAsc = 0;
-			$view->renderSubtotals = SearchFields_Ticket::TICKET_GROUP_ID;
-			$view->addParams(array(
-			), true);
-			$view->addParamsRequired(array(
-				new DevblocksSearchCriteria(SearchFields_Ticket::VIRTUAL_GROUPS_OF_WORKER, '=', '{{current_worker_id}}'),
-				new DevblocksSearchCriteria(SearchFields_Ticket::VIRTUAL_STATUS, 'in', array('open')),
-			), true);
-			
-			$view_model = C4_AbstractViewLoader::serializeAbstractView($view);
-			
-			$list_view = new Model_WorkspaceListView();
-			$list_view->title = $view_model->name;
-			$list_view->options = $view_model->options;
-			$list_view->columns = $view_model->view_columns;
-			$list_view->num_rows = $view_model->renderLimit;
-			$list_view->params = $view_model->paramsEditable;
-			$list_view->params_required = $view_model->paramsRequired;
-			$list_view->sort_by = $view_model->renderSortBy;
-			$list_view->sort_asc = $view_model->renderSortAsc;
-			$list_view->subtotals = $view_model->renderSubtotals;
-			
-			$list_id = DAO_WorkspaceList::create(array(
-				DAO_WorkspaceList::CONTEXT => $context,
-				DAO_WorkspaceList::LIST_POS => $list_pos++,
-				DAO_WorkspaceList::LIST_VIEW => serialize($list_view),
-				DAO_WorkspaceList::WORKSPACE_TAB_ID => $tab_id,
-			));
-			
-		// Sent
-		
-		$tab_id = DAO_WorkspaceTab::create(array(
-			DAO_WorkspaceTab::NAME => 'Sent',
-			DAO_WorkspaceTab::EXTENSION_ID => 'core.workspace.tab.worklists',
-			DAO_WorkspaceTab::POS => $pos++,
-			DAO_WorkspaceTab::WORKSPACE_PAGE_ID => $page_id,
-		));
-		
-		// Sent: my sent messages
-		
-			$context = CerberusContexts::CONTEXT_MESSAGE;
-			$context_ext = Extension_DevblocksContext::get($context);
-			$view = $context_ext->getChooserView(); /* @var $view C4_AbstractView */
-			
-			$view->name = 'My sent messages';
-			$view->renderLimit = 10;
-			$view->view_columns = array(
-				SearchFields_Message::ADDRESS_EMAIL,
-				SearchFields_Message::TICKET_GROUP_ID,
-				SearchFields_Message::CREATED_DATE,
-				SearchFields_Message::WORKER_ID,
-			);
-			$view->addParams(array(
-			), true);
-			$view->addParamsRequired(array(
-				new DevblocksSearchCriteria(SearchFields_Message::WORKER_ID, 'in', array('{{current_worker_id}}')),
-				new DevblocksSearchCriteria(SearchFields_Message::IS_OUTGOING, '=', 1),
-			), true);
-			
-			$view_model = C4_AbstractViewLoader::serializeAbstractView($view);
-			
-			$list_view = new Model_WorkspaceListView();
-			$list_view->title = $view_model->name;
-			$list_view->options = $view_model->options;
-			$list_view->columns = $view_model->view_columns;
-			$list_view->num_rows = $view_model->renderLimit;
-			$list_view->params = $view_model->paramsEditable;
-			$list_view->params_required = $view_model->paramsRequired;
-			$list_view->sort_by = $view_model->renderSortBy;
-			$list_view->sort_asc = $view_model->renderSortAsc;
-			$list_view->subtotals = $view_model->renderSubtotals;
-			
-			$list_id = DAO_WorkspaceList::create(array(
-				DAO_WorkspaceList::CONTEXT => $context,
-				DAO_WorkspaceList::LIST_POS => $list_pos++,
-				DAO_WorkspaceList::LIST_VIEW => serialize($list_view),
-				DAO_WorkspaceList::WORKSPACE_TAB_ID => $tab_id,
-			));	
-
-		// Drafts
-		
-		$tab_id = DAO_WorkspaceTab::create(array(
-			DAO_WorkspaceTab::NAME => 'Drafts',
-			DAO_WorkspaceTab::EXTENSION_ID => 'core.workspace.tab.worklists',
-			DAO_WorkspaceTab::POS => $pos++,
-			DAO_WorkspaceTab::WORKSPACE_PAGE_ID => $page_id,
-		));
-		
-		// Drafts: My drafts
-		
-			$context = CerberusContexts::CONTEXT_DRAFT;
-			$context_ext = Extension_DevblocksContext::get($context);
-			$view = $context_ext->getChooserView(); /* @var $view C4_AbstractView */
-			
-			$view->name = 'My drafts';
-			$view->renderLimit = 10;
-			$view->view_columns = array(
-				SearchFields_MailQueue::HINT_TO,
-				SearchFields_MailQueue::WORKER_ID,
-				SearchFields_MailQueue::TYPE,
-				SearchFields_MailQueue::UPDATED,
-			);
-			$view->addParams(array(
-			), true);
-			$view->addParamsRequired(array(
-				new DevblocksSearchCriteria(SearchFields_MailQueue::WORKER_ID, 'in', array('{{current_worker_id}}')),
-			), true);
-			
-			$view_model = C4_AbstractViewLoader::serializeAbstractView($view);
-			
-			$list_view = new Model_WorkspaceListView();
-			$list_view->title = $view_model->name;
-			$list_view->options = $view_model->options;
-			$list_view->columns = $view_model->view_columns;
-			$list_view->num_rows = $view_model->renderLimit;
-			$list_view->params = $view_model->paramsEditable;
-			$list_view->params_required = $view_model->paramsRequired;
-			$list_view->sort_by = $view_model->renderSortBy;
-			$list_view->sort_asc = $view_model->renderSortAsc;
-			$list_view->subtotals = $view_model->renderSubtotals;
-			
-			$list_id = DAO_WorkspaceList::create(array(
-				DAO_WorkspaceList::CONTEXT => $context,
-				DAO_WorkspaceList::LIST_POS => $list_pos++,
-				DAO_WorkspaceList::LIST_VIEW => serialize($list_view),
-				DAO_WorkspaceList::WORKSPACE_TAB_ID => $tab_id,
-			));
-		
-		// Marquee
-		
-		if(!empty($page_id) && !empty($view_id)) {
-			$url_writer = DevblocksPlatform::getUrlService();
-			C4_AbstractView::setMarquee($view_id, sprintf("New page created: <a href='%s'><b>%s</b></a>",
-				$url_writer->write(sprintf("c=pages&a=%d-%s",
-					$page_id,
-					DevblocksPlatform::strToPermalink($page_name))
-				),
-				htmlspecialchars($page_name, ENT_QUOTES, LANG_CHARSET_CODE)
-			));
-		}
-		
-		return $page_id;
+		return $page;
 	}
 	
 	function setPageOrderAction() {
@@ -499,7 +314,7 @@ class Page_Custom extends CerberusPageExtension {
 	function showAddTabsAction() {
 		@$page_id = DevblocksPlatform::importGPC($_REQUEST['page_id'],'integer','0');
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		if(null == ($page = DAO_WorkspacePage::get($page_id)))
@@ -577,7 +392,7 @@ class Page_Custom extends CerberusPageExtension {
 		@$import_json = DevblocksPlatform::importGPC($_REQUEST['import_json'], 'string', null);
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 
 		header('Content-type: application/json');
 		
@@ -667,7 +482,7 @@ class Page_Custom extends CerberusPageExtension {
 		@$point = DevblocksPlatform::importGPC($_REQUEST['point'],'string', '');
 		@$request = DevblocksPlatform::importGPC($_REQUEST['request'],'string', '');
 
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$active_worker = CerberusApplication::getActiveWorker();
 
 		if(null == ($tab = DAO_WorkspaceTab::get($tab_id)))
@@ -696,7 +511,7 @@ class Page_Custom extends CerberusPageExtension {
 		if(null == ($list = DAO_WorkspaceList::get($list_id)))
 			return;
 			
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$active_worker = CerberusApplication::getActiveWorker();
 	
 		if(null == ($tab = DAO_WorkspaceTab::get($list->workspace_tab_id)))
@@ -710,7 +525,7 @@ class Page_Custom extends CerberusPageExtension {
 		$view_id = 'cust_' . $list->id;
 	
 		// Make sure our workspace source has a valid renderer class
-		if(null == ($ext = DevblocksPlatform::getExtension($list->context, true))) { /* @var $ext Extension_DevblocksContext */
+		if(null == ($ext = Extension_DevblocksContext::get($list->context))) {
 			return;
 		}
 		
@@ -764,7 +579,7 @@ class Page_Custom extends CerberusPageExtension {
 		@$id = DevblocksPlatform::importGPC($_REQUEST['id'],'integer', 0);
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string', '');
 	
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$active_worker = CerberusApplication::getActiveWorker();
 	
 		$tpl->assign('view_id', $view_id);
@@ -822,6 +637,10 @@ class Page_Custom extends CerberusPageExtension {
 		}
 	
 		if(!empty($workspace_page_id) && $do_delete) { // Delete
+			if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_WORKSPACE_PAGE)))
+				return;
+				//throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
+			
 			DAO_WorkspacePage::delete($workspace_page_id);
 	
 		} else { // Create/Edit
@@ -843,7 +662,7 @@ class Page_Custom extends CerberusPageExtension {
 					$owner_context = null;
 			}
 			
-			if(!CerberusContexts::isWriteableByActor($owner_context, $owner_context_id, $active_worker)) {
+			if(!CerberusContexts::isOwnableBy($owner_context, $owner_context_id, $active_worker)) {
 				$owner_context = null;
 				$owner_context_id = null;
 			}
@@ -856,12 +675,19 @@ class Page_Custom extends CerberusPageExtension {
 			if(empty($workspace_page_id)) {
 				// Extension
 				$fields[DAO_WorkspacePage::EXTENSION_ID] = $extension_id;
+				
+				if(!DAO_WorkspacePage::validate($fields, $error, null))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
+				if(!DAO_WorkspacePage::onBeforeUpdateByActor($active_worker, $fields, null, $error))
+					throw new Exception_DevblocksAjaxValidationError($error);
 	
 				$workspace_page_id = DAO_WorkspacePage::create($fields);
+				DAO_WorkspacePage::onUpdateByActor($active_worker, $fields, $workspace_page_id);
 	
 				// View marquee
 				if(!empty($workspace_page_id) && !empty($view_id)) {
-					$url_writer = DevblocksPlatform::getUrlService();
+					$url_writer = DevblocksPlatform::services()->url();
 					C4_AbstractView::setMarquee($view_id, sprintf("New page created: <a href='%s'><b>%s</b></a>",
 						$url_writer->write(sprintf("c=pages&a=%d-%s",
 							$workspace_page_id,
@@ -872,8 +698,14 @@ class Page_Custom extends CerberusPageExtension {
 				}
 				
 			} else {
+				if(!DAO_WorkspacePage::validate($fields, $error, $workspace_page_id))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
+				if(!DAO_WorkspacePage::onBeforeUpdateByActor($active_worker, $fields, $workspace_page_id, $error))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
 				DAO_WorkspacePage::update($workspace_page_id, $fields);
-	
+				DAO_WorkspacePage::onUpdateByActor($active_worker, $fields, $workspace_page_id);
 			}
 		}
 	}
@@ -883,6 +715,8 @@ class Page_Custom extends CerberusPageExtension {
 		@$owner = DevblocksPlatform::importGPC($_REQUEST['owner'],'string', '');
 		
 		header('Content-Type: application/json');
+		
+		$active_worker = CerberusApplication::getActiveWorker();
 		
 		// [TODO] Allow configurable imports
 		
@@ -916,8 +750,7 @@ class Page_Custom extends CerberusPageExtension {
 					break;
 			}
 			
-			// [TODO] Check $active_worker access to this context
-			if(!CerberusContexts::isWriteableByActor($owner_context, $owner_context_id, $active_worker))
+			if(!CerberusContexts::isOwnableBy($owner_context, $owner_context_id, $active_worker))
 				throw new Exception();
 			
 			if(empty($owner_context))
@@ -938,7 +771,7 @@ class Page_Custom extends CerberusPageExtension {
 			if(false == $page_extension->importPageConfigJson($json, $page))
 				throw new Exception();
 			
-			$url_writer = DevblocksPlatform::getUrlService();
+			$url_writer = DevblocksPlatform::services()->url();
 			
 			echo json_encode(array(
 				'page_id' => $page->id,
@@ -955,7 +788,7 @@ class Page_Custom extends CerberusPageExtension {
 	function showEditWorkspaceTabAction() {
 		@$id = DevblocksPlatform::importGPC($_REQUEST['id'],'integer', 0);
 	
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$active_worker = CerberusApplication::getActiveWorker();
 	
 		if(empty($id))
@@ -1050,7 +883,7 @@ class Page_Custom extends CerberusPageExtension {
 		@$page_id = DevblocksPlatform::importGPC($_REQUEST['id'], 'integer', 0);
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		if(null == ($page = DAO_WorkspacePage::get($page_id)))
 			return;
@@ -1072,7 +905,7 @@ class Page_Custom extends CerberusPageExtension {
 		@$tab_id = DevblocksPlatform::importGPC($_REQUEST['id'], 'integer', 0);
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		if(null == ($tab = DAO_WorkspaceTab::get($tab_id)))
 			return;

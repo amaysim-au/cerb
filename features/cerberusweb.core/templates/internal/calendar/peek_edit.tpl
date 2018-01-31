@@ -1,3 +1,4 @@
+{$peek_context = CerberusContexts::CONTEXT_CALENDAR}
 {$form_id = "frmCalendarPeek{uniqid()}"}
 <form action="{devblocks_url}{/devblocks_url}" method="post" id="{$form_id}">
 <input type="hidden" name="c" value="profiles">
@@ -34,7 +35,7 @@
 </fieldset>
 {/if}
 
-{include file="devblocks:cerberusweb.core::internal/custom_fieldsets/peek_custom_fieldsets.tpl" context=CerberusContexts::CONTEXT_CALENDAR context_id=$model->id}
+{include file="devblocks:cerberusweb.core::internal/custom_fieldsets/peek_custom_fieldsets.tpl" context=$peek_context context_id=$model->id}
 
 {* Datasources *}
 
@@ -67,15 +68,15 @@
 	<legend>Created Events</legend>
 	
 	<b>Available</b> events are 
-	<input type="hidden" name="params[color_available]" value="{$model->params.color_available|default:'#A0D95B'}" style="width:100%;" class="color-picker">
+	<input type="text" name="params[color_available]" value="{$model->params.color_available|default:'#A0D95B'}" style="width:100%;" class="color-picker">
 	<br>
 	
 	<b>Busy</b> events are 
-	<input type="hidden" name="params[color_busy]" value="{$model->params.color_busy|default:'C8C8C8'}" style="width:100%;" class="color-picker">
+	<input type="text" name="params[color_busy]" value="{$model->params.color_busy|default:'C8C8C8'}" style="width:100%;" class="color-picker">
 	<br>
 </fieldset>
 
-{section start=0 loop=3 name=series}
+{section start=0 loop=5 name=series}
 {$series_idx = $smarty.section.series.index}
 {$series_prefix = "[series][{$series_idx}]"}
 
@@ -119,7 +120,7 @@
 
 <div class="buttons">
 	<button type="button" class="submit"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate|capitalize}</button>
-	{if !empty($model->id)}<button type="button" onclick="$(this).parent().siblings('fieldset.delete').fadeIn();$(this).closest('div').fadeOut();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
+	{if !empty($model->id) && $active_worker->hasPriv("contexts.{$peek_context}.delete")}<button type="button" onclick="$(this).parent().siblings('fieldset.delete').fadeIn();$(this).closest('div').fadeOut();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
 </div>
 
 </form>
@@ -130,6 +131,7 @@ $(function() {
 	
 	$popup.one('popup_open', function(event,ui) {
 		$popup.dialog('option','title',"{'common.calendar'|devblocks_translate|capitalize|escape:'javascript'}");
+		$popup.css('overflow', 'inherit');
 		
 		// Buttons
 		
@@ -176,8 +178,8 @@ $(function() {
 		
 		// Options
 		
-		$popup.find('fieldset.calendar-events input:hidden.color-picker').miniColors({
-			color_favorites: ['#A0D95B','#FEAF03','#FCB3B3','#FF6666','#C5DCFA','#85BAFF','#E8F554','#F4A3FE','#C8C8C8']
+		$popup.find('fieldset.calendar-events input:text.color-picker').minicolors({
+			swatches: ['#A0D95B','#FEAF03','#FCB3B3','#FF6666','#C5DCFA','#85BAFF','#E8F554','#F4A3FE','#C8C8C8']
 		});
 		
 		$popup.find('select.datasource-selector').change(function(e) {
@@ -207,6 +209,8 @@ $(function() {
 				$params.fadeOut();
 			}
 		});
+		
+		$popup.find('input:text[name=name]').focus();
 	});
 });
 </script>

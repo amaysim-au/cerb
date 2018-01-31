@@ -4,14 +4,14 @@
 
 <div id="{$div_id}">
 	<div style="float:left;">
-		<h1 style="color:inherit;">
+		<h1>
 			{$dict->_label}
 		</h1>
 		
 		<div style="margin-top:5px;">
-			{if $is_writeable}
-			<button type="button" class="cerb-peek-edit" data-context="{$peek_context}" data-context-id="{$dict->id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span> {'common.edit'|devblocks_translate|capitalize}</button>
-			<button type="button" class="cerb-peek-import" data-context="{$peek_context}" data-context-id="{$dict->id}" data-edit="true"><span class="glyphicons glyphicons-file-import"></span> {'common.import'|devblocks_translate|capitalize}</button>
+			{if $is_writeable && $active_worker->hasPriv("contexts.{$peek_context}.update")}
+				{if $active_worker->hasPriv("contexts.{$peek_context}.update")}<button type="button" class="cerb-peek-edit" data-context="{$peek_context}" data-context-id="{$dict->id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span> {'common.edit'|devblocks_translate|capitalize}</button>{/if}
+				{if $active_worker->hasPriv("contexts.{CerberusContexts::CONTEXT_CLASSIFIER_EXAMPLE}.import")}<button type="button" class="cerb-peek-import" data-context="{$peek_context}" data-context-id="{$dict->id}" data-edit="true"><span class="glyphicons glyphicons-file-import"></span> {'common.import'|devblocks_translate|capitalize}</button>{/if}
 			{/if}
 			
 			{if $dict->id}<button type="button" class="cerb-peek-profile"><span class="glyphicons glyphicons-nameplate"></span> {'common.profile'|devblocks_translate|capitalize}</button>{/if}
@@ -73,7 +73,7 @@ $(function() {
 		$popup.find('div.cerb-properties-grid').cerbPropertyGrid();
 		
 		// Edit button
-		{if $is_writeable}
+		{if $is_writeable && $active_worker->hasPriv("contexts.{$peek_context}.update")}
 		$popup.find('button.cerb-peek-edit')
 			.cerbPeekTrigger({ 'view_id': '{$view_id}' })
 			.on('cerb-peek-saved', function(e) {
@@ -123,8 +123,9 @@ $(function() {
 			
 		$input.on('keyup', function(e) {
 			e.stopPropagation();
+			var keycode = e.keyCode || e.which;
 			
-			if(13 == e.keyCode) {
+			if(13 == keycode) {
 				e.preventDefault();
 				
 				genericAjaxGet($output, 'c=profiles&a=handleSectionAction&section=classifier&action=predict&classifier_id={$dict->id}&text=' + encodeURIComponent($input.val()), function(json) {

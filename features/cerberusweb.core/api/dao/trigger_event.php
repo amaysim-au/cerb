@@ -16,21 +16,102 @@
 ***********************************************************************/
 
 class DAO_TriggerEvent extends Cerb_ORMHelper {
-	const CACHE_ALL = 'cerberus_cache_behavior_all';
-	
+	const BOT_ID = 'bot_id';
+	const EVENT_PARAMS_JSON = 'event_params_json';
+	const EVENT_POINT = 'event_point';
 	const ID = 'id';
-	const TITLE = 'title';
 	const IS_DISABLED = 'is_disabled';
 	const IS_PRIVATE = 'is_private';
-	const EVENT_POINT = 'event_point';
-	const BOT_ID = 'bot_id';
 	const PRIORITY = 'priority';
+	const TITLE = 'title';
 	const UPDATED_AT = 'updated_at';
-	const EVENT_PARAMS_JSON = 'event_params_json';
 	const VARIABLES_JSON = 'variables_json';
+	
+	const CACHE_ALL = 'cerberus_cache_behavior_all';
+	
+	private function __construct() {}
 
+	static function getFields() {
+		$validation = DevblocksPlatform::services()->validation();
+		
+		// int(10) unsigned
+		$validation
+			->addField(self::BOT_ID)
+			->id()
+			->setRequired(true)
+			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_BOT))
+			;
+		// text
+		$validation
+			->addField(self::EVENT_PARAMS_JSON)
+			->string()
+			->setMaxLength(65535)
+			;
+		// varchar(255)
+		$validation
+			->addField(self::EVENT_POINT)
+			->string()
+			->setMaxLength(255)
+			->setRequired(true)
+			->addValidator(function($value, &$error=null) {
+				if(false == (Extension_DevblocksEvent::get($value, false))) {
+					$error = sprintf("'%s' is an invalid event point.", $value);
+					return false;
+				}
+				
+				return true;
+			})
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::ID)
+			->id()
+			->setEditable(false)
+			;
+		// tinyint(4)
+		$validation
+			->addField(self::IS_DISABLED)
+			->bit()
+			;
+		// tinyint(3) unsigned
+		$validation
+			->addField(self::IS_PRIVATE)
+			->bit()
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::PRIORITY)
+			->uint(4)
+			;
+		// varchar(255)
+		$validation
+			->addField(self::TITLE)
+			->string()
+			->setMaxLength(255)
+			->setRequired(true)
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::UPDATED_AT)
+			->timestamp()
+			;
+		// text
+		$validation
+			->addField(self::VARIABLES_JSON)
+			->string()
+			->setMaxLength(65535)
+			;
+		$validation
+			->addField('_links')
+			->string()
+			->setMaxLength(65535)
+			;
+			
+		return $validation->getFields();
+	}
+	
 	static function create($fields) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		if(!isset($fields[self::UPDATED_AT]))
 			$fields[self::UPDATED_AT] = time();
@@ -45,6 +126,9 @@ class DAO_TriggerEvent extends Cerb_ORMHelper {
 	}
 	
 	static function update($ids, $fields) {
+		$context = CerberusContexts::CONTEXT_BEHAVIOR;
+		self::_updateAbstract($context, $ids, $fields);
+		
 		parent::_update($ids, 'trigger_event', $fields);
 		self::clearCache();
 	}
@@ -54,13 +138,74 @@ class DAO_TriggerEvent extends Cerb_ORMHelper {
 		self::clearCache();
 	}
 	
+	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
+		$context = CerberusContexts::CONTEXT_BEHAVIOR;
+		
+		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
+			return false;
+		
+		if(!$id && !isset($fields[self::BOT_ID])) {
+			$error = "A 'bot_id' is required.";
+			return false;
+		}
+		
+		if(isset($fields[self::BOT_ID])) {
+			@$bot_id = $fields[self::BOT_ID];
+			
+			if(!$bot_id || false == ($bot = DAO_Bot::get($bot_id))) {
+				$error = "Invalid 'bot_id' value.";
+				return false;
+			}
+			
+			if(!CerberusContexts::isOwnableBy($bot->owner_context, $bot->owner_context_id, $actor)) {
+				$error = "You do not have permission to create behaviors on this bot.";
+				return false;
+			}
+		}
+		
+		return true;
+	}
+	
+	static function recursiveImportDecisionNodes($nodes, $behavior_id, $parent_id) {
+		if(!is_array($nodes) || empty($nodes))
+			return;
+		
+		$pos = 0;
+		
+		foreach($nodes as $node) {
+			if(
+				!isset($node['type'])
+				|| !isset($node['title'])
+				|| !in_array($node['type'], array('action','loop','outcome','subroutine','switch'))
+			)
+				return false;
+			
+			$fields = array(
+				DAO_DecisionNode::NODE_TYPE => $node['type'],
+				DAO_DecisionNode::TITLE => $node['title'],
+				DAO_DecisionNode::PARENT_ID => $parent_id,
+				DAO_DecisionNode::TRIGGER_ID => $behavior_id,
+				DAO_DecisionNode::POS => $pos++,
+				DAO_DecisionNode::PARAMS_JSON => isset($node['params']) ? json_encode($node['params']) : '',
+			);
+			
+			$node_id = DAO_DecisionNode::create($fields);
+			
+			if(isset($node['nodes']) && is_array($node['nodes']))
+				if(false == ($result = self::recursiveImportDecisionNodes($node['nodes'], $behavior_id, $node_id)))
+					return false;
+		}
+		
+		return true;
+	}
+	
 	/**
 	 *
 	 * @param bool $nocache
 	 * @return Model_TriggerEvent[]
 	 */
 	static function getAll($nocache=false) {
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		if($nocache || null === ($behaviors = $cache->load(self::CACHE_ALL))) {
 			$behaviors = self::getWhere(
 				null,
@@ -79,31 +224,33 @@ class DAO_TriggerEvent extends Cerb_ORMHelper {
 		return $behaviors;
 	}
 	
-	static function getReadableByActor($actor, $event_point=null, $with_disabled=false) {
-		$macros = array();
-
-		$vas = DAO_Bot::getReadableByActor($actor);
-
-		if(is_array($vas))
-		foreach($vas as $va) { /* @var $va Model_Bot */
-			if(!$with_disabled && $va->is_disabled)
+	static function getReadableByActor($actor, $event_point=null, $with_disabled=false, $ignore_admins=false) {
+		$macros = [];
+		
+		$actor = CerberusContexts::polymorphActorToDictionary($actor, false);
+		
+		$bots = DAO_Bot::getReadableByActor($actor, $ignore_admins);
+		
+		if(is_array($bots))
+		foreach($bots as $bot) { /* @var $bot Model_Bot */
+			if(!$with_disabled && $bot->is_disabled)
 				continue;
 		
-			$behaviors = $va->getBehaviors($event_point, $with_disabled, 'name');
+			$behaviors = $bot->getBehaviors($event_point, $with_disabled, 'name');
 			
 			if(empty($behaviors))
 				continue;
 			
-			$results = array();
+			$results = [];
 			
 			if(is_array($behaviors))
 			foreach($behaviors as $behavior_id => $behavior) { /* @var $behavior Model_TriggerEvent */
-				if(!isset($vas[$behavior->bot_id]))
+				if(!isset($bots[$behavior->bot_id]))
 					continue;
 				
-				// A private behavior is only usable by the same owner
-				if($behavior->is_private && !Context_TriggerEvent::isWriteableByActor($behavior, $actor))
-					continue;
+				// Private behaviors only show up to same actor
+				if($behavior->is_private && !($actor->_context == CerberusContexts::CONTEXT_BOT && $bot->id == $actor->id))
+					continue 2;
 				
 				$result = clone $behavior; /* @var $result Model_TriggerEvent */
 				
@@ -213,6 +360,28 @@ class DAO_TriggerEvent extends Cerb_ORMHelper {
 		return null;
 	}
 	
+	static function getVariableTypes() {
+		// Variables types
+		$variable_types = [
+			Model_CustomField::TYPE_DATE => 'Date',
+			Model_CustomField::TYPE_NUMBER => 'Number',
+			'contexts' => 'List:(Mixed Records)',
+			Model_CustomField::TYPE_DROPDOWN => 'Picklist',
+			Model_CustomField::TYPE_SINGLE_LINE => 'Text',
+			Model_CustomField::TYPE_WORKER => 'Worker',
+			Model_CustomField::TYPE_CHECKBOX => 'Yes/No',
+		];
+		
+		$contexts_list = Extension_DevblocksContext::getAll(false, 'va_variable');
+		foreach($contexts_list as $list_context_id => $list_context) {
+			$context_aliases = Extension_DevblocksContext::getAliasesForContext($list_context);
+			@$plural = $context_aliases['plural'];
+			$variable_types['ctx_' . $list_context_id] = 'List:' . DevblocksPlatform::strUpperFirst($plural ?: $list_context->name);
+		}
+		
+		return $variable_types;
+	}
+	
 	/**
 	 * @param string $where
 	 * @param mixed $sortBy
@@ -221,7 +390,7 @@ class DAO_TriggerEvent extends Cerb_ORMHelper {
 	 * @return Model_TriggerEvent[]
 	 */
 	static function getWhere($where=null, $sortBy=DAO_TriggerEvent::PRIORITY, $sortAsc=true, $limit=null, $options=null) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -276,7 +445,7 @@ class DAO_TriggerEvent extends Cerb_ORMHelper {
 		if(empty($trigger_id))
 			return;
 		
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$sql = sprintf("INSERT INTO trigger_event_history (trigger_id, ts_day, uses, elapsed_ms) ".
 			"VALUES (%d, %d, %d, %d) ".
@@ -291,7 +460,7 @@ class DAO_TriggerEvent extends Cerb_ORMHelper {
 	}
 	
 	static public function countByBot($bot_id) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		return $db->GetOneSlave(sprintf("SELECT count(*) FROM trigger_event ".
 			"WHERE bot_id = %d",
 			$bot_id
@@ -302,7 +471,7 @@ class DAO_TriggerEvent extends Cerb_ORMHelper {
 		if(!is_array($ids))
 			$ids = array($ids);
 		
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		if(empty($ids))
 			return;
@@ -380,7 +549,6 @@ class DAO_TriggerEvent extends Cerb_ORMHelper {
 	}
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -392,7 +560,7 @@ class DAO_TriggerEvent extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -446,12 +614,12 @@ class DAO_TriggerEvent extends Cerb_ORMHelper {
 	}
 
 	static public function clearCache() {
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		$cache->remove(self::CACHE_ALL);
 	}
 	
 	static public function getNextPosByParent($trigger_id, $parent_id) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		$count = $db->GetOneMaster(sprintf("SELECT MAX(pos) FROM decision_node ".
 			"WHERE trigger_id = %d AND parent_id = %d",
@@ -526,10 +694,7 @@ class SearchFields_TriggerEvent extends DevblocksSearchFields {
 			$actor_context = $param->value['context'];
 			$actor_id = $param->value['id'];
 			
-			if(empty($actor_context))
-				return '0';
-			
-			$behaviors = DAO_TriggerEvent::getReadableByActor([$actor_context, $actor_id]);
+			$behaviors = DAO_TriggerEvent::getReadableByActor([$actor_context, $actor_id], null, false, true);
 			
 			if(empty($behaviors))
 				return '0';
@@ -567,7 +732,7 @@ class SearchFields_TriggerEvent extends DevblocksSearchFields {
 			self::ID => new DevblocksSearchField(self::ID, 'trigger_event', 'id', $translate->_('common.id'), null, true),
 			self::TITLE => new DevblocksSearchField(self::TITLE, 'trigger_event', 'title', $translate->_('common.title'), null, true),
 			self::IS_DISABLED => new DevblocksSearchField(self::IS_DISABLED, 'trigger_event', 'is_disabled', $translate->_('dao.trigger_event.is_disabled'), null, true),
-			self::IS_PRIVATE => new DevblocksSearchField(self::IS_PRIVATE, 'trigger_event', 'is_private', $translate->_('dao.trigger_event.is_private'), null, true),
+			self::IS_PRIVATE => new DevblocksSearchField(self::IS_PRIVATE, 'trigger_event', 'is_private', $translate->_('common.is_private'), null, true),
 			self::PRIORITY => new DevblocksSearchField(self::PRIORITY, 'trigger_event', 'priority', $translate->_('common.priority'), null, true),
 			self::BOT_ID => new DevblocksSearchField(self::BOT_ID, 'trigger_event', 'bot_id', $translate->_('common.bot'), null, true),
 			self::EVENT_POINT => new DevblocksSearchField(self::EVENT_POINT, 'trigger_event', 'event_point', $translate->_('common.event'), null, true),
@@ -605,11 +770,34 @@ class Model_TriggerEvent {
 	
 	private $_nodes = array();
 	
+	public function isDisabled() {
+		if($this->is_disabled)
+			return true;
+		
+		if(false == ($bot = $this->getBot()))
+			return true;
+		
+		if($bot->is_disabled)
+			return true;
+		
+		return false;
+	}
+	
+	public function hasPublicVariables() {
+		if(is_array($this->variables))
+		foreach($this->variables as $k => $v) {
+			if(isset($v['is_private']) && !$v['is_private'])
+				return true;
+		}
+		
+		return false;
+	}
+	
 	/**
 	 * @return Extension_DevblocksEvent
 	 */
 	public function getEvent() {
-		if(null == ($event = DevblocksPlatform::getExtension($this->event_point, true))
+		if(null == ($event = Extension_DevblocksEvent::get($this->event_point, true))
 			|| !$event instanceof Extension_DevblocksEvent)
 			return NULL;
 		
@@ -624,7 +812,7 @@ class Model_TriggerEvent {
 		return DAO_TriggerEvent::getNextPosByParent($this->id, $parent_id);
 	}
 	
-	public function formatVariable($var, $value) {
+	public function formatVariable($var, $value, DevblocksDictionaryDelegate $dict=null) {
 		switch($var['type']) {
 			case Model_CustomField::TYPE_MULTI_LINE:
 			case Model_CustomField::TYPE_SINGLE_LINE:
@@ -658,6 +846,13 @@ class Model_TriggerEvent {
 				break;
 				
 			case Model_CustomField::TYPE_WORKER:
+				if($dict && is_string($value) && DevblocksPlatform::strStartsWith($value, 'var_')) {
+					$value = $dict->$value;
+					
+					if(is_array($value))
+						$value = key($value);
+				}
+				
 				settype($value, 'integer');
 				
 				if(false == ($worker = DAO_Worker::get($value)))
@@ -682,6 +877,7 @@ class Model_TriggerEvent {
 				break;
 				
 			// [TODO] Future public variable types
+			case Model_CustomField::TYPE_LIST:
 			case Model_CustomField::TYPE_MULTI_CHECKBOX:
 			case Model_CustomField::TYPE_FILE:
 			case Model_CustomField::TYPE_FILES:
@@ -801,8 +997,20 @@ class Model_TriggerEvent {
 		if(is_null($event))
 			$event = $this->getEvent();
 		
-		// Add a convenience pointer
+		/**
+		 * Late-binding for behavior placeholders (this works inside shared context loops)
+		 */
+		
 		$dict->__trigger = $this;
+		
+		$merge_labels = $merge_values = [];
+		CerberusContexts::getContext(CerberusContexts::CONTEXT_BEHAVIOR, $this, $merge_labels, $merge_values, null, true);
+		$dict->scrubKeys('behavior_');
+		$dict->merge('behavior_', '', $merge_labels, $merge_values);
+		
+		/**
+		 * Run behavior
+		 */
 		
 		$this->_recurseRunTree($event, $nodes, $tree, 0, $dict, $path, $replay, $dry_run);
 		
@@ -821,7 +1029,7 @@ class Model_TriggerEvent {
 	}
 	
 	private function _recurseRunTree($event, $nodes, $tree, $node_id, DevblocksDictionaryDelegate $dict, &$path, &$replay, $dry_run=false) {
-		$logger = DevblocksPlatform::getConsoleLog('Bot');
+		$logger = DevblocksPlatform::services()->log('Bot');
 
 		// Did the last action request that we exit early?
 		if(false !== in_array(end($path) ?: '', ['STOP','SUSPEND']))
@@ -874,7 +1082,7 @@ class Model_TriggerEvent {
 					@$foreach_json = $nodes[$node_id]->params['foreach_json'];
 					@$as_placeholder = $nodes[$node_id]->params['as_placeholder'];
 					
-					$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+					$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 					
 					if(empty($foreach_json) || empty($as_placeholder)) {
 						$pass = false;
@@ -888,6 +1096,9 @@ class Model_TriggerEvent {
 					
 					$as_placeholder_stack = $as_placeholder . '__stack';
 					$dict->$as_placeholder_stack = $json;
+					
+					$as_placeholder_counter = $as_placeholder . '__counter';
+					$dict->$as_placeholder_counter = 0;
 					
 					if($replay_id)
 						break;
@@ -1003,11 +1214,16 @@ class Model_TriggerEvent {
 				@$as_placeholder = $nodes[$node_id]->params['as_placeholder'];
 				@$as_placeholder_key = $as_placeholder . '__key';
 				@$as_placeholder_stack = $as_placeholder . '__stack';
+				@$as_placeholder_counter = $as_placeholder . '__counter';
 				
 				if(is_array($dict->$as_placeholder_stack) && !empty($dict->$as_placeholder_stack)) {
 					$dict->$as_placeholder_key = key($dict->$as_placeholder_stack);
 					$dict->$as_placeholder = current($dict->$as_placeholder_stack);
-					array_shift($dict->$as_placeholder_stack);
+					$dict->$as_placeholder_counter = intval($dict->$as_placeholder_counter) + 1;
+					
+					if($dict->$as_placeholder != '*')
+						array_shift($dict->$as_placeholder_stack);
+					
 					$loop = true;
 				} else {
 					unset($dict->$as_placeholder);
@@ -1083,6 +1299,10 @@ class Model_TriggerEvent {
 				}
 			}
 			
+			// If an action broke our loop, follow along
+			if(!empty($replay) && !in_array(current($replay), $tree[$node_id]))
+				$loop = false;
+			
 		} while($loop);
 		
 		return $pass;
@@ -1151,6 +1371,7 @@ class Model_TriggerEvent {
 		
 		$array = array(
 			$export_type => array(
+				'uid' => 'behavior_'.$this->id,
 				'title' => $this->title,
 				'is_disabled' => $this->is_disabled ? true : false,
 				'is_private' => $this->is_private ? true : false,
@@ -1255,7 +1476,7 @@ class View_TriggerEvent extends C4_AbstractView implements IAbstractView_Subtota
 					
 				// Valid custom fields
 				default:
-					if('cf_' == substr($field_key,0,3))
+					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -1392,14 +1613,6 @@ class View_TriggerEvent extends C4_AbstractView implements IAbstractView_Subtota
 						['type' => 'chooser', 'context' => CerberusContexts::CONTEXT_BOT, 'q' => ''],
 					]
 				),
-			'usableBy.worker' => 
-				array(
-					'type' => DevblocksSearchCriteria::TYPE_VIRTUAL,
-					'options' => array('param_key' => SearchFields_TriggerEvent::VIRTUAL_USABLE_BY),
-					'examples' => [
-						['type' => 'chooser', 'context' => CerberusContexts::CONTEXT_WORKER, 'q' => ''],
-					]
-				),
 		);
 		
 		// Add searchable custom fields
@@ -1434,18 +1647,6 @@ class View_TriggerEvent extends C4_AbstractView implements IAbstractView_Subtota
 				);
 				break;
 				
-			case 'usableBy.worker':
-				$oper = $value = null;
-				CerbQuickSearchLexer::getOperStringFromTokens($tokens, $oper, $value);
-				$worker_id = intval($value);
-				
-				return new DevblocksSearchCriteria(
-					SearchFields_TriggerEvent::VIRTUAL_USABLE_BY,
-					DevblocksSearchCriteria::OPER_CUSTOM,
-					['context' => CerberusContexts::CONTEXT_WORKER, 'id' => $worker_id]
-				);
-				break;
-				
 			default:
 				$search_fields = $this->getQuickSearchFields();
 				return DevblocksSearchCriteria::getParamFromQueryFieldTokens($field, $tokens, $search_fields);
@@ -1458,7 +1659,7 @@ class View_TriggerEvent extends C4_AbstractView implements IAbstractView_Subtota
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1479,7 +1680,7 @@ class View_TriggerEvent extends C4_AbstractView implements IAbstractView_Subtota
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {
@@ -1648,13 +1849,41 @@ class View_TriggerEvent extends C4_AbstractView implements IAbstractView_Subtota
 	}
 };
 
-class Context_TriggerEvent extends Extension_DevblocksContext implements IDevblocksContextProfile, IDevblocksContextPeek { // IDevblocksContextImport
-	static function isReadableByActor($models, $actor) {
-		return CerberusContexts::isReadableByDelegateOwner($actor, CerberusContexts::CONTEXT_BEHAVIOR, $models, 'bot_owner_');
+class Context_TriggerEvent extends Extension_DevblocksContext implements IDevblocksContextProfile, IDevblocksContextPeek, IDevblocksContextAutocomplete { // IDevblocksContextImport
+	static function isReadableByActor($models, $actor, $ignore_admins=false) {
+		return CerberusContexts::isReadableByDelegateOwner($actor, CerberusContexts::CONTEXT_BEHAVIOR, $models, 'bot_owner_', $ignore_admins);
 	}
 	
-	static function isWriteableByActor($models, $actor) {
-		return CerberusContexts::isWriteableByDelegateOwner($actor, CerberusContexts::CONTEXT_BEHAVIOR, $models, 'bot_owner_');
+	static function isWriteableByActor($models, $actor, $ignore_admins=false) {
+		return CerberusContexts::isWriteableByDelegateOwner($actor, CerberusContexts::CONTEXT_BEHAVIOR, $models, 'bot_owner_', $ignore_admins);
+	}
+	
+	function autocomplete($term, $query=null) {
+		$url_writer = DevblocksPlatform::services()->url();
+		$list = array();
+		
+		$context_ext = Extension_DevblocksContext::get(CerberusContexts::CONTEXT_BEHAVIOR);
+		
+		$view = $context_ext->getSearchView('autocomplete_behavior');
+		$view->renderLimit = 25;
+		$view->renderPage = 0;
+		$view->renderSortBy = SearchFields_TriggerEvent::PRIORITY;
+		$view->renderSortAsc = true;
+		$view->is_ephemeral = true;
+		
+		$view->addParamsWithQuickSearch($query, true);
+		$view->addParam(new DevblocksSearchCriteria(SearchFields_TriggerEvent::TITLE,DevblocksSearchCriteria::OPER_LIKE,'%'.$term.'%'));
+		
+		list($results, $null) = $view->getData();
+		
+		foreach($results AS $row){
+			$entry = new stdClass();
+			$entry->label = $row[SearchFields_TriggerEvent::TITLE];
+			$entry->value = $row[SearchFields_TriggerEvent::ID];
+			$list[] = $entry;
+		}
+		
+		return $list;
 	}
 	
 	function getRandom() {
@@ -1665,14 +1894,14 @@ class Context_TriggerEvent extends Extension_DevblocksContext implements IDevblo
 		if(empty($context_id))
 			return '';
 	
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		$url = $url_writer->writeNoProxy('c=profiles&type=trigger_event&id='.$context_id, true);
 		return $url;
 	}
 	
 	function getMeta($context_id) {
 		$trigger_event = DAO_TriggerEvent::get($context_id);
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		$url = $this->profileGetUrl($context_id);
 		$friendly = DevblocksPlatform::strToPermalink($trigger_event->title);
@@ -1722,7 +1951,7 @@ class Context_TriggerEvent extends Extension_DevblocksContext implements IDevblo
 			'event_point_name' => $prefix.$translate->_('common.event'),
 			'id' => $prefix.$translate->_('common.id'),
 			'is_disabled' => $prefix.$translate->_('dao.trigger_event.is_disabled'),
-			'is_private' => $prefix.$translate->_('dao.trigger_event.is_private'),
+			'is_private' => $prefix.$translate->_('common.is_private'),
 			'name' => $prefix.$translate->_('common.name'),
 			'priority' => $prefix.$translate->_('common.priority'),
 			'updated_at' => $prefix.$translate->_('common.updated'),
@@ -1778,7 +2007,7 @@ class Context_TriggerEvent extends Extension_DevblocksContext implements IDevblo
 			$token_values = $this->_importModelCustomFieldsAsValues($trigger_event, $token_values);
 			
 			// URL
-			$url_writer = DevblocksPlatform::getUrlService();
+			$url_writer = DevblocksPlatform::services()->url();
 			$token_values['record_url'] = $url_writer->writeNoProxy(sprintf("c=profiles&type=behavior&id=%d-%s",$trigger_event->id, DevblocksPlatform::strToPermalink($trigger_event->title)), true);
 		}
 		
@@ -1795,6 +2024,30 @@ class Context_TriggerEvent extends Extension_DevblocksContext implements IDevblo
 				$token_labels,
 				$token_values
 			);
+		
+		return true;
+	}
+	
+	function getKeyToDaoFieldMap() {
+		return [
+			'bot_id' => DAO_TriggerEvent::BOT_ID,
+			'event_point' => DAO_TriggerEvent::EVENT_POINT,
+			'id' => DAO_TriggerEvent::ID,
+			'is_disabled' => DAO_TriggerEvent::IS_DISABLED,
+			'is_private' => DAO_TriggerEvent::IS_PRIVATE,
+			'links' => '_links',
+			'name' => DAO_TriggerEvent::TITLE,
+			'priority' => DAO_TriggerEvent::PRIORITY,
+			'updated_at' => DAO_TriggerEvent::UPDATED_AT,
+		];
+	}
+	
+	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
+		switch(DevblocksPlatform::strLower($key)) {
+			case 'links':
+				$this->_getDaoFieldsLinks($value, $out_fields, $error);
+				break;
+		}
 		
 		return true;
 	}
@@ -1890,7 +2143,7 @@ class Context_TriggerEvent extends Extension_DevblocksContext implements IDevblo
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('view_id', $view_id);
 		
 		$context = CerberusContexts::CONTEXT_BEHAVIOR;
@@ -1917,7 +2170,7 @@ class Context_TriggerEvent extends Extension_DevblocksContext implements IDevblo
 			$tpl->assign('bots', $bots);
 			
 			if(!empty($model)) {
-				$ext = DevblocksPlatform::getExtension($model->event_point, true);
+				$ext = Extension_DevblocksEvent::get($model->event_point, true);
 				$tpl->assign('ext', $ext);
 				
 				if(isset($bots[$model->bot_id]))
@@ -1939,14 +2192,26 @@ class Context_TriggerEvent extends Extension_DevblocksContext implements IDevblo
 						// Filter the available events by VA
 						$events = $bot->filterEventsByAllowed($events);
 						
+						// Menu
+						$labels = array_column(DevblocksPlatform::objectsToArrays($events), 'name', 'id');
+						
+						// Remove deprecated events from creation
+						unset($labels['event.api.mobile_behavior']);
+						unset($labels['event.mail.reply.during.ui.worker']);
+						
+						$events_menu = Extension_DevblocksContext::getPlaceholderTree($labels);
+						
 						$tpl->assign('events', $events);
+						$tpl->assign('events_menu', $events_menu);
 					}
 				}
 			}
 			
-			// Contexts that can show up in VA vars
-			$list_contexts = Extension_DevblocksContext::getAll(false, 'va_variable');
-			$tpl->assign('list_contexts', $list_contexts);
+			$variable_types = DAO_TriggerEvent::getVariableTypes();
+			$tpl->assign('variable_types', $variable_types);
+			
+			$variables_menu = Extension_DevblocksContext::getPlaceholderTree($variable_types, ':', '');
+			$tpl->assign('variables_menu', $variables_menu);
 			
 			$tpl->display('devblocks:cerberusweb.core::internal/bot/behavior/peek_edit.tpl');
 			
@@ -1987,7 +2252,7 @@ class Context_TriggerEvent extends Extension_DevblocksContext implements IDevblo
 			$dict = DevblocksDictionaryDelegate::instance($values);
 			$tpl->assign('dict', $dict);
 			
-			if(false == ($event = $model->getEvent()))
+			if(!($model instanceof Model_TriggerEvent) || false == ($event = $model->getEvent()))
 				return;
 			
 			if(false == ($va = $model->getBot()))

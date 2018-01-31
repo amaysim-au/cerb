@@ -17,7 +17,7 @@
 
 class PageSection_ProfilesComment extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$visit = CerberusApplication::getVisit();
 		$translate = DevblocksPlatform::getTranslationService();
 		$active_worker = CerberusApplication::getActiveWorker();
@@ -107,14 +107,6 @@ class PageSection_ProfilesComment extends Extension_PageSection {
 		
 		$tpl->assign('properties', $properties);
 			
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.comment'
-		);
-		$tpl->assign('macros', $macros);
-
 		// Tabs
 		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_COMMENT);
 		$tpl->assign('tab_manifests', $tab_manifests);
@@ -130,7 +122,7 @@ class PageSection_ProfilesComment extends Extension_PageSection {
 		@$do_delete = DevblocksPlatform::importGPC($_REQUEST['do_delete'], 'string', '');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		
 		header('Content-Type: application/json; charset=utf-8');
 		
@@ -139,6 +131,9 @@ class PageSection_ProfilesComment extends Extension_PageSection {
 				throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translateCapitalized('common.access_denied'));
 			
 			if(!empty($id) && !empty($do_delete)) { // Delete
+				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_COMMENT)))
+					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
+				
 				DAO_Comment::delete($id);
 				
 				echo json_encode(array(
@@ -155,9 +150,6 @@ class PageSection_ProfilesComment extends Extension_PageSection {
 			@$file_ids = DevblocksPlatform::sanitizeArray(DevblocksPlatform::importGPC($_REQUEST['file_ids'],'array',array()), 'int');
 			@$options = DevblocksPlatform::importGPC($_REQUEST['options'],'array',[]);
 			
-			if(empty($comment))
-				throw new Exception_DevblocksAjaxValidationError("The 'Comment' field is required.", 'comment');
-			
 			if(empty($id)) { // New
 				$also_notify_worker_ids = array_keys(CerberusApplication::getWorkersByAtMentionsText($comment));
 				
@@ -173,7 +165,15 @@ class PageSection_ProfilesComment extends Extension_PageSection {
 					DAO_Comment::COMMENT => $comment,
 					DAO_Comment::CREATED => time(),
 				);
+				
+				if(!DAO_Comment::validate($fields, $error))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
+				if(!DAO_Comment::onBeforeUpdateByActor($active_worker, $fields, null, $error))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
 				$id = DAO_Comment::create($fields, $also_notify_worker_ids, $file_ids);
+				DAO_Comment::onUpdateByActor($active_worker, $fields, $id);
 				
 				if(!empty($view_id) && !empty($id))
 					C4_AbstractView::setMarqueeContextCreated($view_id, CerberusContexts::CONTEXT_COMMENT, $id);
@@ -186,7 +186,14 @@ class PageSection_ProfilesComment extends Extension_PageSection {
 				if(isset($options['update_timestamp']) && $options['update_timestamp'])
 					$fields[DAO_Comment::CREATED] = time();
 				
+				if(!DAO_Comment::validate($fields, $error, $id))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
+				if(!DAO_Comment::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
 				DAO_Comment::update($id, $fields);
+				DAO_Comment::onUpdateByActor($active_worker, $fields, $id);
 			}
 			
 			$html = null;
@@ -253,7 +260,7 @@ class PageSection_ProfilesComment extends Extension_PageSection {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		// Generate hash
 		$hash = md5($view_id.$active_worker->id.time());

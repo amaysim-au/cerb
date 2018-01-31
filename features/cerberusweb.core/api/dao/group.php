@@ -16,20 +16,108 @@
 ***********************************************************************/
 
 class DAO_Group extends Cerb_ORMHelper {
+	const CREATED = 'created';
+	const ID = 'id';
+	const IS_DEFAULT = 'is_default';
+	const IS_PRIVATE = 'is_private';
+	const REPLY_ADDRESS_ID = 'reply_address_id';
+	const REPLY_HTML_TEMPLATE_ID = 'reply_html_template_id';
+	const REPLY_PERSONAL = 'reply_personal';
+	const REPLY_SIGNATURE_ID = 'reply_signature_id';
+	const NAME = 'name';
+	const UPDATED = 'updated';
+	
+	const _IMAGE = '_image';
+	const _MEMBERS = '_members';
+	
 	const CACHE_ALL = 'cerberus_cache_groups_all';
 	const CACHE_ROSTERS = 'ch_group_rosters';
 	
-	const ID = 'id';
-	const NAME = 'name';
-	const IS_DEFAULT = 'is_default';
-	const IS_PRIVATE = 'is_private';
-	const CREATED = 'created';
-	const UPDATED = 'updated';
+	private function __construct() {}
+	
+	static function getFields() {
+		$validation = DevblocksPlatform::services()->validation();
+		
+		$validation
+			->addField(self::CREATED)
+			->timestamp()
+			;
+		$validation
+			->addField(self::ID)
+			->id()
+			->setEditable(false)
+			;
+		$validation
+			->addField(self::IS_DEFAULT)
+			->bit()
+			;
+		$validation
+			->addField(self::IS_PRIVATE)
+			->bit()
+			;
+		$validation
+			->addField(self::NAME)
+			->string()
+			->setRequired(true)
+			;
+		$validation
+			->addField(self::REPLY_ADDRESS_ID)
+			->id()
+			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_ADDRESS))
+			->addValidator(function($value, &$error) {
+				if(false == ($address = DAO_Address::get($value))) {
+					$error = "is not a valid email address.";
+					return false;
+				}
+				
+				if(!$address->mail_transport_id) {
+					$error = "is not configured for outgoing mail.";
+					return false;
+				}
+				
+				return true;
+			})
+			;
+		$validation
+			->addField(self::REPLY_HTML_TEMPLATE_ID)
+			->id()
+			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_MAIL_HTML_TEMPLATE, true))
+			;
+		$validation
+			->addField(self::REPLY_PERSONAL)
+			->string()
+			;
+		$validation
+			->addField(self::REPLY_SIGNATURE_ID)
+			->id()
+			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_EMAIL_SIGNATURE, true))
+			;
+		$validation
+			->addField(self::UPDATED)
+			->timestamp()
+			;
+		// base64 blob png
+		$validation
+			->addField(self::_IMAGE)
+			->image('image/png', 50, 50, 500, 500, 100000)
+			;
+		$validation
+			->addField(self::_MEMBERS)
+			->string()
+			->setMaxLength(65535)
+			;
+		$validation
+			->addField('_links')
+			->string()
+			->setMaxLength(65535)
+			;
+			
+		return $validation->getFields();
+	}
 	
 	// Groups
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @param integer $id
 	 * @return Model_Group
@@ -54,12 +142,12 @@ class DAO_Group extends Cerb_ORMHelper {
 	 * @return Model_ContactOrg[]
 	 */
 	static function getWhere($where=null, $sortBy=DAO_Group::NAME, $sortAsc=true, $limit=null, $options=null) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
 		// SQL
-		$sql = "SELECT id, name, is_default, is_private, created, updated ".
+		$sql = "SELECT id, name, is_default, is_private, reply_address_id, reply_html_template_id, reply_personal, reply_signature_id, created, updated ".
 			"FROM worker_group ".
 			$where_sql.
 			$sort_sql.
@@ -79,11 +167,11 @@ class DAO_Group extends Cerb_ORMHelper {
 	
 	/**
 	 * 
-	 * @param unknown $nocache
+	 * @param boolean $nocache
 	 * @return Model_Group[]
 	 */
 	static function getAll($nocache=false) {
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		if($nocache || null === ($groups = $cache->load(self::CACHE_ALL))) {
 			$groups = DAO_Group::getWhere(
 				null,
@@ -140,7 +228,7 @@ class DAO_Group extends Cerb_ORMHelper {
 	}
 	
 	static function getResponsibilities($group_id) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		$responsibilities = array();
 		
 		$results = $db->GetArraySlave(sprintf("SELECT worker_id, bucket_id, responsibility_level FROM worker_to_bucket WHERE bucket_id IN (SELECT id FROM bucket WHERE group_id = %d)",
@@ -158,7 +246,7 @@ class DAO_Group extends Cerb_ORMHelper {
 	}
 	
 	static function setResponsibilities($group_id, $responsibilities) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		if(!is_array($responsibilities))
 			return false;
@@ -204,6 +292,10 @@ class DAO_Group extends Cerb_ORMHelper {
 			$object->name = $row['name'];
 			$object->is_default = intval($row['is_default']);
 			$object->is_private = intval($row['is_private']);
+			$object->reply_address_id = intval($row['reply_address_id']);
+			$object->reply_html_template_id = intval($row['reply_html_template_id']);
+			$object->reply_personal = $row['reply_personal'];
+			$object->reply_signature_id = intval($row['reply_signature_id']);
 			$object->created = intval($row['created']);
 			$object->updated = intval($row['updated']);
 			$objects[$object->id] = $object;
@@ -231,7 +323,7 @@ class DAO_Group extends Cerb_ORMHelper {
 	}
 	
 	static function setDefaultGroup($group_id) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$db->ExecuteMaster("UPDATE worker_group SET is_default = 0");
 		$db->ExecuteMaster(sprintf("UPDATE worker_group SET is_default = 1 WHERE id = %d", $group_id));
@@ -240,13 +332,12 @@ class DAO_Group extends Cerb_ORMHelper {
 	}
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @param string $name
 	 * @return integer
 	 */
 	static function create($fields) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$sql = "INSERT INTO worker_group () VALUES ()";
 		if(false == ($db->ExecuteMaster($sql)))
@@ -256,28 +347,15 @@ class DAO_Group extends Cerb_ORMHelper {
 		if(!isset($fields[self::CREATED]))
 			$fields[self::CREATED] = time();
 		
+		if(!isset($fields[self::REPLY_ADDRESS_ID]) && false !== ($default_sender = DAO_Address::getDefaultLocalAddress()))
+			$fields[self::REPLY_ADDRESS_ID] = $default_sender->id;
+		
 		self::update($id, $fields);
-		
-		// Create the default inbox bucket for the new group
-		
-		$bucket_fields = array(
-			DAO_Bucket::NAME => 'Inbox',
-			DAO_Bucket::GROUP_ID => $id,
-			DAO_Bucket::IS_DEFAULT => 1,
-			DAO_Bucket::UPDATED_AT => time(),
-		);
-		$bucket_id = DAO_Bucket::create($bucket_fields);
-
-		// Kill the group and bucket cache
-		
-		self::clearCache();
-		DAO_Bucket::clearCache();
 		
 		return $id;
 	}
 
 	/**
-	 * Enter description here...
 	 *
 	 * @param array $ids
 	 * @param array $fields
@@ -288,6 +366,43 @@ class DAO_Group extends Cerb_ORMHelper {
 		
 		if(!isset($fields[self::UPDATED]))
 			$fields[self::UPDATED] = time();
+		
+		$context = CerberusContexts::CONTEXT_GROUP;
+		self::_updateAbstract($context, $ids, $fields);
+		
+		// Handle avatar images
+		if(isset($fields[self::_IMAGE])) {
+			foreach($ids as $id) {
+				DAO_ContextAvatar::upsertWithImage(CerberusContexts::CONTEXT_GROUP, $id, $fields[self::_IMAGE]);
+			}
+			unset($fields[self::_IMAGE]);
+		}
+		
+		// Handle membership changes
+		if(isset($fields[self::_MEMBERS])) {
+			if(false != (@$roster_changes = json_decode($fields[self::_MEMBERS], true))) {
+				@$roster_managers = DevblocksPlatform::parseCsvString($roster_changes['manager']);
+				@$roster_members = DevblocksPlatform::parseCsvString($roster_changes['member']);
+				@$roster_remove = DevblocksPlatform::parseCsvString($roster_changes['remove']);
+				
+				if(is_array($roster_managers))
+				foreach($ids as $group_id)
+					foreach($roster_managers as $worker_id)
+						DAO_Group::setGroupMember($group_id, $worker_id, true);
+				
+				if(is_array($roster_members))
+				foreach($ids as $group_id)
+					foreach($roster_members as $worker_id)
+						DAO_Group::setGroupMember($group_id, $worker_id, false);
+				
+				if(is_array($roster_remove))
+				foreach($ids as $group_id)
+					foreach($roster_remove as $worker_id)
+						DAO_Group::unsetGroupMember($group_id, $worker_id);
+			}
+			
+			unset($fields[self::_MEMBERS]);
+		}
 		
 		// Make a diff for the requested objects in batches
 		
@@ -308,7 +423,7 @@ class DAO_Group extends Cerb_ORMHelper {
 			if($check_deltas) {
 				
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::getEventService();
+				$eventMgr = DevblocksPlatform::services()->event();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.group.update',
@@ -328,8 +443,49 @@ class DAO_Group extends Cerb_ORMHelper {
 		DAO_Bucket::clearCache();
 	}
 	
+	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
+		$context = CerberusContexts::CONTEXT_GROUP;
+		
+		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
+			return false;
+		
+		if(!CerberusContexts::isActorAnAdmin($actor)) {
+			$error = DevblocksPlatform::translate('error.core.no_acl.admin');
+			return false;
+		}
+		
+		return true;
+	}
+	
+	static function countByEmailFromId($email_id) {
+		$db = DevblocksPlatform::services()->database();
+		
+		$sql = sprintf("SELECT count(id) FROM worker_group WHERE reply_address_id = %d",
+			$email_id
+		);
+		return intval($db->GetOneSlave($sql));
+	}
+	
+	static function countByEmailSignatureId($sig_id) {
+		$db = DevblocksPlatform::services()->database();
+		
+		$sql = sprintf("SELECT count(id) FROM worker_group WHERE reply_signature_id = %d",
+			$sig_id
+		);
+		return intval($db->GetOneSlave($sql));
+	}
+	
+	static function countByEmailTemplateId($template_id) {
+		$db = DevblocksPlatform::services()->database();
+		
+		$sql = sprintf("SELECT count(id) FROM worker_group WHERE reply_html_template_id = %d",
+			$template_id
+		);
+		return intval($db->GetOneSlave($sql));
+	}
+	
 	static function countByMemberId($worker_id) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$sql = sprintf("SELECT count(group_id) FROM worker_to_group WHERE worker_id = %d",
 			$worker_id
@@ -338,7 +494,6 @@ class DAO_Group extends Cerb_ORMHelper {
 	}
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @param integer $id
 	 */
@@ -349,12 +504,12 @@ class DAO_Group extends Cerb_ORMHelper {
 		if(false == ($deleted_group = DAO_Group::get($id)))
 			return;
 		
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		/*
 		 * Notify anything that wants to know when groups delete.
 		 */
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'group.delete',
@@ -393,7 +548,7 @@ class DAO_Group extends Cerb_ORMHelper {
 		}
 
 		// Fire event
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -409,8 +564,8 @@ class DAO_Group extends Cerb_ORMHelper {
 	}
 	
 	static function maint() {
-		$db = DevblocksPlatform::getDatabaseService();
-		$logger = DevblocksPlatform::getConsoleLog();
+		$db = DevblocksPlatform::services()->database();
+		$logger = DevblocksPlatform::services()->log();
 		
 		$db->ExecuteMaster("DELETE FROM bucket WHERE group_id NOT IN (SELECT id FROM worker_group)");
 		$logger->info('[Maint] Purged ' . $db->Affected_Rows() . ' bucket records.');
@@ -419,7 +574,7 @@ class DAO_Group extends Cerb_ORMHelper {
 		$logger->info('[Maint] Purged ' . $db->Affected_Rows() . ' group_setting records.');
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.maint',
@@ -436,14 +591,16 @@ class DAO_Group extends Cerb_ORMHelper {
 		if(empty($worker_id) || empty($group_id))
 			return FALSE;
 		
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
-		$db->ExecuteMaster(sprintf("REPLACE INTO worker_to_group (worker_id, group_id, is_manager) ".
-			"VALUES (%d, %d, %d)",
+		$sql = sprintf("INSERT INTO worker_to_group (worker_id, group_id, is_manager) VALUES (%d, %d, %d) ".
+			"ON DUPLICATE KEY UPDATE  is_manager=%d",
 			$worker_id,
 			$group_id,
+			($is_manager?1:0),
 			($is_manager?1:0)
-		));
+		);
+		$db->ExecuteMaster($sql);
 		
 		if(1 == $db->Affected_Rows()) { // insert but no delete
 			DAO_Group::setMemberDefaultResponsibilities($group_id, $worker_id);
@@ -474,7 +631,7 @@ class DAO_Group extends Cerb_ORMHelper {
 		if(empty($worker_id) || empty($group_id) || empty($responsibilities) || !is_array($responsibilities))
 			return FALSE;
 		
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$values = array();
 		
@@ -521,7 +678,7 @@ class DAO_Group extends Cerb_ORMHelper {
 		if(empty($bucket_id) || empty($responsibilities) || !is_array($responsibilities))
 			return FALSE;
 		
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$values = array();
 		
@@ -548,7 +705,7 @@ class DAO_Group extends Cerb_ORMHelper {
 		if(empty($worker_id) || empty($group_id))
 			return FALSE;
 			
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$sql = sprintf("DELETE FROM worker_to_group WHERE group_id = %d AND worker_id = %d",
 			$group_id,
@@ -556,10 +713,7 @@ class DAO_Group extends Cerb_ORMHelper {
 		);
 		$db->ExecuteMaster($sql);
 		
-		if(1 == $db->Affected_Rows()) {
-			self::unsetGroupMemberResponsibilities($group_id, $worker_id);
-		}
-		
+		self::unsetGroupMemberResponsibilities($group_id, $worker_id);
 		self::clearCache();
 	}
 	
@@ -567,7 +721,7 @@ class DAO_Group extends Cerb_ORMHelper {
 		if(empty($worker_id) || empty($group_id))
 			return FALSE;
 			
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$sql = sprintf("DELETE FROM worker_to_bucket WHERE worker_id = %d AND bucket_id IN (SELECT id FROM bucket WHERE group_id = %d)",
 			$worker_id,
@@ -579,10 +733,10 @@ class DAO_Group extends Cerb_ORMHelper {
 	}
 	
 	static function getRosters() {
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		
 		if(null === ($objects = $cache->load(self::CACHE_ROSTERS))) {
-			$db = DevblocksPlatform::getDatabaseService();
+			$db = DevblocksPlatform::services()->database();
 			$sql = sprintf("SELECT wt.worker_id, wt.group_id, wt.is_manager, w.is_disabled ".
 				"FROM worker_to_group wt ".
 				"INNER JOIN worker_group g ON (wt.group_id=g.id) ".
@@ -635,7 +789,7 @@ class DAO_Group extends Cerb_ORMHelper {
 	}
 	
 	static public function clearCache() {
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		$cache->remove(self::CACHE_ALL);
 		$cache->remove(self::CACHE_ROSTERS);
 	}
@@ -654,12 +808,20 @@ class DAO_Group extends Cerb_ORMHelper {
 			"g.name as %s, ".
 			"g.is_default as %s, ".
 			"g.is_private as %s, ".
+			"g.reply_address_id as %s, ".
+			"g.reply_html_template_id as %s, ".
+			"g.reply_personal as %s, ".
+			"g.reply_signature_id as %s, ".
 			"g.created as %s, ".
 			"g.updated as %s ",
 				SearchFields_Group::ID,
 				SearchFields_Group::NAME,
 				SearchFields_Group::IS_DEFAULT,
 				SearchFields_Group::IS_PRIVATE,
+				SearchFields_Group::REPLY_ADDRESS_ID,
+				SearchFields_Group::REPLY_HTML_TEMPLATE_ID,
+				SearchFields_Group::REPLY_PERSONAL,
+				SearchFields_Group::REPLY_SIGNATURE_ID,
 				SearchFields_Group::CREATED,
 				SearchFields_Group::UPDATED
 			);
@@ -712,7 +874,7 @@ class DAO_Group extends Cerb_ORMHelper {
 	}
 	
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -773,6 +935,10 @@ class SearchFields_Group extends DevblocksSearchFields {
 	const CREATED = 'g_created';
 	const IS_DEFAULT = 'g_is_default';
 	const IS_PRIVATE = 'g_is_private';
+	const REPLY_ADDRESS_ID = 'g_reply_address_id';
+	const REPLY_HTML_TEMPLATE_ID = 'g_reply_html_template_id';
+	const REPLY_PERSONAL = 'g_reply_personal';
+	const REPLY_SIGNATURE_ID = 'g_reply_signature_id';
 	const UPDATED = 'g_updated';
 	
 	const VIRTUAL_CONTEXT_LINK = '*_context_link';
@@ -798,8 +964,8 @@ class SearchFields_Group extends DevblocksSearchFields {
 				break;
 			
 			case self::VIRTUAL_MEMBER_SEARCH:
-				$sql = "g.id IN (SELECT DISTINCT wtg.group_id FROM worker_to_group wtg WHERE wtg.worker_id IN (%s))";
-				return self::_getWhereSQLFromVirtualSearchSqlField($param, CerberusContexts::CONTEXT_WORKER, $sql);
+				$sql = "SELECT DISTINCT wtg.group_id FROM worker_to_group wtg WHERE wtg.worker_id IN (%s)";
+				return self::_getWhereSQLFromVirtualSearchSqlField($param, CerberusContexts::CONTEXT_WORKER, $sql, 'g.id');
 				break;
 			
 			default:
@@ -834,6 +1000,10 @@ class SearchFields_Group extends DevblocksSearchFields {
 			self::CREATED => new DevblocksSearchField(self::CREATED, 'g', 'created', $translate->_('common.created'), Model_CustomField::TYPE_DATE, true),
 			self::IS_DEFAULT => new DevblocksSearchField(self::IS_DEFAULT, 'g', 'is_default', $translate->_('common.default'), Model_CustomField::TYPE_CHECKBOX, true),
 			self::IS_PRIVATE => new DevblocksSearchField(self::IS_PRIVATE, 'g', 'is_private', $translate->_('common.private'), Model_CustomField::TYPE_CHECKBOX, true),
+			self::REPLY_ADDRESS_ID => new DevblocksSearchField(self::REPLY_ADDRESS_ID, 'g', 'reply_address_id', $translate->_('common.send.from'), Model_CustomField::TYPE_NUMBER, true),
+			self::REPLY_HTML_TEMPLATE_ID => new DevblocksSearchField(self::REPLY_HTML_TEMPLATE_ID, 'g', 'reply_html_template_id', $translate->_('common.email_template'), Model_CustomField::TYPE_NUMBER, true),
+			self::REPLY_PERSONAL => new DevblocksSearchField(self::REPLY_PERSONAL, 'g', 'reply_personal', $translate->_('common.send.as'), Model_CustomField::TYPE_SINGLE_LINE, true),
+			self::REPLY_SIGNATURE_ID => new DevblocksSearchField(self::REPLY_SIGNATURE_ID, 'g', 'reply_signature_id', $translate->_('common.signature'), Model_CustomField::TYPE_NUMBER, true),
 			self::UPDATED => new DevblocksSearchField(self::UPDATED, 'g', 'updated', $translate->_('common.updated'), Model_CustomField::TYPE_DATE, true),
 			
 			self::VIRTUAL_CONTEXT_LINK => new DevblocksSearchField(self::VIRTUAL_CONTEXT_LINK, '*', 'context_link', $translate->_('common.links'), null, false),
@@ -861,6 +1031,10 @@ class Model_Group {
 	public $count;
 	public $is_default = 0;
 	public $is_private = 0;
+	public $reply_address_id = 0;
+	public $reply_personal;
+	public $reply_signature_id = 0;
+	public $reply_html_template_id = 0;
 	public $created;
 	public $updated;
 	
@@ -900,16 +1074,14 @@ class Model_Group {
 	/**
 	 *
 	 * @param integer $bucket_id
-	 * @return Model_AddressOutgoing
+	 * @return Model_Address
 	 */
 	public function getReplyTo($bucket_id=0) {
 		if($bucket_id && $bucket = DAO_Bucket::get($bucket_id)) {
 			return $bucket->getReplyTo();
 			
 		} else {
-			
-			if(false != ($default_bucket = DAO_Bucket::getDefaultForGroup($this->id)))
-				return $default_bucket->getReplyTo();
+			return DAO_Address::get($this->reply_address_id);
 		}
 		
 		return null;
@@ -920,9 +1092,7 @@ class Model_Group {
 			return $bucket->getReplyFrom();
 			
 		} else {
-			
-			if(false == ($default_bucket = DAO_Bucket::getDefaultForGroup($this->id)))
-				return $default_bucket->getReplyFrom();
+			return $this->reply_address_id;
 		}
 		
 		return null;
@@ -933,9 +1103,7 @@ class Model_Group {
 			return $bucket->getReplyPersonal($worker_model);
 			
 		} else {
-			
-			if(false != ($default_bucket = DAO_Bucket::getDefaultForGroup($this->id)))
-				return $default_bucket->getReplyPersonal($worker_model);
+			return $this->reply_personal;
 		}
 		
 		return null;
@@ -945,10 +1113,8 @@ class Model_Group {
 		if($bucket_id && $bucket = DAO_Bucket::get($bucket_id)) {
 			return $bucket->getReplySignature($worker_model);
 			
-		} else {
-			
-			if(false != ($default_bucket = DAO_Bucket::getDefaultForGroup($this->id)))
-				return $default_bucket->getReplySignature($worker_model);
+		} else if (false != ($signature = DAO_EmailSignature::get($this->reply_signature_id))) {
+			return $signature->signature;
 		}
 		
 		return null;
@@ -959,9 +1125,7 @@ class Model_Group {
 			return $bucket->getReplyHtmlTemplate();
 			
 		} else {
-			
-			if(false != ($default_bucket = DAO_Bucket::getDefaultForGroup($this->id)))
-				return $default_bucket->getReplyHtmlTemplate();
+			return DAO_MailHtmlTemplate::get($this->reply_html_template_id);
 		}
 		
 		return null;
@@ -969,13 +1133,43 @@ class Model_Group {
 };
 
 class DAO_GroupSettings extends Cerb_ORMHelper {
-	const CACHE_ALL = 'ch_group_settings';
+	const GROUP_ID = 'group_id';
+	const SETTING = 'setting';
+	const VALUE = 'value';
 	
 	const SETTING_SUBJECT_HAS_MASK = 'subject_has_mask';
 	const SETTING_SUBJECT_PREFIX = 'subject_prefix';
 	
+	const CACHE_ALL = 'ch_group_settings';
+	
+	private function __construct() {}
+	
+	static function getFields() {
+		$validation = DevblocksPlatform::services()->validation();
+		
+		$validation
+			->addField(self::GROUP_ID)
+			->id()
+			->setRequired(true)
+			;
+		$validation
+			->addField(self::SETTING)
+			->string()
+			->setMaxLength(64)
+			->setRequired(true)
+			;
+		$validation
+			->addField(self::VALUE)
+			->string()
+			->setMaxLength(65535)
+			->setRequired(true)
+			;
+		
+		return $validation->getFields();
+	}
+	
 	static function set($group_id, $key, $value) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$db->ExecuteMaster(sprintf("REPLACE INTO group_setting (group_id, setting, value) ".
 			"VALUES (%d, %s, %s)",
@@ -984,7 +1178,7 @@ class DAO_GroupSettings extends Cerb_ORMHelper {
 			$db->qstr($value)
 		));
 		
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		$cache->remove(self::CACHE_ALL);
 	}
 	
@@ -1003,9 +1197,9 @@ class DAO_GroupSettings extends Cerb_ORMHelper {
 	}
 	
 	static function getSettings($group_id=0) {
-		$cache = DevblocksPlatform::getCacheService();
+		$cache = DevblocksPlatform::services()->cache();
 		if(null === ($groups = $cache->load(self::CACHE_ALL))) {
-			$db = DevblocksPlatform::getDatabaseService();
+			$db = DevblocksPlatform::services()->database();
 	
 			$groups = array();
 			
@@ -1063,6 +1257,10 @@ class View_Group extends C4_AbstractView implements IAbstractView_Subtotals, IAb
 			SearchFields_Group::NAME,
 			SearchFields_Group::IS_PRIVATE,
 			SearchFields_Group::IS_DEFAULT,
+			SearchFields_Group::REPLY_ADDRESS_ID,
+			SearchFields_Group::REPLY_PERSONAL,
+			SearchFields_Group::REPLY_SIGNATURE_ID,
+			SearchFields_Group::REPLY_HTML_TEMPLATE_ID,
 			SearchFields_Group::UPDATED,
 		);
 		
@@ -1123,7 +1321,7 @@ class View_Group extends C4_AbstractView implements IAbstractView_Subtotals, IAb
 				
 				// Valid custom fields
 				default:
-					if('cf_' == substr($field_key,0,3))
+					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -1214,6 +1412,35 @@ class View_Group extends C4_AbstractView implements IAbstractView_Subtotals, IAb
 					'type' => DevblocksSearchCriteria::TYPE_BOOL,
 					'options' => array('param_key' => SearchFields_Group::IS_PRIVATE),
 				),
+			'send.as' => 
+				array(
+					'type' => DevblocksSearchCriteria::TYPE_TEXT,
+					'options' => array('param_key' => SearchFields_Group::REPLY_PERSONAL, 'match' => DevblocksSearchCriteria::OPTION_TEXT_PARTIAL),
+				),
+			'send.from.id' => 
+				array(
+					'type' => DevblocksSearchCriteria::TYPE_NUMBER,
+					'options' => array('param_key' => SearchFields_Group::REPLY_ADDRESS_ID),
+					'examples' => [
+						['type' => 'chooser', 'context' => CerberusContexts::CONTEXT_ADDRESS, 'q' => 'mailTransport.id:>0'],
+					]
+				),
+			'signature.id' => 
+				array(
+					'type' => DevblocksSearchCriteria::TYPE_NUMBER,
+					'options' => array('param_key' => SearchFields_Group::REPLY_SIGNATURE_ID),
+					'examples' => [
+						['type' => 'chooser', 'context' => CerberusContexts::CONTEXT_EMAIL_SIGNATURE, 'q' => ''],
+					]
+				),
+			'template.id' => 
+				array(
+					'type' => DevblocksSearchCriteria::TYPE_NUMBER,
+					'options' => array('param_key' => SearchFields_Group::REPLY_HTML_TEMPLATE_ID),
+					'examples' => [
+						['type' => 'chooser', 'context' => CerberusContexts::CONTEXT_MAIL_HTML_TEMPLATE, 'q' => ''],
+					]
+				),
 			'updated' => 
 				array(
 					'type' => DevblocksSearchCriteria::TYPE_DATE,
@@ -1261,12 +1488,21 @@ class View_Group extends C4_AbstractView implements IAbstractView_Subtotals, IAb
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
 		$custom_fields = DAO_CustomField::getByContext(Context_Group::ID);
 		$tpl->assign('custom_fields', $custom_fields);
+		
+		$replyto_addresses = DAO_Address::getLocalAddresses();
+		$tpl->assign('replyto_addresses', $replyto_addresses);
+		
+		$html_templates = DAO_MailHtmlTemplate::getAll();
+		$tpl->assign('html_templates', $html_templates);
+		
+		$signatures = DAO_EmailSignature::getAll();
+		$tpl->assign('signatures', $signatures);
 
 		switch($this->renderTemplate) {
 			case 'contextlinks_chooser':
@@ -1278,11 +1514,17 @@ class View_Group extends C4_AbstractView implements IAbstractView_Subtotals, IAb
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {
+			case SearchFields_Group::REPLY_ADDRESS_ID:
+			case SearchFields_Group::REPLY_HTML_TEMPLATE_ID:
+			case SearchFields_Group::REPLY_SIGNATURE_ID:
+				break;
+				
 			case SearchFields_Group::NAME:
+			case SearchFields_Group::REPLY_PERSONAL:
 				$tpl->display('devblocks:cerberusweb.core::internal/views/criteria/__string.tpl');
 				break;
 				
@@ -1348,6 +1590,31 @@ class View_Group extends C4_AbstractView implements IAbstractView_Subtotals, IAb
 				parent::_renderCriteriaParamBoolean($param);
 				break;
 				
+			case SearchFields_Group::REPLY_ADDRESS_ID:
+				$label_map = function($values) {
+					if(!is_array($values))
+						return [];
+					
+					if(false == ($addresses = DAO_Address::getIds($values)))
+						return [];
+					
+					return array_column($addresses, 'email', 'id');
+				};
+				parent::_renderCriteriaParamString($param, $label_map);
+				break;
+				
+			case SearchFields_Group::REPLY_SIGNATURE_ID:
+				$signatures = DAO_EmailSignature::getAll();
+				$label_map = array_column($signatures, 'name', 'id');
+				parent::_renderCriteriaParamString($param, $label_map);
+				break;
+				
+			case SearchFields_Group::REPLY_HTML_TEMPLATE_ID:
+				$templates = DAO_MailHtmlTemplate::getAll();
+				$label_map = array_column($templates, 'name', 'id');
+				parent::_renderCriteriaParamString($param, $label_map);
+				break;
+				
 			default:
 				parent::renderCriteriaParam($param);
 				break;
@@ -1362,7 +1629,13 @@ class View_Group extends C4_AbstractView implements IAbstractView_Subtotals, IAb
 		$criteria = null;
 
 		switch($field) {
+			case SearchFields_Group::REPLY_ADDRESS_ID:
+			case SearchFields_Group::REPLY_HTML_TEMPLATE_ID:
+			case SearchFields_Group::REPLY_SIGNATURE_ID:
+				break;
+				
 			case SearchFields_Group::NAME:
+			case SearchFields_Group::REPLY_PERSONAL:
 				$criteria = $this->_doSetCriteriaString($field, $oper, $value);
 				break;
 				
@@ -1461,7 +1734,7 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 		if(empty($context_id))
 			return '';
 	
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		$url = $url_writer->writeNoProxy('c=profiles&type=group&id='.$context_id, true);
 		return $url;
 	}
@@ -1509,23 +1782,23 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 	}
 	
 	function getDefaultProperties() {
-		return array(
+		return [
 			'replyto__label',
 			'is_private',
 			'is_default',
 			'updated',
-		);
+		];
 	}
 	
 	function autocomplete($term, $query=null) {
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		$list = array();
 		
 		list($results, $null) = DAO_Group::search(
-			array(),
-			array(
+			[],
+			[
 				new DevblocksSearchCriteria(SearchFields_Group::NAME,DevblocksSearchCriteria::OPER_LIKE,$term.'%'),
-			),
+			],
 			25,
 			0,
 			DAO_Group::NAME,
@@ -1533,7 +1806,8 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 			false
 		);
 
-		foreach($results AS $row){
+		if(is_array($results))
+		foreach($results as $row){
 			$entry = new stdClass();
 			$entry->label = $row[SearchFields_Group::NAME];
 			$entry->value = $row[SearchFields_Group::ID];
@@ -1547,9 +1821,9 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 	function getContext($group, &$token_labels, &$token_values, $prefix=null) {
 		if(is_null($prefix))
 			$prefix = 'Group:';
-			
+		
 		$translate = DevblocksPlatform::getTranslationService();
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		$fields = DAO_CustomField::getByContext(CerberusContexts::CONTEXT_GROUP);
 		
 		// Polymorph
@@ -1564,7 +1838,7 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 		}
 		
 		// Token labels
-		$token_labels = array(
+		$token_labels = [
 			'_label' => $prefix,
 			'created' => $prefix.$translate->_('common.created'),
 			'id' => $prefix.$translate->_('common.id'),
@@ -1572,11 +1846,12 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 			'is_private' => $prefix.$translate->_('common.private'),
 			'name' => $prefix.$translate->_('common.name'),
 			'updated' => $prefix.$translate->_('common.updated'),
+			'reply_personal' => $prefix.$translate->_('common.send.as'),
 			'record_url' => $prefix.$translate->_('common.url.record'),
-		);
+		];
 		
 		// Token types
-		$token_types = array(
+		$token_types = [
 			'_label' => 'context_url',
 			'created' => Model_CustomField::TYPE_DATE,
 			'id' => Model_CustomField::TYPE_NUMBER,
@@ -1585,8 +1860,11 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 			'name' => Model_CustomField::TYPE_SINGLE_LINE,
 			'updated' => Model_CustomField::TYPE_DATE,
 			'record_url' => Model_CustomField::TYPE_URL,
-			'reply_address_id' => Model_CustomField::TYPE_NUMBER,
-		);
+			'replyto_id' => Model_CustomField::TYPE_NUMBER,
+			'reply_html_template_id' => Model_CustomField::TYPE_NUMBER,
+			'reply_personal' => Model_CustomField::TYPE_SINGLE_LINE,
+			'reply_signature_id' => Model_CustomField::TYPE_NUMBER,
+		];
 		
 		// Custom field/fieldset token labels
 		if(false !== ($custom_field_labels = $this->_getTokenLabelsFromCustomFields($fields, $prefix)) && is_array($custom_field_labels))
@@ -1597,7 +1875,7 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 			$token_types = array_merge($token_types, $custom_field_types);
 		
 		// Token values
-		$token_values = array();
+		$token_values = [];
 
 		$token_values['_context'] = CerberusContexts::CONTEXT_GROUP;
 		$token_values['_types'] = $token_types;
@@ -1614,8 +1892,10 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 			$token_values['name'] = $group->name;
 			$token_values['updated'] = $group->updated;
 			
-			if(false != ($replyto = $group->getReplyTo()))
-				$token_values['replyto_id'] = $replyto->address_id;
+			$token_values['replyto_id'] = $group->reply_address_id;
+			$token_values['reply_html_template_id'] = $group->reply_html_template_id;
+			$token_values['reply_personal'] = $group->reply_personal;
+			$token_values['reply_signature_id'] = $group->reply_signature_id;
 			
 			// Custom fields
 			$token_values = $this->_importModelCustomFieldsAsValues($group, $token_values);
@@ -1625,8 +1905,8 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 		}
 		
 		// Reply-To Address
-		$merge_token_labels = array();
-		$merge_token_values = array();
+		$merge_token_labels = [];
+		$merge_token_values = [];
 		CerberusContexts::getContext(CerberusContexts::CONTEXT_ADDRESS, null, $merge_token_labels, $merge_token_values, '', true);
 
 		CerberusContexts::scrubTokensWithRegexp(
@@ -1640,12 +1920,76 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 		
 		CerberusContexts::merge(
 			'replyto_',
-			$prefix.'Reply To:',
+			$prefix.'Send from:',
 			$merge_token_labels,
 			$merge_token_values,
 			$token_labels,
 			$token_values
 		);
+		
+		// HTML template
+		$merge_token_labels = [];
+		$merge_token_values = [];
+		CerberusContexts::getContext(CerberusContexts::CONTEXT_MAIL_HTML_TEMPLATE, null, $merge_token_labels, $merge_token_values, '', true);
+
+		CerberusContexts::merge(
+			'reply_html_template_',
+			$prefix.'Email template:',
+			$merge_token_labels,
+			$merge_token_values,
+			$token_labels,
+			$token_values
+		);
+		
+		// Email signature
+		$merge_token_labels = [];
+		$merge_token_values = [];
+		CerberusContexts::getContext(CerberusContexts::CONTEXT_EMAIL_SIGNATURE, null, $merge_token_labels, $merge_token_values, '', true);
+
+		CerberusContexts::merge(
+			'reply_signature_',
+			$prefix.'Signature:',
+			$merge_token_labels,
+			$merge_token_values,
+			$token_labels,
+			$token_values
+		);
+		
+		return true;
+	}
+	
+	function getKeyToDaoFieldMap() {
+		return [
+			'created' => DAO_Group::CREATED,
+			'id' => DAO_Group::ID,
+			'is_default' => DAO_Group::IS_DEFAULT,
+			'is_private' => DAO_Group::IS_PRIVATE,
+			'links' => '_links',
+			'name' => DAO_Group::NAME,
+			'reply_address_id' => DAO_Group::REPLY_ADDRESS_ID,
+			'replyto_id' => DAO_Group::REPLY_ADDRESS_ID,
+			'reply_html_template_id' => DAO_Group::REPLY_HTML_TEMPLATE_ID,
+			'reply_personal' => DAO_Group::REPLY_PERSONAL,
+			'reply_signature_id' => DAO_Group::REPLY_SIGNATURE_ID,
+			'updated' => DAO_Group::UPDATED,
+		];
+	}
+	
+	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
+		$dict_key = DevblocksPlatform::strLower($key);
+		switch($dict_key) {
+			case 'image':
+				$out_fields[DAO_Group::_IMAGE] = $value;
+				break;
+			
+			case 'links':
+				$this->_getDaoFieldsLinks($value, $out_fields, $error);
+				break;
+				
+			case 'members':
+				$out_fields[DAO_Group::_MEMBERS] = json_encode($value);
+				break;
+		}
 		
 		return true;
 	}
@@ -1813,12 +2157,6 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 
 		$view = C4_AbstractViewLoader::getView($view_id, $defaults);
 		$view->name = 'Groups';
-		$view->view_columns = array(
-			SearchFields_Group::NAME,
-			SearchFields_Group::IS_DEFAULT,
-			SearchFields_Group::IS_PRIVATE,
-			SearchFields_Group::UPDATED,
-		);
 		$view->addParams(array(
 		), true);
 //		$view->renderSortBy = SearchFields_Group::NAME;
@@ -1854,14 +2192,22 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$active_worker = CerberusApplication::getActiveWorker();
 		$translate = DevblocksPlatform::getTranslationService();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$context = CerberusContexts::CONTEXT_GROUP;
+		$active_worker = CerberusApplication::getActiveWorker();
+		
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('view_id', $view_id);
 		
-		if(!empty($context_id) && null != ($group = DAO_Group::get($context_id))) {
-			$tpl->assign('group', $group);
+		if($context_id) {
+			if(null != ($group = DAO_Group::get($context_id))) {
+				$tpl->assign('group', $group);
+			} else {
+				$tpl->assign('error_message', DevblocksPlatform::translate('error.core.record.not_found'));
+				$tpl->display('devblocks:cerberusweb.core::internal/peek/peek_error.tpl');
+				return;
+			}
 		}
 		
 		// Members
@@ -1874,10 +2220,10 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 		
 		// Custom fields
 		
-		$custom_fields = DAO_CustomField::getByContext(CerberusContexts::CONTEXT_GROUP, false);
+		$custom_fields = DAO_CustomField::getByContext($context, false);
 		$tpl->assign('custom_fields', $custom_fields);
 		
-		$custom_field_values = DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_GROUP, $context_id);
+		$custom_field_values = DAO_CustomFieldValue::getValuesByContextIds($context, $context_id);
 		if(isset($custom_field_values[$context_id]))
 			$tpl->assign('custom_field_values', $custom_field_values[$context_id]);
 		
@@ -1911,33 +2257,38 @@ class Context_Group extends Extension_DevblocksContext implements IDevblocksCont
 			$tpl->display('devblocks:cerberusweb.core::groups/peek_edit.tpl');
 			
 		} else {
+			// Dictionary
+			$labels = array();
+			$values = array();
+			CerberusContexts::getContext($context, $group, $labels, $values, '', true, false);
+			$dict = DevblocksDictionaryDelegate::instance($values);
+			$tpl->assign('dict', $dict);
+			
 			$activity_counts = array(
 				'members' => DAO_Worker::countByGroupId($context_id),
 				'buckets' => DAO_Bucket::countByGroupId($context_id),
 				'tickets' => DAO_Ticket::countsByGroupId($context_id),
-				'comments' => DAO_Comment::count(CerberusContexts::CONTEXT_GROUP, $context_id),
+				'comments' => DAO_Comment::count($context, $context_id),
 			);
 			$tpl->assign('activity_counts', $activity_counts);
 			
 			// Timeline
 			if($context_id) {
-				$timeline_json = Page_Profiles::getTimelineJson(Extension_DevblocksContext::getTimelineComments(CerberusContexts::CONTEXT_GROUP, $context_id));
+				$timeline_json = Page_Profiles::getTimelineJson(Extension_DevblocksContext::getTimelineComments($context, $context_id));
 				$tpl->assign('timeline_json', $timeline_json);
 			}
 			
 			// Context
-			if(false == ($context_ext = Extension_DevblocksContext::get(CerberusContexts::CONTEXT_GROUP)))
+			if(false == ($context_ext = Extension_DevblocksContext::get($context)))
 				return;
-			
-			// Dictionary
-			$labels = array();
-			$values = array();
-			CerberusContexts::getContext(CerberusContexts::CONTEXT_GROUP, $group, $labels, $values, '', true, false);
-			$dict = DevblocksDictionaryDelegate::instance($values);
-			$tpl->assign('dict', $dict);
 			
 			$properties = $context_ext->getCardProperties();
 			$tpl->assign('properties', $properties);
+			
+			// Interactions
+			$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
+			$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
+			$tpl->assign('interactions_menu', $interactions_menu);
 			
 			$tpl->display('devblocks:cerberusweb.core::groups/peek.tpl');
 		}

@@ -1,16 +1,8 @@
 {$page_context = CerberusContexts::CONTEXT_TASK}
 {$page_context_id = $task->id}
+{$is_writeable = Context_Task::isWriteableByActor($task, $active_worker)}
 
-<div style="float:left;">
-	<h1>{$task->title}</h1>
-</div>
-
-<div style="float:right;">
-	{$ctx = Extension_DevblocksContext::get($page_context)}
-	{include file="devblocks:cerberusweb.core::search/quick_search.tpl" view=$ctx->getSearchView() return_url="{devblocks_url}c=search&context={$ctx->manifest->params.alias}{/devblocks_url}"}
-</div>
-
-<div style="clear:both;"></div>
+<h1>{$task->title}</h1>
 
 <div class="cerb-profile-toolbar">
 	<form class="toolbar" action="{devblocks_url}{/devblocks_url}" method="post" style="margin-bottom:5px;">
@@ -19,18 +11,23 @@
 		<input type="hidden" name="id" value="{$page_context_id}">
 		<input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
 		
+		<span id="spanInteractions">
+		{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.tpl"}
+		</span>
+		
+		<!-- Card -->
+		<button type="button" id="btnProfileCard" title="{'common.card'|devblocks_translate|capitalize}" data-context="{$page_context}" data-context-id="{$page_context_id}"><span class="glyphicons glyphicons-nameplate"></span></button>
+		
+		<!-- Edit -->
+		{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
+		<button type="button" id="btnDisplayTaskEdit" title="{'common.edit'|devblocks_translate|capitalize} (E)" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_TASK}" data-context-id="{$page_context_id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span></button>
+		{/if}
+		
 		<!-- Toolbar -->
 		<span>
 		{$object_watchers = DAO_ContextLink::getContextLinks($page_context, array($page_context_id), CerberusContexts::CONTEXT_WORKER)}
 		{include file="devblocks:cerberusweb.core::internal/watchers/context_follow_button.tpl" context=$page_context context_id=$page_context_id full=true}
 		</span>
-
-		<!-- Macros -->
-		{devblocks_url assign=return_url full=true}c=profiles&type=task&id={$page_context_id}-{$task->title|devblocks_permalink}{/devblocks_url}
-		{include file="devblocks:cerberusweb.core::internal/macros/display/button.tpl" context=$page_context context_id=$page_context_id macros=$macros return_url=$return_url}		
-
-		<!-- Edit -->
-		<button type="button" id="btnDisplayTaskEdit" title="{'common.edit'|devblocks_translate|capitalize} (E)" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_TASK}" data-context-id="{$page_context_id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span></button>
 
 		<button type="button" title="{'common.refresh'|devblocks_translate|capitalize}" onclick="document.location='{devblocks_url}c=profiles&type=task&id={$page_context_id}-{$task->title|devblocks_permalink}{/devblocks_url}';">&nbsp;<span class="glyphicons glyphicons-refresh"></span></a>&nbsp;</button>
 	</form>
@@ -39,7 +36,6 @@
 	<small>
 		{'common.keyboard'|devblocks_translate|lower}:
 		(<b>e</b>) {'common.edit'|devblocks_translate|lower}
-		{if !empty($macros)}(<b>m</b>) {'common.macros'|devblocks_translate|lower} {/if}
 		(<b>1-9</b>) change tab
 	</small> 
 	{/if}
@@ -53,14 +49,19 @@
 		<div class="property">
 			{if $k == 'status'}
 				<b>{'common.status'|devblocks_translate|capitalize}:</b>
-				{if $task->is_completed}
-					<span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,150,0);"></span> <span style="color:rgb(0,150,0);font-weight:bold;">{'task.is_completed'|devblocks_translate|capitalize}</span>
+				{if 1 == $task->status_id}
+					<span style="font-weight:bold;color:rgb(50,115,185);">{'status.closed'|devblocks_translate}</span>
+				{elseif 2 == $task->status_id}
+					<span style="font-weight:bold;color:rgb(50,115,185);">{'status.waiting.abbr'|devblocks_translate}</span>
+					{if !empty($task->reopen_at)}
+						(opens {if $task->reopen_at > time()}in {/if}<abbr title="{$task->reopen_at|devblocks_date}">{$task->reopen_at|devblocks_prettytime}</abbr>)
+					{/if}
 				{else}
-					{'status.open'|devblocks_translate|capitalize}
-				{/if}
+					{'status.open'|devblocks_translate}
+				{/if} 
 			{elseif $k == 'due_date'}
 				<b>{'task.due_date'|devblocks_translate|capitalize}:</b>
-				<abbr title="{$task->due_date|devblocks_date}" style="{if !$task->is_completed && $task->due_date < time()}font-weight:bold;color:rgb(150,0,0);{/if}">{$task->due_date|devblocks_prettytime}</abbr>
+				<abbr title="{$task->due_date|devblocks_date}" style="{if 1 != $task->status_id && $task->due_date < time()}font-weight:bold;color:rgb(150,0,0);{/if}">{$task->due_date|devblocks_prettytime}</abbr>
 			{elseif $k == 'importance'}
 				<b>{'common.importance'|devblocks_translate|capitalize}:</b>
 				<div style="display:inline-block;margin-left:5px;width:40px;height:8px;background-color:rgb(220,220,220);border-radius:8px;">
@@ -112,6 +113,8 @@ $(function() {
 	
 	var tabs = $("#profileTaskTabs").tabs(tabOptions);
 
+	$('#btnProfileCard').cerbPeekTrigger();
+	
 	// Edit
 	
 	$('#btnDisplayTaskEdit')
@@ -128,10 +131,11 @@ $(function() {
 		})
 		.on('cerb-peek-closed', function(e) {
 		})
-		;
+	;
 	
-	{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_button=null selector_menu=null}
-	
+	// Interactions
+	var $interaction_container = $('#spanInteractions');
+	{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.js.tpl"}
 });
 </script>
 

@@ -13,14 +13,8 @@
 	<form class="toolbar" action="{devblocks_url}{/devblocks_url}" onsubmit="return false;" style="margin-bottom:5px;">
 		<input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
 		
-		<!-- Macros -->
-		{if $is_readable}
-		{devblocks_url assign=return_url full=true}c=profiles&type=connected_account&id={$page_context_id}-{$connected_account->name|devblocks_permalink}{/devblocks_url}
-		{include file="devblocks:cerberusweb.core::internal/macros/display/button.tpl" context=$page_context context_id=$page_context_id macros=$macros return_url=$return_url}
-		{/if}
-		
 		<!-- Edit -->
-		{if $is_writeable}
+		{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
 		<button type="button" id="btnDisplayConnectedAccountEdit" title="{'common.edit'|devblocks_translate|capitalize} (E)" class="cerb-peek-trigger" data-context="{$page_context}" data-context-id="{$page_context_id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span></button>
 		{/if}
 	</form>
@@ -29,7 +23,6 @@
 		<small>
 		{$translate->_('common.keyboard')|lower}:
 		(<b>e</b>) {'common.edit'|devblocks_translate|lower}
-		{if !empty($macros)}(<b>m</b>) {'common.macros'|devblocks_translate|lower} {/if}
 		(<b>1-9</b>) change tab
 		</small>
 	{/if}
@@ -88,7 +81,7 @@ $(function() {
 
 	var tabs = $("#connected_accountTabs").tabs(tabOptions);
 	
-	{if $is_writeable}
+	{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
 	$('#btnDisplayConnectedAccountEdit')
 		.cerbPeekTrigger()
 		.on('cerb-peek-opened', function(e) {
@@ -105,8 +98,6 @@ $(function() {
 		})
 		;
 	{/if}
-
-	{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_button=null selector_menu=null}
 });
 </script>
 

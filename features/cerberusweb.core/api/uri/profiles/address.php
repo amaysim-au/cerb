@@ -17,9 +17,11 @@
 
 class PageSection_ProfilesAddress extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$translate = DevblocksPlatform::getTranslationService();
 		$response = DevblocksPlatform::getHttpResponse();
+		
+		$context = CerberusContexts::CONTEXT_ADDRESS;
 		$active_worker = CerberusApplication::getActiveWorker();
 
 		$stack = $response->path;
@@ -29,6 +31,13 @@ class PageSection_ProfilesAddress extends Extension_PageSection {
 		
 		$address = DAO_Address::get($id);
 		$tpl->assign('address', $address);
+		
+		// Dictionary
+		$labels = array();
+		$values = array();
+		CerberusContexts::getContext($context, $address, $labels, $values, '', true, false);
+		$dict = DevblocksDictionaryDelegate::instance($values);
+		$tpl->assign('dict', $dict);
 		
 		$point = 'cerberusweb.profiles.address';
 		$tpl->assign('point', $point);
@@ -90,26 +99,26 @@ class PageSection_ProfilesAddress extends Extension_PageSection {
 		
 		// Custom Fields
 
-		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_ADDRESS, $address->id)) or array();
+		@$values = array_shift(DAO_CustomFieldValue::getValuesByContextIds($context, $address->id)) or array();
 		$tpl->assign('custom_field_values', $values);
 		
-		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields(CerberusContexts::CONTEXT_ADDRESS, $values);
+		$properties_cfields = Page_Profiles::getProfilePropertiesCustomFields($context, $values);
 		
 		if(!empty($properties_cfields))
 			$properties = array_merge($properties, $properties_cfields);
 		
 		// Custom Fieldsets
 
-		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets(CerberusContexts::CONTEXT_ADDRESS, $address->id, $values);
+		$properties_custom_fieldsets = Page_Profiles::getProfilePropertiesCustomFieldsets($context, $address->id, $values);
 		$tpl->assign('properties_custom_fieldsets', $properties_custom_fieldsets);
 		
 		// Link counts
 		
 		$properties_links = array(
-			CerberusContexts::CONTEXT_ADDRESS => array(
+			$context => array(
 				$address->id => 
 					DAO_ContextLink::getContextLinkCounts(
-						CerberusContexts::CONTEXT_ADDRESS,
+						$context,
 						$address->id,
 						array(CerberusContexts::CONTEXT_CUSTOM_FIELDSET)
 					),
@@ -133,16 +142,13 @@ class PageSection_ProfilesAddress extends Extension_PageSection {
 		
 		$tpl->assign('properties', $properties);
 		
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.address'
-		);
-		$tpl->assign('macros', $macros);
+		// Interactions
+		$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
+		$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
+		$tpl->assign('interactions_menu', $interactions_menu);
 		
 		// Tabs
-		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_ADDRESS);
+		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, $context);
 		$tpl->assign('tab_manifests', $tab_manifests);
 
 		// Template
@@ -151,7 +157,7 @@ class PageSection_ProfilesAddress extends Extension_PageSection {
 	
 	function savePeekJsonAction() {
 		$active_worker = CerberusApplication::getActiveWorker();
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		header('Content-Type: application/json; charset=utf-8');
 		
@@ -164,41 +170,33 @@ class PageSection_ProfilesAddress extends Extension_PageSection {
 			@$is_defunct = DevblocksPlatform::importGPC($_REQUEST['is_defunct'],'bit',0);
 			@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string', '');
 			
-			if(!$active_worker->hasPriv('core.addybook.addy.actions.update'))
-				throw new Exception_DevblocksAjaxValidationError("You don't have permission to modify this record.");
-				
 			// Common fields
-			$fields = array(
+			$fields = [
 				DAO_Address::CONTACT_ORG_ID => $org_id,
 				DAO_Address::CONTACT_ID => $contact_id,
 				DAO_Address::IS_BANNED => $is_banned,
 				DAO_Address::IS_DEFUNCT => $is_defunct,
-			);
+			];
+			
+			if($active_worker->is_superuser) {
+				@$mail_transport_id = DevblocksPlatform::importGPC($_REQUEST['mail_transport_id'],'integer',0);
+				$fields[DAO_Address::MAIL_TRANSPORT_ID] = $mail_transport_id;
+				DAO_Address::clearCache();
+			}
 			
 			if(empty($id)) {
-				if(empty($email))
-					throw new Exception_DevblocksAjaxValidationError("The 'Email' field is required.", 'email');
-				
-				$validated_emails = CerberusUtils::parseRfcAddressList($email);
-				
-				if(empty($validated_emails) || !is_array($validated_emails))
-					throw new Exception_DevblocksAjaxValidationError("The given email address is invalid.", 'email');
-				
-				$email = $validated_emails[0]->mailbox . '@' . $validated_emails[0]->host;
-				
-				if(false != DAO_Address::getByEmail($email))
-					throw new Exception_DevblocksAjaxValidationError('A record already exists for the given email address.', 'email');
-				
-				if($contact_id && false == DAO_Contact::get($contact_id))
-					throw new Exception_DevblocksAjaxValidationError('The given contact record is invalid.', 'contact_id');
-				
-				if($org_id && false == DAO_ContactOrg::get($org_id))
-					throw new Exception_DevblocksAjaxValidationError('The given organization record is invalid.', 'org_id');
-				
 				$fields[DAO_Address::EMAIL] = $email;
+				
+				if(!DAO_Address::validate($fields, $error))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
+				if(!DAO_Address::onBeforeUpdateByActor($active_worker, $fields, null, $error))
+					throw new Exception_DevblocksAjaxValidationError($error);
 
 				if(false == ($id = DAO_Address::create($fields)))
 					throw new Exception_DevblocksAjaxValidationError('An unexpected error occurred while trying to save the record.');
+				
+				DAO_Address::onUpdateByActor($active_worker, $fields, $id);
 				
 				// View marquee
 				if(!empty($id) && !empty($view_id)) {
@@ -206,10 +204,14 @@ class PageSection_ProfilesAddress extends Extension_PageSection {
 				}
 				
 			} else {
-				if(false != ($address = DAO_Address::get($id))) {
-					$email = $address->email;
-					DAO_Address::update($id, $fields);
-				}
+				if(!DAO_Address::validate($fields, $error, $id))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
+				if(!DAO_Address::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
+				DAO_Address::update($id, $fields);
+				DAO_Address::onUpdateByActor($active_worker, $fields, $id);
 			}
 	
 			if($id) {
@@ -225,7 +227,7 @@ class PageSection_ProfilesAddress extends Extension_PageSection {
 			/*
 			 * Notify anything that wants to know when Address Peek saves.
 			 */
-			$eventMgr = DevblocksPlatform::getEventService();
+			$eventMgr = DevblocksPlatform::services()->event();
 			$eventMgr->trigger(
 				new Model_DevblocksEvent(
 					'address.peek.saved',
@@ -267,7 +269,7 @@ class PageSection_ProfilesAddress extends Extension_PageSection {
 
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('view_id', $view_id);
 
 		if(!empty($ids)) {
@@ -291,14 +293,6 @@ class PageSection_ProfilesAddress extends Extension_PageSection {
 		
 		$placeholders = Extension_DevblocksContext::getPlaceholderTree($token_labels);
 		$tpl->assign('placeholders', $placeholders);
-		
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.address'
-		);
-		$tpl->assign('macros', $macros);
 		
 		$tpl->display('devblocks:cerberusweb.core::contacts/addresses/bulk.tpl');
 	}
@@ -352,7 +346,7 @@ class PageSection_ProfilesAddress extends Extension_PageSection {
 		}
 		
 		// Broadcast: Compose
-		if($active_worker->hasPriv('core.addybook.addy.view.actions.broadcast')) {
+		if($active_worker->hasPriv('contexts.cerberusweb.contexts.address.broadcast')) {
 			@$do_broadcast = DevblocksPlatform::importGPC($_REQUEST['do_broadcast'],'string',null);
 			@$broadcast_group_id = DevblocksPlatform::importGPC($_REQUEST['broadcast_group_id'],'integer',0);
 			@$broadcast_subject = DevblocksPlatform::importGPC($_REQUEST['broadcast_subject'],'string',null);

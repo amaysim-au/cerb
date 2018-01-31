@@ -24,7 +24,7 @@ class Event_ContactMacro extends AbstractEvent_Contact {
 	}
 	
 	static function trigger($trigger_id, $context_id, $variables=array()) {
-		$events = DevblocksPlatform::getEventService();
+		$events = DevblocksPlatform::services()->event();
 		return $events->trigger(
 			new Model_DevblocksEvent(
 				self::ID,
@@ -37,5 +37,11 @@ class Event_ContactMacro extends AbstractEvent_Contact {
 				)
 			)
 		);
+	}
+	
+	function renderEventParams(Model_TriggerEvent $trigger=null) {
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('trigger', $trigger);
+		$tpl->display('devblocks:cerberusweb.core::events/record/params_macro_default.tpl');
 	}
 };

@@ -1,6 +1,6 @@
 <html>
 <head>
-	<title>Cerb - Browser-based Installation</title>
+	<title>Installing Cerb...</title>
 	<link rel="stylesheet" href="install.css" type="text/css">
 	<script type="text/javascript" src="jquery-1.11.2.min.js"></script>
 </head>
@@ -14,7 +14,7 @@
 	<tr>
 		<td>Progress: </td>
 		{section start=0 loop=$smarty.const.TOTAL_STEPS name=progress}
-		<td {if $smarty.section.progress.iteration <= $step}class='progress_complete'{else}class='progress_incomplete'{/if}>
+		<td {if $smarty.section.progress.iteration > $step}class='progress_incomplete'{else}class='progress_complete'{/if}>
 			&nbsp;
 		</td>
 		{/section}

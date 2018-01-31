@@ -1,25 +1,34 @@
+{$headers = $message->getHeaders()}
 <div class="block reply_frame" style="width:98%;margin:10px;">
-
 <form id="reply{$message->id}_part1" onsubmit="return false;">
 
 <table cellpadding="2" cellspacing="0" border="0" width="100%">
 	<tr>
-		<td><h2 style="color:rgb(50,50,50);">{if $is_forward}{'display.ui.forward'|devblocks_translate|capitalize}{else}{'display.ui.reply'|devblocks_translate|capitalize}{/if}</h2></td>
+		<td><h2 style="color:rgb(50,50,50);">{if $is_forward}{'display.ui.forward'|devblocks_translate|capitalize}{else}{'common.reply'|devblocks_translate|capitalize}{/if}</h2></td>
 	</tr>
 	<tr>
 		<td width="100%">
+			{if 'core.mail.transport.null' == $reply_transport->extension_id}
+			<div class="help-box">
+				<h1>Your message will not be delivered.</h1>
+				<p>
+					This bucket is configured to discard outgoing messages. 
+					To send live email, change the mail transport on the <a href="javascript:;" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_BUCKET}" data-context-id="{$ticket->bucket_id}">bucket</a> or <a href="javascript:;" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_GROUP}" data-context-id="{$ticket->group_id}">group</a>.
+				</p>
+			</div>
+			{/if}
+			
 			<table cellpadding="1" cellspacing="0" border="0" width="100%">
-				{if isset($groups.{$ticket->group_id})}
 				<tr>
 					<td width="1%" nowrap="nowrap" align="right" valign="middle"><b>{'message.header.from'|devblocks_translate|capitalize}:</b>&nbsp;</td>
 					<td width="99%" align="left">
-						{$groups.{$ticket->group_id}->name}
+						{$reply_as} &lt;<a href="javascript:;" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_ADDRESS}" data-context-id="{$reply_from->id}">{$reply_from->email}</a>&gt; via 
+						<a href="javascript:;" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_MAIL_TRANSPORT}" data-context-id="{$reply_transport->id}">{$reply_transport->name}</a>
 					</td>
 				</tr>
-				{/if}
 				
 				<tr>
-					<td width="1%" nowrap="nowrap" align="right" valign="middle"><b>{'message.header.to'|devblocks_translate|capitalize}:</b>&nbsp;</td>
+					<td width="1%" nowrap="nowrap" align="right" valign="middle"><a href="javascript:;" class="cerb-recipient-chooser" data-context="{CerberusContexts::CONTEXT_ADDRESS}" data-query=""><b>{'message.header.to'|devblocks_translate|capitalize}</b></a>:&nbsp;</td>
 					<td width="99%" align="left">
 						<input type="text" size="45" name="to" value="{$to}" placeholder="{if $is_forward}These recipients will receive this forwarded message{else}These recipients will automatically be included in all future correspondence as participants{/if}" class="required" style="width:100%;border:1px solid rgb(180,180,180);padding:2px;">
 						{if !$is_forward}
@@ -39,16 +48,16 @@
 				</tr>
 				
 				<tr>
-					<td width="1%" nowrap="nowrap" align="right" valign="middle">{'message.header.cc'|devblocks_translate|capitalize}:&nbsp;</td>
+					<td width="1%" nowrap="nowrap" align="right" valign="middle"><a href="javascript:;" class="cerb-recipient-chooser" data-context="{CerberusContexts::CONTEXT_ADDRESS}" data-query="">{'message.header.cc'|devblocks_translate|capitalize}</a>:&nbsp;</td>
 					<td width="99%" align="left">
 						<input type="text" size="45" name="cc" value="{$cc}" placeholder="These recipients will publicly receive a one-time copy of this message" style="width:100%;border:1px solid rgb(180,180,180);padding:2px;">
 					</td>
 				</tr>
 				
 				<tr>
-					<td width="1%" nowrap="nowrap" align="right" valign="middle">{'message.header.bcc'|devblocks_translate|capitalize}:&nbsp;</td>
+					<td width="1%" nowrap="nowrap" align="right" valign="middle"><a href="javascript:;" class="cerb-recipient-chooser" data-context="{CerberusContexts::CONTEXT_ADDRESS}" data-query="">{'message.header.bcc'|devblocks_translate|capitalize}</a>:&nbsp;</td>
 					<td width="99%" align="left">
-						<input type="text" size="45" name="bcc" value="{$bcc}" placeholder="These recipients will secretly receive a one-time copy of this message" style="width:100%;border:1px solid rgb(180,180,180);padding:2px;">					
+						<input type="text" size="45" name="bcc" value="{$bcc}" placeholder="These recipients will secretly receive a one-time copy of this message" style="width:100%;border:1px solid rgb(180,180,180);padding:2px;">
 					</td>
 				</tr>
 				
@@ -66,58 +75,12 @@
 			<div>
 				<fieldset style="display:inline-block;margin-bottom:0;">
 					<legend>Actions</legend>
-					{$headers = $message->getHeaders()}
+					
+					<div id="replyInteractions{$message->id}" style="display:inline-block;">
+					{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.tpl"}
+					</div>
+					
 					<button name="saveDraft" type="button"><span class="glyphicons glyphicons-circle-ok"></span> Save Draft</button>
-					
-					{* Bots *}
-					{if !empty($macros)}
-					<button type="button" title="(Ctrl+Shift+B)" class="split-left" onclick="$(this).next('button').click();"><img src="{devblocks_url}c=avatars&context=app&id=0{/devblocks_url}" style="width:22px;height:22px;margin:-3px 0px 0px 2px;"></button><!--  
-					--><button type="button" title="(Ctrl+Shift+B)" class="split-right" id="btnReplyMacros{$message->id}"><span class="glyphicons glyphicons-chevron-down" style="font-size:12px;color:white;"></span></button>
-					<ul class="cerb-popupmenu cerb-float" id="menuReplyMacros{$message->id}">
-						<li style="background:none;">
-							<input type="text" size="32" class="input_search filter">
-						</li>
-						
-						{$vas = DAO_Bot::getAll()}
-						
-						{foreach from=$vas item=va}
-							{capture name=behaviors}
-							{foreach from=$macros item=macro key=macro_id}
-							{if $macro->bot_id == $va->id}
-							<li class="item item-behavior">
-								<div style="margin-left:10px;">
-									{if $macro->has_public_vars}
-									<a href="javascript:;" onclick="genericAjaxPopup('peek','c=display&a=showMacroReplyPopup&ticket_id={$message->ticket_id}&message_id={$message->id}&macro={$macro->id}',$(this).closest('ul').get(),false,'400');$(this).closest('ul.cerb-popupmenu').hide();">
-									{else}
-									<a href="javascript:;" onclick="genericAjaxGet('','c=display&a=getMacroReply&ticket_id={$message->ticket_id}&message_id={$message->id}&macro={$macro->id}', function(js) { $script=$('<div></div>').html(js); $('BODY').append($script); });$(this).closest('ul.cerb-popupmenu').hide();">
-									{/if}
-										{if !empty($macro->title)}
-											{$macro->title}
-										{else}
-											{$event = DevblocksPlatform::getExtension($macro->event_point, false)}
-											{$event->name}
-										{/if}
-									</a>
-								</div>
-							</li>
-							{/if}
-							{/foreach}
-							{/capture}
-							
-							{if strlen(trim($smarty.capture.behaviors))}
-							<li class="item-va">
-								<div>
-									<a href="javascript:;" style="color:black;" tabindex="-1">{$va->name}</a>
-								</div>
-							</li>
-							{$smarty.capture.behaviors nofilter}
-							{/if}
-						{/foreach}
-						
-					</ul>
-					{/if}
-					
-					<button id="btnInsertReplySig{$message->id}" type="button" {if $pref_keyboard_shortcuts}title="(Ctrl+Shift+G)"{/if} onclick="$('#reply_{$message->id}').insertAtCursor('#signature\n');"><span class="glyphicons glyphicons-edit"></span> {'display.reply.insert_sig'|devblocks_translate|capitalize}</button>
 					
 					{* Plugin Toolbar *}
 					{if !empty($reply_toolbaritems)}
@@ -130,9 +93,10 @@
 				<fieldset style="display:inline-block;margin-bottom:0;">
 					<legend>{'common.snippets'|devblocks_translate|capitalize}</legend>
 					<div>
-						Insert: 
-						<input type="text" size="25" class="context-snippet autocomplete" {if $pref_keyboard_shortcuts}placeholder="(Ctrl+Shift+I)"{/if}>
-						<button type="button" onclick="ajax.chooserSnippet('chooser{$message->id}',$('#reply_{$message->id}'), { '{CerberusContexts::CONTEXT_TICKET}':'{$ticket->id}', '{CerberusContexts::CONTEXT_WORKER}':'{$active_worker->id}' });"><span class="glyphicons glyphicons-search"></span></button>
+						<div class="cerb-snippet-insert" style="display:inline-block;">
+							<button type="button" class="cerb-chooser-trigger" data-field-name="snippet_id" data-context="{CerberusContexts::CONTEXT_SNIPPET}" data-placeholder="(Ctrl+Shift+I)" data-query="" data-query-required="type:[plaintext,ticket,worker]" data-single="true" data-autocomplete="type:[plaintext,ticket,worker]"><span class="glyphicons glyphicons-search"></span></button>
+							<ul class="bubbles chooser-container"></ul>
+						</div>
 						<button type="button" onclick="var txt = encodeURIComponent($('#reply_{$message->id}').selection('get')); genericAjaxPopup('peek','c=internal&a=showPeekPopup&context={CerberusContexts::CONTEXT_SNIPPET}&context_id=0&edit=1&text=' + txt,null,false,'50%');"><span class="glyphicons glyphicons-circle-plus"></span></button>
 					</div>
 				</fieldset>
@@ -242,6 +206,24 @@
 			</fieldset>
 		</td>
 	</tr>
+	
+	{if $gpg && $gpg->isEnabled()}
+	<tr>
+		<td>
+			<fieldset class="peek">
+				<legend>{'common.encryption'|devblocks_translate|capitalize}</legend>
+				
+				<div>
+					<label style="margin-right:10px;">
+					<input type="checkbox" name="options_gpg_encrypt" value="1" {if $draft->params.options_gpg_encrypt}checked="checked"{/if}> 
+					Encrypt message using recipient public keys
+					</label>
+				</div>
+			</fieldset>
+		</td>
+	</tr>
+	{/if}
+	
 	<tr>
 		<td>
 			<fieldset class="peek">
@@ -251,10 +233,6 @@
 					<tr>
 						<td nowrap="nowrap" valign="top">
 							<div style="margin-bottom:10px;">
-								<span>
-									{$recommend_btn_domid = uniqid()}
-									{include file="devblocks:cerberusweb.core::internal/recommendations/context_recommend_button.tpl" object_recommendations=$object_recommendations context=CerberusContexts::CONTEXT_TICKET context_id=$ticket->id full=true recommend_btn_domid=$recommend_btn_domid recommend_group_id=$ticket->group_id recommend_bucket_id=$ticket->bucket_id}
-								</span>
 								<span>
 									{$watchers_btn_domid = uniqid()}
 									{include file="devblocks:cerberusweb.core::internal/watchers/context_follow_button.tpl" object_watchers=$object_watchers context=CerberusContexts::CONTEXT_TICKET context_id=$ticket->id full=true watchers_btn_domid=$watchers_btn_domid watchers_group_id=$ticket->group_id watchers_bucket_id=$ticket->bucket_id}
@@ -266,7 +244,7 @@
 							{if $active_worker->hasPriv('core.ticket.actions.close') || ($ticket->status_id == Model_Ticket::STATUS_CLOSED)}<label {if $pref_keyboard_shortcuts}title="(Ctrl+Shift+C)"{/if}><input type="radio" name="status_id" value="{Model_Ticket::STATUS_CLOSED}" class="status_closed" onclick="toggleDiv('replyOpen{$message->id}','none');toggleDiv('replyClosed{$message->id}','block');" {if (empty($draft) && 'closed'==$mail_status_reply) || $draft->params.status_id==Model_Ticket::STATUS_CLOSED}checked="checked"{/if}> {'status.closed'|devblocks_translate|capitalize}</label>{/if}
 							<br>
 							
-							<div id="replyClosed{$message->id}" style="display:{if (empty($draft) && 'open'==$mail_status_reply) || (!empty($draft) && $draft->params.status_id==Model_Ticket::STATUS_OPEN)}none{else}block{/if};margin:10px 0px 0px 20px;">
+							<div id="replyClosed{$message->id}" style="display:{if (empty($draft) && 'open'==$mail_status_reply) || (!empty($draft) && $draft->params.status_id==Model_Ticket::STATUS_OPEN)}none{else}block{/if};margin:5px 0px 0px 20px;">
 							<b>{'display.reply.next.resume'|devblocks_translate}</b> {'display.reply.next.resume_eg'|devblocks_translate}<br> 
 							<input type="text" name="ticket_reopen" size="55" value="{if !empty($draft)}{$draft->params.ticket_reopen}{elseif !empty($ticket->reopen_at)}{$ticket->reopen_at|devblocks_date}{/if}"><br>
 							{'display.reply.next.resume_blank'|devblocks_translate}<br>
@@ -274,7 +252,6 @@
 							
 							<div style="margin-bottom:10px;"></div>
 							
-							{if $active_worker->hasPriv('core.ticket.actions.move')}
 							<b>{'display.reply.next.move'|devblocks_translate}</b>
 							<br>
 							
@@ -297,7 +274,6 @@
 							</select>
 							<br>
 							<br>
-							{/if}
 							
 							<b>{'display.reply.next.owner'|devblocks_translate}</b><br>
 							<button type="button" class="chooser-abstract" data-field-name="owner_id" data-context="{CerberusContexts::CONTEXT_WORKER}" data-single="true" data-query="isDisabled:n" data-autocomplete="" data-autocomplete-if-empty="true"><span class="glyphicons glyphicons-search"></span></button>
@@ -343,6 +319,8 @@
 	</tr>
 	<tr>
 		<td id="reply{$message->id}_buttons">
+			<div class="status"></div>
+		
 			<button type="button" class="send split-left" onclick="$(this).closest('td').find('ul li:first a').click();" title="{if $pref_keyboard_shortcuts}(Ctrl+Shift+Enter){/if}"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {if $is_forward}{'display.ui.forward'|devblocks_translate|capitalize}{else}{'display.ui.send_message'|devblocks_translate}{/if}</button><!--
 			--><button type="button" class="split-right" onclick="$(this).next('ul').toggle();"><span class="glyphicons glyphicons-chevron-down" style="font-size:12px;color:white;"></span></button>
 			<ul class="cerb-popupmenu cerb-float" style="margin-top:-5px;">
@@ -375,7 +353,96 @@
 			})
 			;
 		
+		$frm.find('.cerb-peek-trigger').cerbPeekTrigger();
 		$frm2.find('button.chooser-abstract').cerbChooserTrigger();
+		
+		// Snippet insert menu
+		$frm.find('.cerb-snippet-insert button.cerb-chooser-trigger')
+			.cerbChooserTrigger()
+			.on('cerb-chooser-saved', function(e) {
+				e.stopPropagation();
+				var $this = $(this);
+				var $ul = $this.siblings('ul.chooser-container');
+				var $search = $ul.prev('input[type=search]');
+				var $textarea = $('#reply_{$message->id}');
+				
+				// Find the snippet_id
+				var snippet_id = $ul.find('input[name=snippet_id]').val();
+				
+				if(null == snippet_id)
+					return;
+				
+				// Remove the selection
+				$ul.find('> li').find('span.glyphicons-circle-remove').click();
+				
+				// Now we need to read in each snippet as either 'raw' or 'parsed' via Ajax
+				var url = 'c=internal&a=snippetPaste&id=' + snippet_id;
+				url += "&context_ids[cerberusweb.contexts.ticket]={$ticket->id}";
+				url += "&context_ids[cerberusweb.contexts.worker]={$active_worker->id}";
+				
+				genericAjaxGet('',url,function(json) {
+					// If the content has placeholders, use that popup instead
+					if(json.has_custom_placeholders) {
+						$textarea.focus();
+						
+						var $popup_paste = genericAjaxPopup('snippet_paste', 'c=internal&a=snippetPlaceholders&id=' + encodeURIComponent(json.id) + '&context_id=' + encodeURIComponent(json.context_id),null,false,'50%');
+					
+						$popup_paste.bind('snippet_paste', function(event) {
+							if(null == event.text)
+								return;
+						
+							$textarea.insertAtCursor(event.text).focus();
+						});
+						
+					} else {
+						$textarea.insertAtCursor(json.text).focus();
+					}
+					
+					$search.val('');
+				});
+			})
+		;
+		
+		// Chooser for To/Cc/Bcc recipients
+		$frm.find('a.cerb-recipient-chooser')
+			.click(function(e) {
+				e.stopPropagation();
+				var $trigger = $(this);
+				var $input = $trigger.closest('tr').find('td:nth(1) input:text');
+				
+				var context = $trigger.attr('data-context');
+				var query = $trigger.attr('data-query');
+				var query_req = $trigger.attr('data-query-required');
+				var chooser_url = 'c=internal&a=chooserOpen&context=' + encodeURIComponent(context);
+				
+				if(typeof query == 'string' && query.length > 0) {
+					chooser_url += '&q=' + encodeURIComponent(query);
+				}
+				
+				if(typeof query_req == 'string' && query_req.length > 0) {
+					chooser_url += '&qr=' + encodeURIComponent(query_req);
+				}
+				
+				$input.focus();
+				
+				var $chooser = genericAjaxPopup(Devblocks.uniqueId(), chooser_url, null, true, '90%');
+				
+				$chooser.one('chooser_save', function(event) {
+					event.stopPropagation();
+					
+					if(typeof event.values == "object" && event.values.length > 0) {
+						var val = $input.val();
+						if(val.length > 0 && val.trim().substr(-1) != ',') {
+							var new_val = val + ', ' + event.labels.join(', ');
+							$input.val(new_val);
+						} else {
+							var new_val = val + (val.length == 0 || val.substr(-1) == ' ' ? '' : ' ') + event.labels.join(', ');
+							$input.val(new_val);
+						}
+					}
+				});
+			})
+		;
 		
 		// Autocompletes
 		ajax.emailAutoComplete('#reply{$message->id}_part1 input[name=to]', { multiple: true } );
@@ -667,7 +734,7 @@
 		// Focus
 		
 		{if !$is_forward}
-			$textarea = $frm2.find('textarea[name=content]');
+			var $textarea = $frm2.find('textarea[name=content]');
 			$textarea.focus();
 			setElementSelRange($textarea.get(0), 0, 0);
 		{else}
@@ -679,51 +746,58 @@
 		var $buttons = $('#reply{$message->id}_buttons');
 		
 		$buttons.find('a.send').click(function() {
-			if($('#reply{$message->id}_part1').validate().form()) {
-				if(null != draftAutoSaveInterval) {
-					clearTimeout(draftAutoSaveInterval);
-					draftAutoSaveInterval = null;
+			var $button = $(this);
+			var $status = $frm2.find('div.status').html('').hide();
+			$status.text('').hide();
+			
+			// Validate via Ajax before sending
+			genericAjaxPost($frm2, '', 'c=display&a=validateReplyJson', function(json) {
+				if(json && json.status) {
+					if(null != draftAutoSaveInterval) {
+						clearTimeout(draftAutoSaveInterval);
+						draftAutoSaveInterval = null;
+					}
+					
+					$frm2.find('input:hidden[name=reply_mode]').val('');
+					$button.closest('td').hide();
+					showLoadingPanel();
+					$frm2.submit();
+					
+				} else {
+					$status.text(json.message).addClass('error').fadeIn();
 				}
-				
-				var $frm = $(this).closest('form');
-				$frm.find('input:hidden[name=reply_mode]').val('');
-				$(this).closest('td').hide();
-				showLoadingPanel();
-				$frm.submit();
-			}
+			});
 		});
 		
 		$buttons.find('a.save').click(function() {
-			if($('#reply{$message->id}_part1').validate().form()) {
-				if(null != draftAutoSaveInterval) {
-					clearTimeout(draftAutoSaveInterval);
-					draftAutoSaveInterval = null;
-				}
-				
-				var $frm = $(this).closest('form');
-				$frm.find('input:hidden[name=reply_mode]').val('save');
-				$(this).closest('td').hide();
-				showLoadingPanel();
-				$frm.submit();
+			if(null != draftAutoSaveInterval) {
+				clearTimeout(draftAutoSaveInterval);
+				draftAutoSaveInterval = null;
 			}
+			
+			var $frm = $(this).closest('form');
+			$frm.find('input:hidden[name=reply_mode]').val('save');
+			$(this).closest('td').hide();
+			showLoadingPanel();
+			$frm.submit();
 		});
 
 		$buttons.find('a.draft').click(function() {
-			if($('#reply{$message->id}_part1').validate().form()) {
-				if(null != draftAutoSaveInterval) {
-					clearTimeout(draftAutoSaveInterval);
-					draftAutoSaveInterval = null;
-				}
-				
-				var $frm = $(this).closest('form');
-				$frm.find('input:hidden[name=a]').val('saveDraftReply');
-				$(this).closest('td').hide();
-				showLoadingPanel();
-				$frm.submit();
+			if(null != draftAutoSaveInterval) {
+				clearTimeout(draftAutoSaveInterval);
+				draftAutoSaveInterval = null;
 			}
+			
+			var $frm = $(this).closest('form');
+			$frm.find('input:hidden[name=a]').val('saveDraftReply');
+			$(this).closest('td').hide();
+			showLoadingPanel();
+			$frm.submit();
 		});
 		
-		$frm.validate();
+		// Interactions
+		var $interaction_container = $('#replyInteractions{$message->id}');
+		{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.js.tpl"}
 		
 		// Draft
 		
@@ -753,56 +827,6 @@
 			draftAutoSaveInterval = null;
 		}
 		draftAutoSaveInterval = setInterval("$('#reply{$message->id}_part1 button[name=saveDraft]').click();", 30000); // and every 30 sec
-
-		$frm.find('input:text.context-snippet').autocomplete({
-			delay: 300,
-			source: DevblocksAppPath+'ajax.php?c=internal&a=autocomplete&context=cerberusweb.contexts.snippet&contexts[]=cerberusweb.contexts.ticket&contexts[]=cerberusweb.contexts.worker&_csrf_token=' + $('meta[name="_csrf_token"]').attr('content'),
-			minLength: 1,
-			focus:function(event, ui) {
-				return false;
-			},
-			autoFocus:true,
-			select:function(event, ui) {
-				$this = $(this);
-				$textarea = $('#reply_{$message->id}');
-				
-				var $label = ui.item.label.replace("<","&lt;").replace(">","&gt;");
-				var $value = ui.item.value;
-				
-				// Now we need to read in each snippet as either 'raw' or 'parsed' via Ajax
-				var url = 'c=internal&a=snippetPaste&id=' + $value;
-
-				// Context-dependent arguments
-				if('cerberusweb.contexts.ticket'==ui.item.context) {
-					url += "&context_id={$ticket->id}";
-				} else if ('cerberusweb.contexts.worker'==ui.item.context) {
-					url += "&context_id={$active_worker->id}";
-				}
-
-				genericAjaxGet('',url,function(json) {
-					// If the content has placeholders, use that popup instead
-					if(json.has_custom_placeholders) {
-						$textarea.focus();
-						
-						var $popup_paste = genericAjaxPopup('snippet_paste', 'c=internal&a=snippetPlaceholders&id=' + encodeURIComponent(json.id) + '&context_id=' + encodeURIComponent(json.context_id),null,false,'50%');
-					
-						$popup_paste.bind('snippet_paste', function(event) {
-							if(null == event.text)
-								return;
-						
-							$textarea.insertAtCursor(event.text).focus();
-						});
-						
-					} else {
-						$textarea.insertAtCursor(json.text).focus();
-					}
-					
-				}, { async: false });
-
-				$this.val('');
-				return false;
-			}
-		});
 
 		// Files
 		$frm2.find('button.chooser_file').each(function() {
@@ -897,13 +921,13 @@
 				case 73: // (I) Insert Snippet
 					try {
 						event.preventDefault();
-						$('#reply{$message->id}_part1').find('.context-snippet').focus();
+						$('#reply{$message->id}_part1').find('.cerb-snippet-insert input[type=search]').focus();
 					} catch(ex) { } 
 					break;
 				case 66: // (B) Insert Behavior
 					try {
 						event.preventDefault();
-						$('#btnReplyMacros{$message->id}').click();
+						$('#divReplyInteractions{$message->id}').find('button').click();
 					} catch(ex) { } 
 					break;
 				case 74: // (J) Jump to first blank line
@@ -1015,8 +1039,4 @@
 		});
 		{/if}
 	});
-</script>
-
-<script type="text/javascript">
-{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_menu="#menuReplyMacros{$message->id}" selector_button="#btnReplyMacros{$message->id}"}
 </script>

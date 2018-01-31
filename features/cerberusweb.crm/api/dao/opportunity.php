@@ -1,33 +1,97 @@
 <?php
 /***********************************************************************
- | Cerb(tm) developed by Webgroup Media, LLC.
- |-----------------------------------------------------------------------
- | All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
- |   unless specifically noted otherwise.
- |
- | This source code is released under the Devblocks Public License.
- | The latest version of this license can be found here:
- | http://cerb.ai/license
- |
- | By using this software, you acknowledge having read this license
- | and agree to be bound thereby.
- | ______________________________________________________________________
- |	http://cerb.ai	    http://webgroup.media
+| Cerb(tm) developed by Webgroup Media, LLC.
+|-----------------------------------------------------------------------
+| All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
+|   unless specifically noted otherwise.
+|
+| This source code is released under the Devblocks Public License.
+| The latest version of this license can be found here:
+| http://cerb.ai/license
+|
+| By using this software, you acknowledge having read this license
+| and agree to be bound thereby.
+| ______________________________________________________________________
+|	http://cerb.ai	    http://webgroup.media
  ***********************************************************************/
 
 class DAO_CrmOpportunity extends Cerb_ORMHelper {
-	const ID = 'id';
-	const NAME = 'name';
 	const AMOUNT = 'amount';
-	const PRIMARY_EMAIL_ID = 'primary_email_id';
-	const CREATED_DATE = 'created_date';
-	const UPDATED_DATE = 'updated_date';
 	const CLOSED_DATE = 'closed_date';
-	const IS_WON = 'is_won';
+	const CREATED_DATE = 'created_date';
+	const ID = 'id';
 	const IS_CLOSED = 'is_closed';
+	const IS_WON = 'is_won';
+	const NAME = 'name';
+	const PRIMARY_EMAIL_ID = 'primary_email_id';
+	const UPDATED_DATE = 'updated_date';
+	
+	private function __construct() {}
 
+	static function getFields() {
+		$validation = DevblocksPlatform::services()->validation();
+		
+		// decimal(8,2)
+		$validation
+			->addField(self::AMOUNT)
+			->float()
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::CLOSED_DATE)
+			->timestamp()
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::CREATED_DATE)
+			->timestamp()
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::ID)
+			->id()
+			->setEditable(false)
+			;
+		// tinyint(1) unsigned
+		$validation
+			->addField(self::IS_CLOSED)
+			->bit()
+			;
+		// tinyint(1) unsigned
+		$validation
+			->addField(self::IS_WON)
+			->bit()
+			;
+		// varchar(255)
+		$validation
+			->addField(self::NAME)
+			->string()
+			->setMaxLength(255)
+			->setRequired(true)
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::PRIMARY_EMAIL_ID)
+			->id()
+			->setRequired(true)
+			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_ADDRESS))
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::UPDATED_DATE)
+			->timestamp()
+			;
+		$validation
+			->addField('_links')
+			->string()
+			->setMaxLength(65535)
+			;
+			
+		return $validation->getFields();
+	}
+	
 	static function create($fields) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		if(!isset($fields[DAO_CrmOpportunity::CREATED_DATE]))
 			$fields[DAO_CrmOpportunity::CREATED_DATE] = time();
@@ -41,7 +105,7 @@ class DAO_CrmOpportunity extends Cerb_ORMHelper {
 		self::update($id, $fields);
 		
 		// New opportunity
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'opportunity.create',
@@ -61,6 +125,9 @@ class DAO_CrmOpportunity extends Cerb_ORMHelper {
 		
 		if(!isset($fields[DAO_CrmOpportunity::UPDATED_DATE]))
 			$fields[DAO_CrmOpportunity::UPDATED_DATE] = time();
+		
+		$context = CerberusContexts::CONTEXT_OPPORTUNITY;
+		self::_updateAbstract($context, $ids, $fields);
 		
 		// Make a diff for the requested objects in batches
 		
@@ -83,7 +150,7 @@ class DAO_CrmOpportunity extends Cerb_ORMHelper {
 				self::_processUpdateEvents($batch_ids, $fields);
 				
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::getEventService();
+				$eventMgr = DevblocksPlatform::services()->event();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.crm_opportunity.update',
@@ -97,6 +164,15 @@ class DAO_CrmOpportunity extends Cerb_ORMHelper {
 				DevblocksPlatform::markContextChanged(CerberusContexts::CONTEXT_OPPORTUNITY, $batch_ids);
 			}
 		}
+	}
+	
+	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
+		$context = CerberusContexts::CONTEXT_OPPORTUNITY;
+		
+		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
+			return false;
+		
+		return true;
 	}
 	
 	/**
@@ -277,7 +353,7 @@ class DAO_CrmOpportunity extends Cerb_ORMHelper {
 	 * @return Model_CrmOpportunity[]
 	 */
 	static function getWhere($where=null) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$sql = "SELECT id, name, amount, primary_email_id, created_date, updated_date, closed_date, is_won, is_closed ".
 			"FROM crm_opportunity ".
@@ -337,13 +413,13 @@ class DAO_CrmOpportunity extends Cerb_ORMHelper {
 	}
 	
 	static function getItemCount() {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		return $db->GetOneSlave("SELECT count(id) FROM crm_opportunity");
 	}
 	
 	static function maint() {
 		// Fire event
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.maint',
@@ -358,7 +434,7 @@ class DAO_CrmOpportunity extends Cerb_ORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$ids_list = implode(',', $ids);
 		
@@ -366,7 +442,7 @@ class DAO_CrmOpportunity extends Cerb_ORMHelper {
 		$db->ExecuteMaster(sprintf("DELETE FROM crm_opportunity WHERE id IN (%s)", $ids_list));
 
 		// Fire event
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -471,7 +547,6 @@ class DAO_CrmOpportunity extends Cerb_ORMHelper {
 	}
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @param DevblocksSearchCriteria[] $params
 	 * @param integer $limit
@@ -482,7 +557,7 @@ class DAO_CrmOpportunity extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -769,7 +844,7 @@ class View_CrmOpportunity extends C4_AbstractView implements IAbstractView_Subto
 					
 				// Valid custom fields
 				default:
-					if('cf_' == substr($field_key,0,3))
+					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -957,7 +1032,7 @@ class View_CrmOpportunity extends C4_AbstractView implements IAbstractView_Subto
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1006,7 +1081,7 @@ class View_CrmOpportunity extends C4_AbstractView implements IAbstractView_Subto
 	}
 	
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1171,14 +1246,14 @@ class Context_Opportunity extends Extension_DevblocksContext implements IDevbloc
 		if(empty($context_id))
 			return '';
 	
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		$url = $url_writer->writeNoProxy('c=profiles&type=opportunity&id='.$context_id, true);
 		return $url;
 	}
 	
 	function getMeta($context_id) {
 		$opp = DAO_CrmOpportunity::get($context_id);
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		$url = $this->profileGetUrl($context_id);
 		
@@ -1310,7 +1385,7 @@ class Context_Opportunity extends Extension_DevblocksContext implements IDevbloc
 			$token_values = $this->_importModelCustomFieldsAsValues($opp, $token_values);
 			
 			// URL
-			$url_writer = DevblocksPlatform::getUrlService();
+			$url_writer = DevblocksPlatform::services()->url();
 			$token_values['record_url'] = $url_writer->writeNoProxy(sprintf("c=profiles&what=opportunity&id=%d-%s",$opp->id, DevblocksPlatform::strToPermalink($opp->name)), true);
 			
 			// Lead
@@ -1331,6 +1406,39 @@ class Context_Opportunity extends Extension_DevblocksContext implements IDevbloc
 			$token_labels,
 			$token_values
 		);
+		
+		return true;
+	}
+	
+	function getKeyToDaoFieldMap() {
+		return [
+			'amount' => DAO_CrmOpportunity::AMOUNT,
+			'created' => DAO_CrmOpportunity::CREATED_DATE,
+			'email_id' => DAO_CrmOpportunity::PRIMARY_EMAIL_ID,
+			'id' => DAO_CrmOpportunity::ID,
+			'is_closed' => DAO_CrmOpportunity::IS_CLOSED,
+			'is_won' => DAO_CrmOpportunity::IS_WON,
+			'links' => '_links',
+			'title' => DAO_CrmOpportunity::NAME,
+			'updated' => DAO_CrmOpportunity::UPDATED_DATE,
+		];
+	}
+	
+	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
+		switch(DevblocksPlatform::strLower($key)) {
+			case 'email':
+				if(false == ($address = DAO_Address::lookupAddress($value, true))) {
+					$error = sprintf("Failed to lookup address: %s", $value);
+					return false;
+				}
+				
+				$out_fields[DAO_CrmOpportunity::PRIMARY_EMAIL_ID] = $address->id;
+				break;
+			
+			case 'links':
+				$this->_getDaoFieldsLinks($value, $out_fields, $error);
+				break;
+		}
 		
 		return true;
 	}
@@ -1428,8 +1536,11 @@ class Context_Opportunity extends Extension_DevblocksContext implements IDevbloc
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('view_id', $view_id);
+		
+		$context = CerberusContexts::CONTEXT_OPPORTUNITY;
+		$active_worker = CerberusApplication::getActiveWorker();
 		
 		if(!empty($context_id)) {
 			$opp = DAO_CrmOpportunity::get($context_id);
@@ -1438,10 +1549,10 @@ class Context_Opportunity extends Extension_DevblocksContext implements IDevbloc
 
 		if(empty($context_id) || $edit) {
 			// Custom fields
-			$custom_fields = DAO_CustomField::getByContext(CerberusContexts::CONTEXT_OPPORTUNITY, false);
+			$custom_fields = DAO_CustomField::getByContext($context, false);
 			$tpl->assign('custom_fields', $custom_fields);
 	
-			$custom_field_values = DAO_CustomFieldValue::getValuesByContextIds(CerberusContexts::CONTEXT_OPPORTUNITY, $context_id);
+			$custom_field_values = DAO_CustomFieldValue::getValuesByContextIds($context, $context_id);
 			if(isset($custom_field_values[$context_id]))
 				$tpl->assign('custom_field_values', $custom_field_values[$context_id]);
 			
@@ -1454,18 +1565,25 @@ class Context_Opportunity extends Extension_DevblocksContext implements IDevbloc
 			$tpl->display('devblocks:cerberusweb.crm::crm/opps/peek_edit.tpl');
 			
 		} else {
+			// Dictionary
+			$labels = array();
+			$values = array();
+			CerberusContexts::getContext($context, $opp, $labels, $values, '', true, false);
+			$dict = DevblocksDictionaryDelegate::instance($values);
+			$tpl->assign('dict', $dict);
+			
 			// Counts
 			$activity_counts = array(
-				'comments' => DAO_Comment::count(CerberusContexts::CONTEXT_OPPORTUNITY, $context_id),
+				'comments' => DAO_Comment::count($context, $context_id),
 			);
 			$tpl->assign('activity_counts', $activity_counts);
 			
 			// Links
 			$links = array(
-				CerberusContexts::CONTEXT_OPPORTUNITY => array(
+				$context => array(
 					$context_id => 
 						DAO_ContextLink::getContextLinkCounts(
-							CerberusContexts::CONTEXT_OPPORTUNITY,
+							$context,
 							$context_id,
 							array(CerberusContexts::CONTEXT_CUSTOM_FIELDSET)
 						),
@@ -1475,23 +1593,21 @@ class Context_Opportunity extends Extension_DevblocksContext implements IDevbloc
 			
 			// Timeline
 			if($context_id) {
-				$timeline_json = Page_Profiles::getTimelineJson(Extension_DevblocksContext::getTimelineComments(CerberusContexts::CONTEXT_OPPORTUNITY, $context_id));
+				$timeline_json = Page_Profiles::getTimelineJson(Extension_DevblocksContext::getTimelineComments($context, $context_id));
 				$tpl->assign('timeline_json', $timeline_json);
 			}
 
 			// Context
-			if(false == ($context_ext = Extension_DevblocksContext::get(CerberusContexts::CONTEXT_OPPORTUNITY)))
+			if(false == ($context_ext = Extension_DevblocksContext::get($context)))
 				return;
-			
-			// Dictionary
-			$labels = array();
-			$values = array();
-			CerberusContexts::getContext(CerberusContexts::CONTEXT_OPPORTUNITY, $opp, $labels, $values, '', true, false);
-			$dict = DevblocksDictionaryDelegate::instance($values);
-			$tpl->assign('dict', $dict);
 			
 			$properties = $context_ext->getCardProperties();
 			$tpl->assign('properties', $properties);
+			
+			// Interactions
+			$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
+			$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
+			$tpl->assign('interactions_menu', $interactions_menu);
 			
 			$tpl->display('devblocks:cerberusweb.crm::crm/opps/peek.tpl');
 		}

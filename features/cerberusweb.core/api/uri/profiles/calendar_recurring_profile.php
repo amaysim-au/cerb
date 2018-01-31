@@ -17,9 +17,11 @@
 
 class PageSection_ProfilesCalendarRecurringProfile extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$visit = CerberusApplication::getVisit();
 		$translate = DevblocksPlatform::getTranslationService();
+		
+		$context = CerberusContexts::CONTEXT_CALENDAR_EVENT_RECURRING;
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		$response = DevblocksPlatform::getHttpResponse();
@@ -29,13 +31,19 @@ class PageSection_ProfilesCalendarRecurringProfile extends Extension_PageSection
 		$id = array_shift($stack); // 123
 
 		@$id = intval($id);
-		$context = CerberusContexts::CONTEXT_CALENDAR_EVENT_RECURRING;
 		
 		if(null == ($calendar_recurring_profile = DAO_CalendarRecurringProfile::get($id))) {
 			return;
 		}
 		$tpl->assign('calendar_recurring_profile', $calendar_recurring_profile);
-	
+		
+		// Dictionary
+		$labels = array();
+		$values = array();
+		CerberusContexts::getContext($context, $calendar_recurring_profile, $labels, $values, '', true, false);
+		$dict = DevblocksDictionaryDelegate::instance($values);
+		$tpl->assign('dict', $dict);
+		
 		// Tab persistence
 		
 		$point = 'profiles.calendar_recurring_profile.tab';
@@ -151,18 +159,15 @@ class PageSection_ProfilesCalendarRecurringProfile extends Extension_PageSection
 		
 		$tpl->assign('properties', $properties);
 			
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.calendar_recurring_profile'
-		);
-		$tpl->assign('macros', $macros);
-
 		// Tabs
-		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_CALENDAR_EVENT_RECURRING);
+		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, $context);
 		$tpl->assign('tab_manifests', $tab_manifests);
 		
+		// Interactions
+		$interactions = Event_GetInteractionsForWorker::getInteractionsByPointAndWorker('record:' . $context, $dict, $active_worker);
+		$interactions_menu = Event_GetInteractionsForWorker::getInteractionMenu($interactions);
+		$tpl->assign('interactions_menu', $interactions_menu);
+	
 		// Template
 		$tpl->display('devblocks:cerberusweb.core::internal/calendar_recurring_profile/profile.tpl');
 	}
@@ -190,7 +195,9 @@ class PageSection_ProfilesCalendarRecurringProfile extends Extension_PageSection
 		
 		try {
 			if(!empty($id) && !empty($do_delete)) { // Delete
-				// [TODO] ACL
+				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_CALENDAR_EVENT_RECURRING)))
+					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
+				
 				DAO_CalendarRecurringProfile::delete($id);
 				
 				echo json_encode(array(
@@ -202,12 +209,6 @@ class PageSection_ProfilesCalendarRecurringProfile extends Extension_PageSection
 				return;
 				
 			} else {
-				if(empty($event_name))
-					throw new Exception_DevblocksAjaxValidationError("The 'Name:' field is required.", 'event_name');
-				
-				if(empty($calendar_id))
-					throw new Exception_DevblocksAjaxValidationError("The 'Calendar:' field is required.", 'calendar_id');
-				
 				if(empty($id)) { // New
 					$fields = array(
 						DAO_CalendarRecurringProfile::CALENDAR_ID => $calendar_id,
@@ -221,8 +222,16 @@ class PageSection_ProfilesCalendarRecurringProfile extends Extension_PageSection
 						DAO_CalendarRecurringProfile::PATTERNS => $patterns,
 					);
 					
+					if(!DAO_CalendarRecurringProfile::validate($fields, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					if(!DAO_CalendarRecurringProfile::onBeforeUpdateByActor($active_worker, $fields, null, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
 					if(false == ($id = DAO_CalendarRecurringProfile::create($fields)))
 						return false;
+					
+					DAO_CalendarRecurringProfile::onUpdateByActor($active_worker, $fields, $id);
 					
 					if(!empty($view_id) && !empty($id))
 						C4_AbstractView::setMarqueeContextCreated($view_id, CerberusContexts::CONTEXT_CALENDAR_EVENT_RECURRING, $id);
@@ -238,10 +247,17 @@ class PageSection_ProfilesCalendarRecurringProfile extends Extension_PageSection
 						DAO_CalendarRecurringProfile::IS_AVAILABLE => $is_available ? 1 : 0,
 						DAO_CalendarRecurringProfile::PATTERNS => $patterns,
 					);
-					DAO_CalendarRecurringProfile::update($id, $fields);
 					
+					if(!DAO_CalendarRecurringProfile::validate($fields, $error, $id))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					if(!DAO_CalendarRecurringProfile::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					DAO_CalendarRecurringProfile::update($id, $fields);
+					DAO_CalendarRecurringProfile::onUpdateByActor($active_worker, $fields, $id);
 				}
-	
+				
 				// Custom fields
 				@$field_ids = DevblocksPlatform::importGPC($_REQUEST['field_ids'], 'array', array());
 				DAO_CustomFieldValue::handleFormPost(CerberusContexts::CONTEXT_CALENDAR_EVENT_RECURRING, $id, $field_ids);

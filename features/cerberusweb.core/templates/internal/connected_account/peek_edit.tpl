@@ -1,3 +1,4 @@
+{$peek_context = CerberusContexts::CONTEXT_CONNECTED_ACCOUNT}
 {$form_id = uniqid()}
 <form action="{devblocks_url}{/devblocks_url}" method="post" id="{$form_id}">
 <input type="hidden" name="c" value="profiles">
@@ -9,9 +10,7 @@
 <input type="hidden" name="do_delete" value="0">
 <input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
 
-<fieldset class="peek">
-	<legend>{'common.properties'|devblocks_translate}</legend>
-	
+<fieldset class="peek" style="background:none;border:0;">
 	<table cellspacing="0" cellpadding="2" border="0" width="98%">
 		<tr>
 			<td width="1%" nowrap="nowrap"><b>{'common.name'|devblocks_translate}:</b></td>
@@ -19,20 +18,37 @@
 				<input type="text" name="name" value="{$model->name}" style="width:98%;" autofocus="autofocus">
 			</td>
 		</tr>
+		
+		<tr>
+			<td width="1%" nowrap="nowrap"><b>{'common.service'|devblocks_translate|capitalize}:</b></td>
+			<td width="99%">
+				<input type="hidden" name="extension_id" value="{$model->extension_id}">
+				{$ext = $model->getExtension()}
+				{if $ext}
+					{$ext->manifest->name}
+				{else}
+					{$model->extension_id}
+				{/if}
+			</td>
+		</tr>
+		
+		{if $active_worker->is_superuser}
+		<tr>
+			<td width="1%" nowrap="nowrap" valign="top">
+				<b>{'common.owner'|devblocks_translate|capitalize}:</b>
+			</td>
+			<td width="99%">
+				{include file="devblocks:cerberusweb.core::internal/peek/menu_actor_owner.tpl"}
+			</td>
+		</tr>
+		{/if}
 	</table>
-	
-	{if $active_worker->is_superuser}
-	<tr>
-		<td width="1%" nowrap="nowrap" valign="top">
-			<b>{'common.owner'|devblocks_translate|capitalize}:</b>
-		</td>
-		<td width="99%">
-			{include file="devblocks:cerberusweb.core::internal/peek/menu_actor_owner.tpl"}
-		</td>
-	</tr>
-	{/if}
-	
 </fieldset>
+
+{$extension = $model->getExtension()}
+{if $extension}
+	{$extension->renderConfigForm($model)}
+{/if}
 
 {if !empty($custom_fields)}
 <fieldset class="peek">
@@ -41,7 +57,7 @@
 </fieldset>
 {/if}
 
-{include file="devblocks:cerberusweb.core::internal/custom_fieldsets/peek_custom_fieldsets.tpl" context=CerberusContexts::CONTEXT_CONNECTED_ACCOUNT context_id=$model->id}
+{include file="devblocks:cerberusweb.core::internal/custom_fieldsets/peek_custom_fieldsets.tpl" context=$peek_context context_id=$model->id}
 
 {if !empty($model->id)}
 <fieldset style="display:none;" class="delete">
@@ -51,8 +67,8 @@
 		Are you sure you want to permanently delete this connected account?
 	</div>
 	
-	<button type="button" class="delete red"></span> {'common.yes'|devblocks_translate|capitalize}</button>
-	<button type="button" onclick="$(this).closest('form').find('div.buttons').fadeIn();$(this).closest('fieldset.delete').fadeOut();"></span> {'common.no'|devblocks_translate|capitalize}</button>
+	<button type="button" class="delete red">{'common.yes'|devblocks_translate|capitalize}</button>
+	<button type="button" onclick="$(this).closest('form').find('div.buttons').fadeIn();$(this).closest('fieldset.delete').fadeOut();">{'common.no'|devblocks_translate|capitalize}</button>
 </fieldset>
 {/if}
 
@@ -60,7 +76,7 @@
 
 <div class="buttons">
 	<button type="button" class="submit"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate|capitalize}</button>
-	{if !empty($model->id)}<button type="button" onclick="$(this).parent().siblings('fieldset.delete').fadeIn();$(this).closest('div').fadeOut();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
+	{if !empty($model->id) && $active_worker->hasPriv("contexts.{$peek_context}.delete")}<button type="button" onclick="$(this).parent().siblings('fieldset.delete').fadeIn();$(this).closest('div').fadeOut();"><span class="glyphicons glyphicons-circle-remove" style="color:rgb(200,0,0);"></span> {'common.delete'|devblocks_translate|capitalize}</button>{/if}
 </div>
 
 </form>
@@ -89,10 +105,6 @@ $(function() {
 			$(e.target).closest('li').remove();
 			$ul.hide();
 			$owners_menu.show();
-			
-			$events.each(function() {
-				$(this).hide();
-			});
 		});
 		
 		$owners_menu.menu({
@@ -118,18 +130,10 @@ $(function() {
 				$ul.find('> *').remove();
 				$ul.append($li);
 				$ul.show();
-				
-				// Contextual events
-				$events.each(function() {
-					var contexts = $(this).attr('contexts').split(' ');
-					
-					if($.inArray(context_data[0], contexts) != -1)
-						$(this).show();
-					else
-						$(this).hide();
-				});
 			}
 		});
 	});
+	
+	$frm.find('input:text:first').focus();
 });
 </script>

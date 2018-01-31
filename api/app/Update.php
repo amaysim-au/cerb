@@ -51,8 +51,8 @@ class ChUpdateController extends DevblocksControllerExtension {
 		$stack = $request->path;
 		array_shift($stack); // update
 
-		$cache = DevblocksPlatform::getCacheService(); /* @var $cache _DevblocksCacheManager */
-		$url = DevblocksPlatform::getUrlService();
+		$cache = DevblocksPlatform::services()->cache();
+		$url = DevblocksPlatform::services()->url();
 		
 		switch(array_shift($stack)) {
 			case 'unlicense':
@@ -80,7 +80,7 @@ class ChUpdateController extends DevblocksControllerExtension {
 				$path = APP_TEMP_PATH . DIRECTORY_SEPARATOR;
 				$file = $path . 'cerb_update_lock';
 				
-				$settings = DevblocksPlatform::getPluginSettingsService();
+				$settings = DevblocksPlatform::services()->pluginSettings();
 				
 				$authorized_ips_str = $settings->get('cerberusweb.core',CerberusSettings::AUTHORIZED_IPS,CerberusSettingsDefaults::AUTHORIZED_IPS);
 				$authorized_ips = DevblocksPlatform::parseCrlfString($authorized_ips_str);
@@ -89,19 +89,13 @@ class ChUpdateController extends DevblocksControllerExtension {
 				$authorized_ips = array_merge($authorized_ips, $authorized_ip_defaults);
 				
 				// Is this IP authorized?
-				$pass = false;
-				foreach ($authorized_ips as $ip)
-				{
-					if(substr($ip,0,strlen($ip)) == substr(DevblocksPlatform::getClientIp(),0,strlen($ip)))
-				 	{ $pass=true; break; }
-				}
-				if(!$pass) {
+				if(!DevblocksPlatform::isIpAuthorized(DevblocksPlatform::getClientIp(), $authorized_ips)) {
 					echo vsprintf($translate->_('update.ip_unauthorized'), DevblocksPlatform::getClientIp());
 					return;
 				}
 				
 				// Potential errors
-				$errors = array();
+				$errors = [];
 
 				/*
 				 * This well-designed software is the result of over 8 years of R&D.
@@ -116,10 +110,10 @@ class ChUpdateController extends DevblocksControllerExtension {
 					$errors[] = sprintf("Your Cerb license coverage for major software updates expired on %s, and %s is not included.  Please <a href='%s' target='_blank'>renew your license</a>%s, <a href='%s'>remove your license</a> and enter Evaluation Mode (1 simultaneous worker), or <a href='%s' target='_blank'>download</a> an earlier version.",
 						gmdate("F d, Y",$u),
 						APP_VERSION,
-						'http://www.cerbweb.com/buy',
+						'https://cerb.ai/download/',
 						!is_null($remuneration->key) ? sprintf(" (%s)",$remuneration->key) : '',
 						$url->write('c=update&a=unlicense'),
-						'http://www.cerbweb.com/download/archives'
+						'https://github.com/cerb/cerb-release'
 					);
 				}
 				
@@ -149,14 +143,14 @@ class ChUpdateController extends DevblocksControllerExtension {
 					// If authorized, lock and attempt update
 					if(!file_exists($file) || @filectime($file)+1200 < time()) { // 20 min lock
 						// Log everybody out since we're touching the database
-						//$session = DevblocksPlatform::getSessionService();
+						//$session = DevblocksPlatform::services()->session();
 						//$session->clearAll();
 
 						// Lock file
 						touch($file);
 						
 						// Reset the classloader
-						DevblocksPlatform::getClassLoaderService()->destroy();
+						DevblocksPlatform::services()->classloader()->destroy();
 						
 						// Recursive patch
 						CerberusApplication::update();
@@ -166,17 +160,17 @@ class ChUpdateController extends DevblocksControllerExtension {
 
 						// Clear all caches
 						$cache->clean();
-						DevblocksPlatform::getClassLoaderService()->destroy();
+						DevblocksPlatform::services()->classloader()->destroy();
 						
 						// Clear compiled templates
 						if(!APP_SMARTY_COMPILE_PATH_MULTI_TENANT) {
-							$tpl = DevblocksPlatform::getTemplateService();
+							$tpl = DevblocksPlatform::services()->template();
 							$tpl->clearCompiledTemplate();
 							$tpl->clearAllCache();
 						}
 
 						if(!APP_SMARTY_SANDBOX_COMPILE_PATH_MULTI_TENANT) {
-							$tpl = DevblocksPlatform::getTemplateSandboxService();
+							$tpl = DevblocksPlatform::services()->templateSandbox();
 							$tpl->clearCompiledTemplate();
 							$tpl->clearAllCache();
 						}
@@ -188,7 +182,7 @@ class ChUpdateController extends DevblocksControllerExtension {
 						file_put_contents(APP_STORAGE_PATH . '/version.php', sprintf("<?php define('APP_BUILD_CACHED', %d); ?>", APP_BUILD));
 						
 						// Redirect
-						DevblocksPlatform::redirect(new DevblocksHttpResponse(array()));
+						DevblocksPlatform::redirect(new DevblocksHttpResponse([]));
 	
 					} else {
 						echo $translate->_('update.locked_another');

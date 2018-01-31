@@ -1,35 +1,29 @@
 {$page_context = CerberusContexts::CONTEXT_OPPORTUNITY}
 {$page_context_id = $opp->id}
+{$is_writeable = Context_Opportunity::isWriteableByActor($opp, $active_worker)}
 
-<div style="float:left;">
-	<h1>{$opp->name}</h1>
-</div>
-
-<div style="float:right;">
-	{$ctx = Extension_DevblocksContext::get($page_context)}
-	{include file="devblocks:cerberusweb.core::search/quick_search.tpl" view=$ctx->getSearchView() return_url="{devblocks_url}c=search&context={$ctx->manifest->params.alias}{/devblocks_url}"}
-</div>
-
-<div style="clear:both;"></div>
+<h1>{$opp->name}</h1>
 
 <div class="cerb-profile-toolbar">
 	<form class="toolbar" action="{devblocks_url}{/devblocks_url}" onsubmit="return false;" style="margin-bottom:5px;">
 		<input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
 		
-		<!-- Toolbar -->
+		<span id="spanInteractions">
+		{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.tpl"}
+		</span>
+		
+		<!-- Card -->
+		<button type="button" id="btnProfileCard" title="{'common.card'|devblocks_translate|capitalize}" data-context="{$page_context}" data-context-id="{$page_context_id}"><span class="glyphicons glyphicons-nameplate"></span></button>
+		
+		<!-- Edit -->
+		{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
+		<button type="button" id="btnDisplayOppEdit" title="{'common.edit'|devblocks_translate|capitalize} (E)" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_OPPORTUNITY}" data-context-id="{$page_context_id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span></button>
+		{/if}
+
 		<span>
 		{$object_watchers = DAO_ContextLink::getContextLinks($page_context, array($page_context_id), CerberusContexts::CONTEXT_WORKER)}
 		{include file="devblocks:cerberusweb.core::internal/watchers/context_follow_button.tpl" context=$page_context context_id=$page_context_id full=true}
-		</span>		
-		
-		<!-- Macros -->
-		{devblocks_url assign=return_url full=true}c=profiles&type=opportunity&id={$page_context_id}-{$opp->name|devblocks_permalink}{/devblocks_url}
-		{include file="devblocks:cerberusweb.core::internal/macros/display/button.tpl" context=$page_context context_id=$page_context_id macros=$macros return_url=$return_url}		
-		
-		<!-- Edit -->
-		{if $active_worker->hasPriv('crm.opp.actions.update_all')}
-		<button type="button" id="btnDisplayOppEdit" title="{'common.edit'|devblocks_translate|capitalize} (E)" class="cerb-peek-trigger" data-context="{CerberusContexts::CONTEXT_OPPORTUNITY}" data-context-id="{$page_context_id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span></button>
-		{/if}
+		</span>
 	</form>
 	
 	{if $pref_keyboard_shortcuts}
@@ -37,7 +31,6 @@
 		{'common.keyboard'|devblocks_translate|lower}:
 		(<b>a</b>) show contact
 		(<b>e</b>) {'common.edit'|devblocks_translate|lower}
-		{if !empty($macros)}(<b>m</b>) {'common.macros'|devblocks_translate|lower} {/if}
 		(<b>o</b>) show organization
 		(<b>1-9</b>) change tab
 	</small> 
@@ -108,6 +101,8 @@ $(function() {
 	
 	var tabs = $("#profileOppTabs").tabs(tabOptions);
 	
+	$('#btnProfileCard').cerbPeekTrigger();
+	
 	// Edit
 	
 	$('#btnDisplayOppEdit')
@@ -124,10 +119,12 @@ $(function() {
 		})
 		.on('cerb-peek-closed', function(e) {
 		})
-		;
+	;
+	
+	// Interactions
+	var $interaction_container = $('#spanInteractions');
+	{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.js.tpl"}
 });
-
-{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_button=null selector_menu=null}
 </script>
 
 <script type="text/javascript">

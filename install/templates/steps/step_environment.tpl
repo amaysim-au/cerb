@@ -3,7 +3,7 @@
 <form action="index.php" method="POST">
 <b>PHP Version... </b> 
 {if !$results.php_version}
-	<span class="bad">Failed!  PHP 5.5 or later is required.</span>
+	<span class="bad">Failed!  PHP 7.0 or later is required.</span>
 {else}
 	<span class="good">Passed! (PHP {$results.php_version})</span>
 {/if}
@@ -75,7 +75,9 @@
 
 <b>PHP Extension (MailParse)... </b> 
 {if !$results.ext_mailparse}
-	<span class="bad">Error! PHP must have the 'MailParse' extension enabled.</span>
+	<span class="bad">Error! PHP must have the 'mailparse' extension enabled.</span>
+{elseif !$results.mailparse_version}
+	<span class="bad">Error! Cerb requires the 'mailparse' extension version 3.0.2 or later.</span>
 {else}
 	<span class="good">Passed!</span>
 {/if}
@@ -165,9 +167,9 @@
 
 {if !$fails}
 	<input type="hidden" name="step" value="{$smarty.const.STEP_LICENSE}">
-	<input type="submit" value="Next Step &gt;&gt;">
+	<button type="submit">Continue &raquo;</button>
 {else}
 	<input type="hidden" name="step" value="{$smarty.const.STEP_ENVIRONMENT}">
-	<input type="submit" value="Try Again">
+	<button type="submit">Try again &raquo;</button>
 {/if}
 </form>

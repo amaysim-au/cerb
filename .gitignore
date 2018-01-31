@@ -2,8 +2,8 @@
 .htaccess
 .settings/*
 .externalToolBuilders
-
 /phpunit.phar
 /tags
+/vendor/
 *.iml
 .idea/

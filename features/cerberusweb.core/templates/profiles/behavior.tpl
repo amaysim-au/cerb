@@ -1,5 +1,6 @@
 {$page_context = CerberusContexts::CONTEXT_BEHAVIOR}
 {$page_context_id = $trigger_event->id}
+{$is_writeable = Context_TriggerEvent::isWriteableByActor($trigger_event, $active_worker)}
 
 <div style="float:left;margin-right:10px;">
 	<img src="{devblocks_url}c=avatars&context=bot&context_id={$trigger_event->bot_id}{/devblocks_url}?v={$trigger_event->updated_at}" style="height:75px;width:75px;border-radius:5px;">
@@ -19,28 +20,20 @@
 			{include file="devblocks:cerberusweb.core::internal/watchers/context_follow_button.tpl" context=$page_context context_id=$page_context_id full=true}
 			</span>
 			
-			<!-- Macros -->
-			{devblocks_url assign=return_url full=true}c=profiles&type=trigger_event&id={$page_context_id}-{$trigger_event->title|devblocks_permalink}{/devblocks_url}
-			{include file="devblocks:cerberusweb.core::internal/macros/display/button.tpl" context=$page_context context_id=$page_context_id macros=$macros return_url=$return_url}
-			
 			<!-- Edit -->
+			{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
 			<button type="button" id="btnDisplayTriggerEventEdit" title="{'common.edit'|devblocks_translate|capitalize} (E)" class="cerb-peek-trigger" data-context="{$page_context}" data-context-id="{$page_context_id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span></button>
+			{/if}
 		</form>
 		
 		{if $pref_keyboard_shortcuts}
 			<small>
 			{$translate->_('common.keyboard')|lower}:
 			(<b>e</b>) {'common.edit'|devblocks_translate|lower}
-			{if !empty($macros)}(<b>m</b>) {'common.macros'|devblocks_translate|lower} {/if}
 			(<b>1-9</b>) change tab
 			</small>
 		{/if}
 	</div>
-</div>
-
-<div style="float:right;">
-{$ctx = Extension_DevblocksContext::get($page_context)}
-{include file="devblocks:cerberusweb.core::search/quick_search.tpl" view=$ctx->getSearchView() return_url="{devblocks_url}c=search&context={$ctx->manifest->params.alias}{/devblocks_url}"}
 </div>
 
 <div style="clear:both;"></div>
@@ -123,8 +116,6 @@ $(function() {
 		.on('cerb-peek-closed', function(e) {
 		})
 		;
-	
-	{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_button=null selector_menu=null}
 });
 </script>
 

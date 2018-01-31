@@ -9,6 +9,7 @@ define('REMOTE_HOST', '{$host}');
 define('REMOTE_PORT', '{if !empty($port) && 80!=$port}{$port}{else}80{/if}');
 define('REMOTE_BASE', '{$base}{if !$smarty.const.DEVBLOCKS_REWRITE}/index.php{/if}'); // NO trailing slash!
 define('REMOTE_URI', '{$path}'); // NO trailing slash!
+define('REMOTE_SSL_VALIDATION', true);
 {literal}
 /*
  * ====================================================================
@@ -16,21 +17,13 @@ define('REMOTE_URI', '{$path}'); // NO trailing slash!
  * ====================================================================
  */
 define('URL_REWRITE', file_exists('.htaccess'));
+define('LOCAL_SSL', null);
 define('LOCAL_HOST', $_SERVER['HTTP_HOST']);
 define('LOCAL_BASE', DevblocksRouter::getLocalBase()); // NO trailing slash!
-define('SCRIPT_LAST_MODIFY', 2016052001); // last change
-
-@session_start();
+define('SCRIPT_LAST_MODIFY', 20170613); // last change
 
 class DevblocksProxy {
 	function proxy($local_path) {
-//		echo "RPT: ",REMOTE_PROTOCOL,"<BR>";
-//		echo "RH: ",REMOTE_HOST,"<BR>";
-//		echo "RP: ",REMOTE_PORT,"<BR>";
-//		echo "RB: ",REMOTE_BASE,"<BR>";
-//		echo "RU: ",REMOTE_URI,"<BR>";
-//		echo "LP: $local_path<BR>";
-
 		$path = '';
 		$query = '';
 		
@@ -53,34 +46,27 @@ class DevblocksProxy {
 			header('Pragma: cache'); 
 			header('Cache-control: max-age=86400'); // 1d
 			header('Expires: ' . gmdate('D, d M Y H:i:s',time()+86400) . ' GMT'); // 1d
-
-//			$pathinfo = pathinfo($local_path);
-//			switch($pathinfo['extension']) {
-//				case 'css':
-//					header('Content-type: text/css;');
-//					break;
-//				case 'js':
-//					header('Content-type: text/javascript;');
-//					break;
-//				case 'xml':
-//					header('Content-type: text/xml;');
-//					break;
-//				default:
-//					header('Content-type: text/html;');
-//					break;
-//			}
-
 			$remote_path = REMOTE_BASE;
 			
 		} else {
 			$remote_path = REMOTE_BASE . REMOTE_URI;
 		}
 		
-		if($this->_isPost()) {
-			$this->_post($remote_path, $local_path);
-		} else {
-			$this->_get($remote_path, $local_path);
+		switch($this->_getVerb()) {
+			case 'GET':
+				$this->_get($remote_path, $local_path);
+				break;
+			case 'OPTIONS':
+				$this->_options($remote_path, $local_path, 'OPTIONS');
+				break;
+			case 'POST':
+				$this->_post($remote_path, $local_path);
+				break;
 		}
+	}
+
+	function _options($local_path, $remote_path) {
+		die("Subclass abstract " . __CLASS__ . "...");
 	}
 
 	function _get($local_path, $remote_path) {
@@ -126,19 +112,19 @@ class DevblocksProxy {
 		);
 	}
 	
-	/**
-	 * @return boolean
-	 */
-	function _isPost() {
-		return !strcasecmp($_SERVER['REQUEST_METHOD'],"POST"); // 0=match
+	function _getVerb() {
+		$verb = strtoupper($_SERVER['REQUEST_METHOD']);
+		return $verb;
 	}
-
+	
 	function _generateMimeBoundary() {
 		return md5(mt_rand(0,10000).time().microtime());
 	}
 
 	function _isSSL() {
-		if(@$_SERVER["HTTPS"] == "on"){
+		if(LOCAL_SSL) {
+			return true;
+		} elseif(@$_SERVER["HTTPS"] == "on"){
 			return true;
 		} elseif (@$_SERVER["HTTPS"] == 1){
 			return true;
@@ -196,7 +182,7 @@ class DevblocksProxy {
 						$boundary,
 						$k,
 						$name,
-						file_get_contents($file['tmp_name'][$idx]) // [JAS] replace with a PHP4 friendly function?
+						file_get_contents($file['tmp_name'][$idx])
 					);
 				}
 				
@@ -209,7 +195,7 @@ class DevblocksProxy {
 					$boundary,
 					$k,
 					$file['name'],
-					file_get_contents($file['tmp_name']) // [JAS] replace with a PHP4 friendly function?
+					file_get_contents($file['tmp_name'])
 				);
 			}
 		}
@@ -220,52 +206,69 @@ class DevblocksProxy {
 		
 		return $content; // POST
 	}
-	
-	/**
-	 * @return array
-	 */
-	function _getFingerprint() {
-		// Create a local cookie for this user to pass to Devblocks
-		if(isset($_COOKIE['GroupLoginPassport'])) {
-			$cookie = $_COOKIE['GroupLoginPassport'];
-			$fingerprint = unserialize($cookie);
-		} else {
-			$fingerprint = array('browser'=>@$_SERVER['HTTP_USER_AGENT'], 'ip'=>@$_SERVER['REMOTE_ADDR'], 'local_sessid' => session_id(), 'started' => time());
-			setcookie(
-				'GroupLoginPassport',
-				serialize($fingerprint),
-				0,
-				'/'
-			);
-		}
-		return $fingerprint;
-	}
 };
 
 class DevblocksProxy_Curl extends DevblocksProxy {
-	function _get($remote_path, $local_path) {
+	function _proxyHttpHeaders(&$header) {
+		if(!is_array($header))
+			$header = array();
+		
+		$header[] = 'Via: 1.1 ' . LOCAL_HOST;
+		
+		if($this->_isSSL()) $header[] = 'DevblocksProxySSL: 1';
+		
+		$header[] = 'DevblocksProxyHost: ' . LOCAL_HOST;
+		$header[] = 'DevblocksProxyBase: ' . LOCAL_BASE;
+		
+		if(isset($_SERVER['HTTP_CONTENT_TYPE']))
+			$header[] = 'Content-Type: ' . $_SERVER['HTTP_CONTENT_TYPE'];
+		
+		if(isset($_SERVER['HTTP_ORIGIN']))
+			$header[] = 'Origin: ' . $_SERVER['HTTP_ORIGIN'];
+		
+		if(isset($_SERVER['HTTP_REFERER']))
+			$header[] = 'Referer: ' . $_SERVER['HTTP_REFERER'];
+		
+		if(isset($_SERVER['HTTP_USER_AGENT']))
+			$header[] = 'User-Agent: ' . $_SERVER['HTTP_USER_AGENT'];
+		
+		$cookies = array();
+		
+		foreach($_COOKIE as $key => $value) {
+			$cookies[] = sprintf("%s=%s", $key, urlencode($value));
+		}
+		
+		if(!empty($cookies))
+			$header[] = 'Cookie: ' . implode('; ', $cookies);
+		
+		return $header;
+	}
+	
+	function _get($remote_path, $local_path, $verb=null) {
 		$url = REMOTE_PROTOCOL . '://' . REMOTE_HOST . ':' . REMOTE_PORT . $remote_path . $local_path;
 		
 		$header = array();
-		$header[] = 'Via: 1.1 ' . LOCAL_HOST;
-		if($this->_isSSL()) $header[] = 'DevblocksProxySSL: 1';
-		$header[] = 'DevblocksProxyHost: ' . LOCAL_HOST;
-		$header[] = 'DevblocksProxyBase: ' . LOCAL_BASE;
-		$header[] = 'Cookie: GroupLoginPassport=' . urlencode(serialize($this->_getFingerprint())) . ';';
+		$this->_proxyHttpHeaders($header);
+		
 		$ch = curl_init();
 		$out = "";
 		curl_setopt($ch, CURLOPT_URL, $url);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+		if(!REMOTE_SSL_VALIDATION) {
+			curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+		}
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
 		curl_setopt($ch, CURLOPT_HEADER, 1);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		
+		if($verb)
+			curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $verb);
 		
 		$this->_returnTransfer($ch, $out);
 		
 		curl_close($ch);
 	}
-
+	
 	function _post($remote_path, $local_path) {
 		$boundary = $this->_generateMimeBoundary();
 		$content = $this->_buildPost($boundary);
@@ -274,16 +277,15 @@ class DevblocksProxy_Curl extends DevblocksProxy {
 		$header = array();
 		$header[] = 'Content-Type: multipart/form-data; boundary='.$boundary;
 		$header[] = 'Content-Length: ' .  strlen($content);
-		$header[] = 'Via: 1.1 ' . LOCAL_HOST;
-		if($this->_isSSL()) $header[] = 'DevblocksProxySSL: 1';
-		$header[] = 'DevblocksProxyHost: ' . LOCAL_HOST;
-		$header[] = 'DevblocksProxyBase: ' . LOCAL_BASE;
-		$header[] = 'Cookie: GroupLoginPassport=' . urlencode(serialize($this->_getFingerprint())) . ';';
+		$this->_proxyHttpHeaders($header);
+
 		$ch = curl_init();
 		$out = "";
 		curl_setopt($ch, CURLOPT_URL, $url);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+		if(!REMOTE_SSL_VALIDATION) {
+			curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+			curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+		}
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
 		curl_setopt($ch, CURLOPT_POST, 1);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $content);
@@ -297,21 +299,42 @@ class DevblocksProxy_Curl extends DevblocksProxy {
 	
 	function _returnTransfer($ch) {
 		$out = curl_exec($ch);
-
-		list($headers, $content) = $this->_parseResponse($out);		
+		$info = curl_getinfo($ch);
 		
-		foreach($headers as $header) {
-			// Do we need to redirect?
-			if(preg_match("/^Location:/i", $header)) {
-				header($header);
-				exit;
-			}
+		// Report errors
+		if(false === $out) {
+			http_response_code(500);
+			$error = curl_error($ch);
+			error_log($error);
+			die("<html><body><h1>" . $error . "</h1></body></html>");
 		}
 		
-		$content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+		// Status code
+		
+		if(function_exists('http_response_code'))
+			http_response_code($info['http_code']);
 
-		if(!empty($content_type))
-			header("Content-type: " . $content_type);
+		// Headers
+
+		list($raw_headers, $content) = $this->_parseResponse($out);
+		
+		foreach($raw_headers as $raw_header) {
+			@list($k, $v) = explode(':', $raw_header, 2);
+			
+			if(empty($k) || empty($v))
+				continue;
+			
+			switch(strtolower($k)) {
+				case 'connection':
+				case 'host':
+				case 'transfer-encoding':
+					break;
+					
+				default:
+					header($k . ': ' . ltrim($v));
+					break;
+			}
+		}
 		
 		echo $content;
 	}
@@ -332,9 +355,6 @@ class DevblocksRouter {
 	
 		$local_path = substr($location,strlen(LOCAL_BASE));
 		
-//		echo "SRU: ",$_SERVER['REQUEST_URI'],"<BR>";
-//		echo "Localbase: ",LOCAL_BASE,"<BR>";
-//		echo $local_path,"<BR>";
 		$proxy = new DevblocksProxy_Curl();
 		$proxy->proxy($local_path);
 	}
@@ -344,9 +364,7 @@ class DevblocksRouter {
 	 * @return string
 	 */
 	static function getLocalBase() {
-		$uri = $_SERVER['PHP_SELF'];
-		if(substr($uri,-1,1)=='/') // strip trailing slash
-			$uri = substr($uri,0,-1);
+		$uri = rtrim($_SERVER['PHP_SELF'],'/');
 		$path = explode('/', $uri);
 		if(false !== ($pos = array_search("index.php",$path))) {
 			$path = array_slice($path, 0, (URL_REWRITE?$pos:$pos+1));

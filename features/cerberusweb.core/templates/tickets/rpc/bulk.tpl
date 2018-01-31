@@ -1,3 +1,4 @@
+{$peek_context = CerberusContexts::CONTEXT_TICKET}
 <form action="{devblocks_url}{/devblocks_url}" method="POST" id="formBatchUpdate" name="formBatchUpdate" onsubmit="return false;">
 <input type="hidden" name="c" value="profiles">
 <input type="hidden" name="a" value="handleSectionAction">
@@ -21,7 +22,6 @@
 <fieldset class="peek">
 	<legend>Set Fields</legend>
 	<table cellspacing="0" cellpadding="2" width="100%">
-		{if $active_worker->hasPriv('core.ticket.actions.move')}
 		<tr>
 			<td width="0%" nowrap="nowrap" align="left" valign="middle">
 				<label>
@@ -46,7 +46,6 @@
 				</div>
 			</td>
 		</tr>
-		{/if}
 		
 		<tr>
 			<td width="0%" nowrap="nowrap" align="left" valign="top">
@@ -63,7 +62,7 @@
 						{if $active_worker->hasPriv('core.ticket.actions.close')}
 						<option value="{Model_Ticket::STATUS_CLOSED}">{'status.closed'|devblocks_translate|capitalize}</option>
 						{/if}
-						{if $active_worker->hasPriv('core.ticket.actions.delete')}
+						{if $active_worker->hasPriv("contexts.{$peek_context}.delete")}
 						<option value="{Model_Ticket::STATUS_DELETED}">{'status.deleted'|devblocks_translate|capitalize}</option>
 						{/if}
 					</select>
@@ -154,7 +153,6 @@
 		</tr>
 		{/if}
 		
-		{if $active_worker->hasPriv('core.watchers.assign')}
 		<tr>
 			<td width="0%" nowrap="nowrap" align="left" valign="top">
 				<label>
@@ -169,9 +167,7 @@
 				</div>
 			</td>
 		</tr>
-		{/if}
 		
-		{if $active_worker->hasPriv('core.watchers.unassign')}
 		<tr>
 			<td width="0%" nowrap="nowrap" align="left" valign="top">
 				<label>
@@ -186,7 +182,6 @@
 				</div>
 			</td>
 		</tr>
-		{/if}
 	</table>
 </fieldset>
 
@@ -201,7 +196,7 @@
 
 {include file="devblocks:cerberusweb.core::internal/macros/behavior/bulk.tpl" macros=$macros}
 
-{if $active_worker->hasPriv('core.ticket.view.actions.broadcast_reply')}
+{if $active_worker->hasPriv('contexts.cerberusweb.contexts.ticket.broadcast')}
 {include file="devblocks:cerberusweb.core::internal/views/bulk_broadcast.tpl" context=CerberusContexts::CONTEXT_TICKET is_reply=true}
 {/if}
 	
@@ -232,6 +227,11 @@ $(function() {
 				genericAjaxPopupClose($popup);
 			});
 		});
+		
+		// Date helper
+		$popup.find('input[name="params[status][reopen_at]"]')
+			.cerbDateInputHelper()
+			;
 		
 		// Checkboxes
 		
@@ -283,20 +283,20 @@ $(function() {
 			
 			$select_moveto_bucket.find('> option').remove();
 			
-			$('<option/>').appendTo($select_moveto_bucket);
-			
 			if(0 == group_id.length) {
 				$select_moveto_bucket.val('').hide();
 				return;
 			}
 			
-			$select_moveto_bucket_options.find('option').each(function() {
+			$select_moveto_bucket_options.find('option').each(function(n) {
 				var $opt = $(this);
 				if($opt.attr('data-group-id') == group_id)
 					$opt.clone().appendTo($select_moveto_bucket);
 			});
 			
-			$select_moveto_bucket.val('').fadeIn();
+			var bucket_id = $select_moveto_bucket.find('> option:first').val();
+			
+			$select_moveto_bucket.val(bucket_id).fadeIn();
 		});
 		
 		{include file="devblocks:cerberusweb.core::internal/views/bulk_broadcast_jquery.tpl"}

@@ -1,13 +1,53 @@
 <?php
 class DAO_ClassifierExample extends Cerb_ORMHelper {
-	const ID = 'id';
-	const CLASSIFIER_ID = 'classifier_id';
 	const CLASS_ID = 'class_id';
+	const CLASSIFIER_ID = 'classifier_id';
 	const EXPRESSION = 'expression';
+	const ID = 'id';
 	const UPDATED_AT = 'updated_at';
+	
+	private function __construct() {}
+	
+	static function getFields() {
+		$validation = DevblocksPlatform::services()->validation();
+		
+		$validation
+			->addField(self::CLASS_ID)
+			->id()
+			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_CLASSIFIER_CLASS, true))
+			;
+		$validation
+			->addField(self::CLASSIFIER_ID)
+			->id()
+			->setRequired(true)
+			->addValidator($validation->validators()->contextId(CerberusContexts::CONTEXT_CLASSIFIER))
+			;
+		$validation
+			->addField(self::EXPRESSION)
+			->string()
+			->setMaxLength(16777215)
+			->setRequired(true)
+			;
+		$validation
+			->addField(self::ID)
+			->id()
+			->setEditable(false)
+			;
+		$validation
+			->addField(self::UPDATED_AT)
+			->timestamp()
+			;
+		$validation
+			->addField('_links')
+			->string()
+			->setMaxLength(65535)
+			;
+			
+		return $validation->getFields();
+	}
 
 	static function create($fields) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$sql = "INSERT INTO classifier_example () VALUES ()";
 		$db->ExecuteMaster($sql);
@@ -21,6 +61,12 @@ class DAO_ClassifierExample extends Cerb_ORMHelper {
 	static function update($ids, $fields, $check_deltas=true) {
 		if(!is_array($ids))
 			$ids = array($ids);
+		
+		if(!isset($fields[self::UPDATED_AT]))
+			$fields[self::UPDATED_AT] = time();
+		
+		$context = CerberusContexts::CONTEXT_CLASSIFIER_EXAMPLE;
+		self::_updateAbstract($context, $ids, $fields);
 		
 		// Make a diff for the requested objects in batches
 		
@@ -40,7 +86,7 @@ class DAO_ClassifierExample extends Cerb_ORMHelper {
 			// Send events
 			if($check_deltas) {
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::getEventService();
+				$eventMgr = DevblocksPlatform::services()->event();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.classifier_example.update',
@@ -60,6 +106,45 @@ class DAO_ClassifierExample extends Cerb_ORMHelper {
 		parent::_updateWhere('classifier_example', $fields, $where);
 	}
 	
+	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
+		$context = CerberusContexts::CONTEXT_CLASSIFIER_EXAMPLE;
+		
+		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
+			return false;
+		
+		if(!$id && !isset($fields[self::CLASSIFIER_ID])) {
+			$error = "A 'classifier_id' is required.";
+			return false;
+		}
+		
+		if(isset($fields[self::CLASSIFIER_ID])) {
+			@$classifier_id = $fields[self::CLASSIFIER_ID];
+			
+			if(!$classifier_id) {
+				$error = "Invalid 'classifier_id' value.";
+				return false;
+			}
+			
+			if(!Context_Classifier::isWriteableByActor($classifier_id, $actor)) {
+				$error = "You do not have permission to create training data on this classifier.";
+				return false;
+			}
+		}
+		
+		return true;
+	}
+	
+	static function onUpdateByActor($actor, $fields, $id) {
+		@$classifier_id = $fields[self::CLASSIFIER_ID];
+		@$class_id = $fields[self::CLASS_ID];
+		@$expression = $fields[self::EXPRESSION];
+		
+		if($classifier_id && $class_id && $expression) {
+			$bayes = DevblocksPlatform::services()->bayesClassifier();
+			$bayes::train($expression, $classifier_id, $class_id);
+		}
+	}
+	
 	/**
 	 * @param string $where
 	 * @param mixed $sortBy
@@ -68,7 +153,7 @@ class DAO_ClassifierExample extends Cerb_ORMHelper {
 	 * @return Model_ClassifierExample[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null, $options=null) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -109,7 +194,7 @@ class DAO_ClassifierExample extends Cerb_ORMHelper {
 	 * @return Model_ClassifierExample[]
 	 */
 	static function getAll($nocache=false) {
-		//$cache = DevblocksPlatform::getCacheService();
+		//$cache = DevblocksPlatform::services()->cache();
 		//if($nocache || null === ($objects = $cache->load(self::_CACHE_ALL))) {
 			$objects = self::getWhere(null, DAO_ClassifierExample::EXPRESSION, true, null, Cerb_ORMHelper::OPT_GET_MASTER_ONLY);
 			
@@ -155,7 +240,7 @@ class DAO_ClassifierExample extends Cerb_ORMHelper {
 		if(!method_exists(get_called_class(), 'getWhere'))
 			return array();
 
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		$ids = DevblocksPlatform::importVar($ids, 'array:integer');
 
@@ -206,7 +291,7 @@ class DAO_ClassifierExample extends Cerb_ORMHelper {
 	}
 	
 	static public function countByClassifier($classifier_id) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		return $db->GetOneSlave(sprintf("SELECT count(id) FROM classifier_example ".
 			"WHERE classifier_id = %d",
 			$classifier_id
@@ -214,7 +299,7 @@ class DAO_ClassifierExample extends Cerb_ORMHelper {
 	}
 	
 	static public function countByClass($class_id) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		return $db->GetOneSlave(sprintf("SELECT count(id) FROM classifier_example ".
 			"WHERE class_id = %d",
 			$class_id
@@ -223,7 +308,7 @@ class DAO_ClassifierExample extends Cerb_ORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		if(empty($ids))
 			return;
@@ -233,7 +318,7 @@ class DAO_ClassifierExample extends Cerb_ORMHelper {
 		$db->ExecuteMaster(sprintf("DELETE FROM classifier_example WHERE id IN (%s)", $ids_list));
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -310,7 +395,6 @@ class DAO_ClassifierExample extends Cerb_ORMHelper {
 	}
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -322,7 +406,7 @@ class DAO_ClassifierExample extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -549,7 +633,7 @@ class View_ClassifierExample extends C4_AbstractView implements IAbstractView_Su
 					
 				// Valid custom fields
 				default:
-					if('cf_' == substr($field_key,0,3))
+					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -695,7 +779,7 @@ class View_ClassifierExample extends C4_AbstractView implements IAbstractView_Su
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -716,7 +800,7 @@ class View_ClassifierExample extends C4_AbstractView implements IAbstractView_Su
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {
@@ -845,14 +929,14 @@ class Context_ClassifierExample extends Extension_DevblocksContext implements ID
 		if(empty($context_id))
 			return '';
 	
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		$url = $url_writer->writeNoProxy('c=profiles&type=classifier_example&id='.$context_id, true);
 		return $url;
 	}
 	
 	function getMeta($context_id) {
 		$classifier_example = DAO_ClassifierExample::get($context_id);
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		$url = $this->profileGetUrl($context_id);
 		$friendly = DevblocksPlatform::strToPermalink($classifier_example->expression);
@@ -945,7 +1029,7 @@ class Context_ClassifierExample extends Extension_DevblocksContext implements ID
 			$token_values = $this->_importModelCustomFieldsAsValues($classifier_example, $token_values);
 			
 			// URL
-			$url_writer = DevblocksPlatform::getUrlService();
+			$url_writer = DevblocksPlatform::services()->url();
 			$token_values['record_url'] = $url_writer->writeNoProxy(sprintf("c=profiles&type=classifier_example&id=%d-%s",$classifier_example->id, DevblocksPlatform::strToPermalink($classifier_example->expression)), true);
 		}
 		
@@ -976,6 +1060,27 @@ class Context_ClassifierExample extends Extension_DevblocksContext implements ID
 			$token_labels,
 			$token_values
 		);
+		
+		return true;
+	}
+	
+	function getKeyToDaoFieldMap() {
+		return [
+			'class_id' => DAO_ClassifierExample::CLASS_ID,
+			'classifier_id' => DAO_ClassifierExample::CLASSIFIER_ID,
+			'expression' => DAO_ClassifierExample::EXPRESSION,
+			'id' => DAO_ClassifierExample::ID,
+			'links' => '_links',
+			'updated_at' => DAO_ClassifierExample::UPDATED_AT,
+		];
+	}
+	
+	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
+		switch(DevblocksPlatform::strLower($key)) {
+			case 'links':
+				$this->_getDaoFieldsLinks($value, $out_fields, $error);
+				break;
+		}
 		
 		return true;
 	}
@@ -1064,7 +1169,7 @@ class Context_ClassifierExample extends Extension_DevblocksContext implements ID
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('view_id', $view_id);
 		
 		$context = CerberusContexts::CONTEXT_CLASSIFIER_EXAMPLE;
@@ -1135,7 +1240,7 @@ class Context_ClassifierExample extends Extension_DevblocksContext implements ID
 			$tpl->assign('classes', $classes);
 			
 			// Entities
-			$bayes = DevblocksPlatform::getBayesClassifierService();
+			$bayes = DevblocksPlatform::services()->bayesClassifier();
 			$entities = $bayes::getEntities();
 			$tpl->assign('entities', $entities);
 			

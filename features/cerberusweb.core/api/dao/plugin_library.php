@@ -16,19 +16,86 @@
  ***********************************************************************/
 
 class DAO_PluginLibrary extends Cerb_ORMHelper {
-	const ID = 'id';
-	const PLUGIN_ID = 'plugin_id';
-	const NAME = 'name';
 	const AUTHOR = 'author';
 	const DESCRIPTION = 'description';
-	const LINK = 'link';
-	const LATEST_VERSION = 'latest_version';
 	const ICON_URL = 'icon_url';
+	const ID = 'id';
+	const LATEST_VERSION = 'latest_version';
+	const LINK = 'link';
+	const NAME = 'name';
+	const PLUGIN_ID = 'plugin_id';
 	const REQUIREMENTS_JSON = 'requirements_json';
 	const UPDATED = 'updated';
+	
+	private function __construct() {}
 
+	static function getFields() {
+		$validation = DevblocksPlatform::services()->validation();
+		
+		// varchar(255)
+		$validation
+			->addField(self::AUTHOR)
+			->string()
+			->setMaxLength(255)
+			;
+		// text
+		$validation
+			->addField(self::DESCRIPTION)
+			->string()
+			->setMaxLength(65535)
+			;
+		// varchar(255)
+		$validation
+			->addField(self::ICON_URL)
+			->string()
+			->setMaxLength(255)
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::ID)
+			->id()
+			->setEditable(false)
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::LATEST_VERSION)
+			->uint(4)
+			;
+		// varchar(255)
+		$validation
+			->addField(self::LINK)
+			->string()
+			->setMaxLength(255)
+			;
+		// varchar(255)
+		$validation
+			->addField(self::NAME)
+			->string()
+			->setMaxLength(255)
+			;
+		// varchar(255)
+		$validation
+			->addField(self::PLUGIN_ID)
+			->string()
+			->setMaxLength(255)
+			;
+		// text
+		$validation
+			->addField(self::REQUIREMENTS_JSON)
+			->string()
+			->setMaxLength(65535)
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::UPDATED)
+			->timestamp()
+			;
+
+		return $validation->getFields();
+	}
+	
 	static function create($fields) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		@$id = $fields[self::ID];
 		
@@ -59,7 +126,7 @@ class DAO_PluginLibrary extends Cerb_ORMHelper {
 	 * @return Model_PluginLibrary[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -128,7 +195,7 @@ class DAO_PluginLibrary extends Cerb_ORMHelper {
 	}
 	
 	static function flush() {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		$tables = DevblocksPlatform::getDatabaseTables();
 		
 		$db->ExecuteMaster("DELETE FROM plugin_library");
@@ -141,7 +208,7 @@ class DAO_PluginLibrary extends Cerb_ORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		if(empty($ids))
 			return;
@@ -200,7 +267,6 @@ class DAO_PluginLibrary extends Cerb_ORMHelper {
 	}
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -212,7 +278,7 @@ class DAO_PluginLibrary extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -278,6 +344,9 @@ class DAO_PluginLibrary extends Cerb_ORMHelper {
 				throw new Exception("The cURL PHP extension is not installed");
 			
 			$ch = DevblocksPlatform::curlInit($url);
+			curl_setopt_array($ch, array(
+				CURLOPT_TIMEOUT => 10,
+			));
 			$json_data = DevblocksPlatform::curlExec($ch, true);
 			
 		} catch(Exception $e) {
@@ -573,7 +642,7 @@ class Search_PluginLibrary extends Extension_DevblocksSearchSchema {
 	}
 	
 	public function index($stop_time=null) {
-		$logger = DevblocksPlatform::getConsoleLog();
+		$logger = DevblocksPlatform::services()->log();
 		
 		if(false == ($engine = $this->getEngine()))
 			return false;
@@ -879,7 +948,7 @@ class View_PluginLibrary extends C4_AbstractView implements IAbstractView_QuickS
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -891,7 +960,7 @@ class View_PluginLibrary extends C4_AbstractView implements IAbstractView_QuickS
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {

@@ -4,20 +4,20 @@
 	<name>Support Center</name>
 	<description>Adds a Support Center community portal for public-facing support.</description>
 	<author>Webgroup Media, LLC.</author>
-	<version>7.3.12</version>
+	<version>8.2.9</version>
 	<link>http://wiki.cerbweb.com/Support_Center</link>
 	<image>plugin.png</image>
  
 	<!-- Requirements -->
 
 	<requires>
-		<app_version min="7.3" max="7.3.99" />
+		<app_version min="8.2" max="8.2.99" />
 	</requires>
  
 	<!-- Plugin Dependencies -->
 	
 	<dependencies>
-		<require plugin_id="cerberusweb.core" version="5.1.0" />
+		<require plugin_id="cerberusweb.core" version="8.1.0" />
 	</dependencies>
 
 	<!-- Patches -->
@@ -110,7 +110,7 @@
 
 		<!-- Usermeet Tools -->
 		
-		<extension point="usermeet.tool">
+		<extension point="cerb.portal">
 			<id>sc.tool</id>
 			<name>Support Center</name>
 			<class>

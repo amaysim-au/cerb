@@ -31,12 +31,13 @@ class Event_UiWorklistRenderByWorker extends Extension_DevblocksEvent {
 		
 		$macros = DAO_TriggerEvent::getReadableByActor(
 			$worker,
-			Event_UiWorklistRenderByWorker::ID
+			Event_UiWorklistRenderByWorker::ID,
+			false
 		);
 		
 		if(is_array($macros))
-		foreach($macros as $macro) {
-			$new_actions = array();
+		foreach($macros as $macro) { /* @var $macro Model_TriggerEvent */
+			$new_actions = [];
 			Event_UiWorklistRenderByWorker::trigger($macro->id, $context, $view_id, $new_actions);
 			
 			if(!empty($new_actions)) {
@@ -52,7 +53,9 @@ class Event_UiWorklistRenderByWorker extends Extension_DevblocksEvent {
 	}
 	
 	static function trigger($trigger_id, $context, $view_id, &$actions) {
-		$events = DevblocksPlatform::getEventService();
+		$events = DevblocksPlatform::services()->event();
+		$active_worker = CerberusApplication::getActiveWorker();
+		
 		return $events->trigger(
 			new Model_DevblocksEvent(
 				self::ID,
@@ -60,6 +63,7 @@ class Event_UiWorklistRenderByWorker extends Extension_DevblocksEvent {
 					'_caller_actions' => &$actions,
 					'context' => $context,
 					'view_id' => $view_id,
+					'worker' => $active_worker,
 					'_whisper' => array(
 						'_trigger_id' => array($trigger_id),
 					),
@@ -76,12 +80,14 @@ class Event_UiWorklistRenderByWorker extends Extension_DevblocksEvent {
 	 */
 	function generateSampleEventModel(Model_TriggerEvent $trigger, $context=null, $view_id=null) {
 		// [TODO] Set defaults
+		$active_worker = CerberusApplication::getActiveWorker();
 		
 		return new Model_DevblocksEvent(
 			$this->_event_id,
 			array(
 				'context' => $context ?: 'cerberusweb.contexts.ticket',
 				'view_id' => $view_id ?: 'search_cerberusweb_contexts_ticket',
+				'worker' => $active_worker,
 			)
 		);
 	}
@@ -89,20 +95,58 @@ class Event_UiWorklistRenderByWorker extends Extension_DevblocksEvent {
 	function setEvent(Model_DevblocksEvent $event_model=null, Model_TriggerEvent $trigger=null) {
 		@$context = $event_model->params['context'];
 		@$view_id = $event_model->params['view_id'];
+		@$worker = $event_model->params['worker'];
 		
 		$labels = array();
 		$values = array();
 		
+		/**
+		 * Behavior
+		 */
+		
+		$merge_labels = array();
+		$merge_values = array();
+		CerberusContexts::getContext(CerberusContexts::CONTEXT_BEHAVIOR, $trigger, $merge_labels, $merge_values, null, true);
+
+			// Merge
+			CerberusContexts::merge(
+				'behavior_',
+				'',
+				$merge_labels,
+				$merge_values,
+				$labels,
+				$values
+			);
+			
+		/**
+		 * Worker
+		 */
+			
+		$merge_labels = array();
+		$merge_values = array();
+		CerberusContexts::getContext(CerberusContexts::CONTEXT_WORKER, $worker, $merge_labels, $merge_values, null, true);
+
+			// Merge
+			CerberusContexts::merge(
+				'worker_',
+				'',
+				$merge_labels,
+				$merge_values,
+				$labels,
+				$values
+			);
+		
+		/**
+		 * Worklist
+		 */
+		
 		$labels['context'] = 'Worklist Type';
 		$values['context'] = $context;
+		$values['_types']['context'] = null;
 		
 		$labels['view_id'] = 'Worklist ID';
 		$values['view_id'] = $view_id;
-		
-		$values['_types'] = array(
-			'context' => null,
-			'view_id' => Model_CustomField::TYPE_SINGLE_LINE,
-		);
+		$values['_types']['view_id'] = Model_CustomField::TYPE_SINGLE_LINE;
 		
 		/**
 		 * Caller actions
@@ -121,22 +165,38 @@ class Event_UiWorklistRenderByWorker extends Extension_DevblocksEvent {
 	}
 	
 	function getValuesContexts($trigger) {
+		$vals = array(
+			'behavior_id' => array(
+				'label' => 'Behavior',
+				'context' => CerberusContexts::CONTEXT_BEHAVIOR,
+			),
+			'behavior_bot_id' => array(
+				'label' => 'Bot',
+				'context' => CerberusContexts::CONTEXT_BOT,
+			),
+			'worker_id' => array(
+				'label' => 'Worker',
+				'context' => CerberusContexts::CONTEXT_WORKER,
+			),
+		);
+		
 		$vars = parent::getValuesContexts($trigger);
-		asort($vars);
-		return $vars;
+		
+		$vals_to_ctx = array_merge($vals, $vars);
+		DevblocksPlatform::sortObjects($vals_to_ctx, '[label]');
+		
+		return $vals_to_ctx;
 	}
 	
 	function getConditionExtensions(Model_TriggerEvent $trigger) {
 		$labels = $this->getLabels($trigger);
-		
+		$types = $this->getTypes();
 		
 		$labels['context'] = 'Worklist Type';
 		$labels['view_id'] = 'Worklist ID';
 		
-		$types = array(
-			'context' => null,
-			'view_id' => Model_CustomField::TYPE_SINGLE_LINE,
-		);
+		$types['context'] = null;
+		$types['view_id'] = Model_CustomField::TYPE_SINGLE_LINE;
 
 		$conditions = $this->_importLabelsTypesAsConditions($labels, $types);
 		
@@ -144,7 +204,7 @@ class Event_UiWorklistRenderByWorker extends Extension_DevblocksEvent {
 	}
 	
 	function renderConditionExtension($token, $as_token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -212,7 +272,7 @@ class Event_UiWorklistRenderByWorker extends Extension_DevblocksEvent {
 	}
 	
 	function renderActionExtension($token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -246,6 +306,12 @@ class Event_UiWorklistRenderByWorker extends Extension_DevblocksEvent {
 	function simulateActionExtension($token, $trigger, $params, DevblocksDictionaryDelegate $dict) {
 		switch($token) {
 			case 'exec_jquery':
+				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+				$script = $tpl_builder->build($params['jquery_script'], $dict);
+				
+				$out = sprintf(">>> Executing jQuery script:\n\n%s\n",
+					$script
+				);
 				break;
 		}
 	}
@@ -254,7 +320,7 @@ class Event_UiWorklistRenderByWorker extends Extension_DevblocksEvent {
 		switch($token) {
 			case 'exec_jquery':
 				// Return the parsed script to the caller
-				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 				$dict->_caller_actions['jquery_scripts'][] = $tpl_builder->build($params['jquery_script'], $dict);
 				break;
 		}

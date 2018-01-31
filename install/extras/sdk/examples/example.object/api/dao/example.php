@@ -1,11 +1,43 @@
 <?php
 class DAO_ExampleObject extends Cerb_ORMHelper {
+	const CREATED = 'created';
 	const ID = 'id';
 	const NAME = 'name';
-	const CREATED = 'created';
+	
+	private function __construct() {}
+
+	static function getFields() {
+		$validation = DevblocksPlatform::services()->validation();
+		
+		// int(10) unsigned
+		$validation
+			->addField(self::CREATED)
+			->timestamp()
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::ID)
+			->id()
+			->setEditable(false)
+			;
+		// varchar(255)
+		$validation
+			->addField(self::NAME)
+			->string()
+			->setMaxLength(255)
+			->setRequired(true)
+			;
+		$validation
+			->addField('_links')
+			->string()
+			->setMaxLength(65535)
+			;
+			
+		return $validation->getFields();
+	}
 
 	static function create($fields) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		if(!isset($fields[self::CREATED]))
 			$fields[self::CREATED] = time();
@@ -22,6 +54,9 @@ class DAO_ExampleObject extends Cerb_ORMHelper {
 	static function update($ids, $fields, $check_deltas=true) {
 		if(!is_array($ids))
 			$ids = array($ids);
+		
+		$context = Context_ExampleObject::ID;
+		self::_updateAbstract($context, $ids, $fields);
 		
 		// Make a diff for the requested objects in batches
 		
@@ -42,7 +77,7 @@ class DAO_ExampleObject extends Cerb_ORMHelper {
 			if($check_deltas) {
 				
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::getEventService();
+				$eventMgr = DevblocksPlatform::services()->event();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.example_object.update',
@@ -118,7 +153,7 @@ class DAO_ExampleObject extends Cerb_ORMHelper {
 	 * @return Model_ExampleObject[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -177,7 +212,7 @@ class DAO_ExampleObject extends Cerb_ORMHelper {
 	
 	static function maint() {
 		// Fire event
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.maint',
@@ -192,7 +227,7 @@ class DAO_ExampleObject extends Cerb_ORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		if(empty($ids))
 			return;
@@ -200,7 +235,7 @@ class DAO_ExampleObject extends Cerb_ORMHelper {
 		$ids_list = implode(',', $ids);
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -251,7 +286,6 @@ class DAO_ExampleObject extends Cerb_ORMHelper {
 	}
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -263,7 +297,7 @@ class DAO_ExampleObject extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -466,7 +500,7 @@ class View_ExampleObject extends C4_AbstractView implements IAbstractView_Subtot
 					
 				// Valid custom fields
 				default:
-					if('cf_' == substr($field_key,0,3))
+					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -577,7 +611,7 @@ class View_ExampleObject extends C4_AbstractView implements IAbstractView_Subtot
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -604,7 +638,7 @@ class View_ExampleObject extends C4_AbstractView implements IAbstractView_Subtot
 	}
 	
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -710,7 +744,7 @@ class Context_ExampleObject extends Extension_DevblocksContext {
 	
 	function getMeta($context_id) {
 		$example = DAO_ExampleObject::get($context_id);
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		//$friendly = DevblocksPlatform::strToPermalink($example->name);
 		
@@ -789,10 +823,29 @@ class Context_ExampleObject extends Extension_DevblocksContext {
 			$token_values = $this->_importModelCustomFieldsAsValues($object, $token_values);
 			
 			// URL
-			$url_writer = DevblocksPlatform::getUrlService();
+			$url_writer = DevblocksPlatform::services()->url();
 			//$token_values['record_url'] = $url_writer->writeNoProxy(sprintf("c=example.object&id=%d-%s",$object->id, DevblocksPlatform::strToPermalink($object->name)), true);
 		}
 
+		return true;
+	}
+	
+	function getKeyToDaoFieldMap() {
+		return [
+			'created' => DAO_ExampleObject::CREATED,
+			'id' => DAO_ExampleObject::ID,
+			'links' => '_links',
+			'name' => DAO_ExampleObject::NAME,
+		];
+	}
+	
+	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
+		switch(DevblocksPlatform::strLower($key)) {
+			case 'links':
+				$this->_getDaoFieldsLinks($value, $out_fields, $error);
+				break;
+		}
+		
 		return true;
 	}
 

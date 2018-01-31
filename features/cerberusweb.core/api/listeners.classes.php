@@ -1,18 +1,18 @@
 <?php
 /***********************************************************************
- | Cerb(tm) developed by Webgroup Media, LLC.
- |-----------------------------------------------------------------------
- | All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
- |   unless specifically noted otherwise.
- |
- | This source code is released under the Devblocks Public License.
- | The latest version of this license can be found here:
- | http://cerb.ai/license
- |
- | By using this software, you acknowledge having read this license
- | and agree to be bound thereby.
- | ______________________________________________________________________
- |	http://cerb.ai	    http://webgroup.media
+| Cerb(tm) developed by Webgroup Media, LLC.
+|-----------------------------------------------------------------------
+| All source code & content (c) Copyright 2002-2017, Webgroup Media LLC
+|   unless specifically noted otherwise.
+|
+| This source code is released under the Devblocks Public License.
+| The latest version of this license can be found here:
+| http://cerb.ai/license
+|
+| By using this software, you acknowledge having read this license
+| and agree to be bound thereby.
+| ______________________________________________________________________
+|	http://cerb.ai	    http://webgroup.media
  ***********************************************************************/
 
 class ChCoreTour extends DevblocksHttpResponseListenerExtension {
@@ -91,7 +91,7 @@ class ChCoreTour extends DevblocksHttpResponseListenerExtension {
 									5
 									),
 								new DevblocksTourCallout(
-									'#viewpages TABLE.worklist A > SPAN.glyphicons-circle-plus',
+									'#viewworkspace_page TABLE.worklist A > SPAN.glyphicons-circle-plus',
 									'Add Pages',
 									'You can add a page by clicking on the (+) icon in the pages worklist.',
 									'bottomRight',
@@ -100,7 +100,7 @@ class ChCoreTour extends DevblocksHttpResponseListenerExtension {
 									5
 									),
 								new DevblocksTourCallout(
-									'#viewpages TABLE.worklistBody > THEAD TH:nth(0) A',
+									'#viewworkspace_page TABLE.worklistBody > THEAD TH:nth(0) A',
 									'Add to Menu',
 									'You can add or remove a page from your navigation bar by clicking the icon in this column.',
 									'bottomLeft',
@@ -109,7 +109,7 @@ class ChCoreTour extends DevblocksHttpResponseListenerExtension {
 									5
 									),
 								new DevblocksTourCallout(
-									'#viewpages TABLE.worklistBody > THEAD TH:nth(1) A',
+									'#viewworkspace_page TABLE.worklistBody > THEAD TH:nth(1) A',
 									'View Page',
 									'You can view a page by clicking the link in this column.',
 									'bottomLeft',
@@ -216,15 +216,15 @@ class ChCoreTour extends DevblocksHttpResponseListenerExtension {
 				
 			case 'preferences':
 				$tour = array(
-			 	   'title' => 'Preferences',
+						'title' => 'Preferences',
 					'body' => 'Use this page to configure your account preferences.',
 				);
 				break;
 
 			case 'groups':
 				$tour = array(
-			 	   'title' => 'Group Setup',
-			  	  'body' => 'This page enables you to configure groups for which you are a manager.  This includes members, buckets, mail routing rules, and other group-specific preferences.',
+						'title' => 'Group Setup',
+						'body' => 'This page enables you to configure groups for which you are a manager.  This includes members, buckets, mail routing rules, and other group-specific preferences.',
 				);
 				break;
 
@@ -242,16 +242,16 @@ class ChCoreTour extends DevblocksHttpResponseListenerExtension {
 									'bottomLeft',
 									'topLeft',
 									20,
-									10
+									5
 									),
 								new DevblocksTourCallout(
-									'DIV.cerb-menu > UL > LI:nth(4)',
+									'DIV.cerb-menu > UL > LI:nth(6)',
 									'Plugins',
 									'Use this menu to install and configure optional plugins that enhance Cerb functionality. You can also download third-party plugins from the community.',
 									'bottomLeft',
 									'topLeft',
 									20,
-									10
+									5
 									),
 							),
 						);
@@ -366,69 +366,13 @@ class ChCoreTour extends DevblocksHttpResponseListenerExtension {
 						);
 						break;
 						
-					case 'mailboxes':
+					case 'mail_outgoing':
 						$tour = array(
-							'title' => 'Mailboxes',
-							'body' => "Here is where you specify the mailboxes that should be checked for new mail to import into Cerb.",
+							'title' => 'Outgoing Mail',
+							'body' => "This page configures outgoing mail preferences.",
 						);
 						break;
 						
-					case 'mail_routing':
-						$tour = array(
-							'title' => 'Mail Routing',
-							'body' => "Mail routing determines which group should receive a new message.",
-						);
-						break;
-
-					case 'mail_filtering':
-						$tour = array(
-							'title' => 'Mail Filtering',
-							'body' => "Mail filtering provides a way to remove unwanted mail before it is processed or stored by the system.",
-						);
-						break;
-						
-					case 'mail_failed':
-						$tour = array(
-							'title' => 'Failed Messages',
-							'body' => "This page displays messages that were received by the system but failed to process.",
-						);
-						break;
-						
-					case 'mail_import':
-						$tour = array(
-							'title' => 'Import Message',
-							'body' => "This page provides an easy way to import raw RFC-2822 message sources.  This is particularly useful for evaluations, development, and troubleshooting.",
-						);
-						break;
-						
-					case 'mail_relay':
-						$tour = array(
-							'title' => 'External Mail Relay',
-							'body' => "This page configures the external mail relay.",
-						);
-						break;
-						
-					case 'mail_smtp':
-						$tour = array(
-							'title' => 'SMTP Server',
-							'body' => "This is where you configure your outgoing mail server.",
-						);
-						break;
-
-					case 'mail_from':
-						$tour = array(
-							'title' => 'Sender Addresses',
-							'body' => "Each group or bucket can specify a sender address.  This is where you configure all the available sender addresses.  It is <b>very important</b> that these addresses deliver to one of the mailboxes that Cerb checks for new mail, otherwise you won't receive correspondence from your audience.",
-						);
-						break;
-
-					case 'mail_queue':
-						$tour = array(
-							'title' => 'Mail Queue',
-							'body' => "This page displays the mail delivery queue.",
-						);
-						break;
-
 					case 'storage_content':
 						$tour = array(
 							'title' => 'Storage Content',
@@ -513,11 +457,29 @@ class ChCoreTour extends DevblocksHttpResponseListenerExtension {
 							'body' => "This is a detailed profile page for an email conversation.",
 							'callouts' => array(
 								new DevblocksTourCallout(
+									'#btnProfileCard',
+									'Peek',
+									'Click this button to open the ticket card.',
+									'bottomLeft',
+									'topRight',
+									-10,
+									5
+									),
+								new DevblocksTourCallout(
+									'#btnDisplayTicketEdit',
+									'Edit',
+									'Click this button to edit the ticket properties.',
+									'bottomLeft',
+									'topRight',
+									-10,
+									5
+									),
+								new DevblocksTourCallout(
 									'SPAN#spanWatcherToolbar BUTTON:first',
 									'Watchers',
 									'A watcher will automatically receive notifications about new activity on this record.  Click this button to add or remove yourself as a watcher.',
 									'bottomLeft',
-									'topRight',
+									'topMiddle',
 									-10,
 									5
 									),
@@ -537,6 +499,15 @@ class ChCoreTour extends DevblocksHttpResponseListenerExtension {
 									'bottomLeft',
 									'topLeft',
 									10,
+									0
+									),
+								new DevblocksTourCallout(
+									'div.cerb-subpage div.cerb-links-container',
+									'Links',
+									'You can connect this conversation to any other record in the system: tasks, organizations, opportunities, time tracking, servers, domains, etc.',
+									'bottomLeft',
+									'topLeft',
+									25,
 									0
 									),
 								new DevblocksTourCallout(
@@ -568,15 +539,6 @@ class ChCoreTour extends DevblocksHttpResponseListenerExtension {
 									),
 								new DevblocksTourCallout(
 									'#profileTicketTabs > UL > li:nth(2)',
-									'Links',
-									'You can connect this conversation to any other record in the system: tasks, organizations, opportunities, time tracking, servers, domains, etc.',
-									'bottomLeft',
-									'topMiddle',
-									0,
-									10
-									),
-								new DevblocksTourCallout(
-									'#profileTicketTabs > UL > li:nth(3)',
 									'Participant History',
 									'This tab displays prior conversations involving any of these participants.',
 									'bottomLeft',
@@ -671,7 +633,7 @@ class EventListener_Triggers extends DevblocksEventListenerExtension {
 	 * @param Model_DevblocksEvent $event
 	 */
 	function handleEvent(Model_DevblocksEvent $event) {
-		$logger = DevblocksPlatform::getConsoleLog('Bot');
+		$logger = DevblocksPlatform::services()->log('Bot');
 		
 		$logger->info(sprintf("EVENT: %s",
 			$event->id
@@ -745,7 +707,7 @@ class EventListener_Triggers extends DevblocksEventListenerExtension {
 		if(empty($triggers))
 			return;
 		
-		if(null == ($mft = DevblocksPlatform::getExtension($event->id, false)))
+		if(null == ($mft = Extension_DevblocksEvent::get($event->id, false)))
 			return;
 		
 		if(null == ($event_ext = $mft->createInstance())
@@ -756,7 +718,7 @@ class EventListener_Triggers extends DevblocksEventListenerExtension {
 		$dict = null;
 		
 		// Registry (trigger variables, etc)
-		$registry = DevblocksPlatform::getRegistryService();
+		$registry = DevblocksPlatform::services()->registry();
 		
 		foreach($triggers as $trigger) { /* @var $trigger Model_TriggerEvent */
 			if(false == (@$trigger_va = $trigger_vas[$trigger->bot_id]))
@@ -797,12 +759,9 @@ class EventListener_Triggers extends DevblocksEventListenerExtension {
 			if(is_null($dict)) {
 				$event_ext->setEvent($event, $trigger);
 				$values = $event_ext->getValues();
-		
+				
 				// Lazy-loader dictionary
 				$dict = new DevblocksDictionaryDelegate($values);
-				
-				// [TODO] Cache the dict we're left with by context:id
-				//var_dump(array('pre_cache', $values));
 				
 				// We're preloading some variable values
 				if(isset($event->params['_variables']) && is_array($event->params['_variables'])) {
@@ -815,7 +774,7 @@ class EventListener_Triggers extends DevblocksEventListenerExtension {
 			}
 			
 			$trigger->runDecisionTree($dict, false, $event_ext);
-
+			
 			// Snapshot the dictionary of the behavior at conclusion
 			$runners[$trigger->id] = $dict;
 			
@@ -894,12 +853,12 @@ class ChCoreEventListener extends DevblocksEventListenerExtension {
 			return;
 		
 		// Core
+		DAO_Attachment::deleteLinks($context, $context_ids);
 		DAO_Calendar::deleteByContext($context, $context_ids);
 		DAO_Comment::deleteByContext($context, $context_ids);
 		DAO_ContextActivityLog::deleteByContext($context, $context_ids);
 		DAO_ContextAlias::delete($context, $context_ids);
 		DAO_ContextAvatar::deleteByContext($context, $context_ids);
-		DAO_ContextRecommendation::deleteByContext($context, $context_ids);
 		DAO_ContextLink::delete($context, $context_ids);
 		DAO_CustomFieldset::deleteByOwner($context, $context_ids);
 		DAO_CustomFieldValue::deleteByContextIds($context, $context_ids);
@@ -911,8 +870,8 @@ class ChCoreEventListener extends DevblocksEventListenerExtension {
 	}
 	
 	private function _handleContextMaint($event) {
-		$db = DevblocksPlatform::getDatabaseService();
-		$logger = DevblocksPlatform::getConsoleLog('Maint');
+		$db = DevblocksPlatform::services()->database();
+		$logger = DevblocksPlatform::services()->log('Maint');
 		
 		@$context = $event->params['context'];
 		@$context_table = $event->params['context_table'];
@@ -1053,9 +1012,17 @@ class ChCoreEventListener extends DevblocksEventListenerExtension {
 		DAO_WorkspaceTab::maint();
 		DAO_WorkerViewModel::flush();
 		DAO_ContextBulkUpdate::maint();
+		DAO_MailQueue::maint();
 	}
 	
 	private function _handleCronHeartbeat($event) {
+		$this->_handleCronHeartbeatReopenTickets();
+		$this->_handleCronHeartbeatReopenTasks();
+		DAO_BotDatastore::maint();
+		DAO_BotInteractionProactive::maint();
+	}
+	
+	private function _handleCronHeartbeatReopenTickets() {
 		// Re-open any conversations past their reopen date
 		list($results, $null) = DAO_Ticket::search(
 			array(),
@@ -1087,6 +1054,41 @@ class ChCoreEventListener extends DevblocksEventListenerExtension {
 			
 			if(!empty($update_fields))
 				DAO_Ticket::update($model_id, $update_fields);
+		}
+	}
+	
+	private function _handleCronHeartbeatReopenTasks() {
+		// Re-open any conversations past their reopen date
+		list($results, $null) = DAO_Task::search(
+			array(),
+			array(
+				SearchFields_Task::STATUS_ID => new DevblocksSearchCriteria(SearchFields_Task::STATUS_ID,'in',array(1,2)),
+				array(
+					DevblocksSearchCriteria::GROUP_AND,
+					new DevblocksSearchCriteria(SearchFields_Task::REOPEN_AT,DevblocksSearchCriteria::OPER_GT,0),
+					new DevblocksSearchCriteria(SearchFields_Task::REOPEN_AT,DevblocksSearchCriteria::OPER_LT,time()),
+				),
+			),
+			200,
+			0,
+			DAO_Task::ID,
+			true,
+			false
+		);
+		
+		$fields = array(
+			DAO_Task::STATUS_ID => 0,
+			DAO_Task::REOPEN_AT => 0
+		);
+		
+		// Only update records with fields that changed
+		$models = DAO_Task::getIds(array_keys($results));
+		
+		foreach($models as $model_id => $model) {
+			$update_fields = Cerb_ORMHelper::uniqueFields($fields, $model);
+			
+			if(!empty($update_fields))
+				DAO_Task::update($model_id, $update_fields);
 		}
 	}
 	

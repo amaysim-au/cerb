@@ -9,9 +9,9 @@
 	<div style="margin:0px 0px 5px 15px;">
 		{if $var.type == 'S'}
 			{if $var.params.widget=='multiple'}
-			<textarea name="{$field_name}[{$var.key}]" style="height:50px;width:98%;" {if $with_placeholders}class="placeholders"{/if}>{$variable_values.$var_key}</textarea>
+			<textarea name="{$field_name}[{$var.key}]" style="height:50px;width:98%;" class="{if $with_placeholders}placeholders {/if}">{$variable_values.$var_key}</textarea>
 			{else}
-			<input type="text" name="{$field_name}[{$var.key}]" value="{$variable_values.$var_key}" style="width:98%;" {if $with_placeholders}class="placeholders"{/if}>
+			<input type="text" name="{$field_name}[{$var.key}]" value="{$variable_values.$var_key}" style="width:98%;" class="{if $with_placeholders}placeholders {/if}{if $var.params.mentions}cerb-mentions {/if}">
 			{/if}
 		{elseif $var.type == 'D'}
 		<select name="{$field_name}[{$var.key}]">
@@ -23,7 +23,7 @@
 			{/if}
 		</select>
 		{elseif $var.type == 'N'}
-		<input type="text" name="{$field_name}[{$var.key}]" value="{$variable_values.$var_key}" {if $with_placeholders}class="placeholders"{/if}>
+		<input type="text" name="{$field_name}[{$var.key}]" value="{$variable_values.$var_key}" style="width:98%;" {if $with_placeholders}class="placeholders"{/if}>
 		{elseif $var.type == 'C'}
 		<label><input type="radio" name="{$field_name}[{$var.key}]" value="1" {if (!is_null($variable_values.$var_key) && $variable_values.$var_key) || (is_null($variable_values.$var_key) && $var.params.checkbox_default_on)}checked="checked"{/if}> {'common.yes'|devblocks_translate|capitalize}</label> 
 		<label><input type="radio" name="{$field_name}[{$var.key}]" value="0" {if (!is_null($variable_values.$var_key) && !$variable_values.$var_key) || (is_null($variable_values.$var_key) && empty($var.params.checkbox_default_on))}checked="checked"{/if}> {'common.no'|devblocks_translate|capitalize}</label> 
@@ -33,13 +33,20 @@
 		{if !isset($workers)}{$workers = DAO_Worker::getAll()}{/if}
 		<select name="{$field_name}[{$var.key}]">
 			<option value=""></option>
+			{if $with_placeholders && $trigger}
+			{foreach from=$trigger->variables item=var_data}
+				{if in_array($var_data.type, ['W', 'ctx_cerberusweb.contexts.worker'])}
+				<option value="{$var_data.key}" {if $variable_values.{$var.key}==$var_data.key}selected="selected"{/if}>(variable) {$var_data.label}</option>
+				{/if}
+			{/foreach}
+			{/if}
 			{foreach from=$workers item=worker}
-			<option value="{$worker->id}" {if $variable_values.$var_key==$worker->id}selected="selected"{/if}>{$worker->getName()}</option>
+			<option value="{$worker->id}" {if $variable_values.{$var.key}==$worker->id}selected="selected"{/if}>{$worker->getName()}</option>
 			{/foreach}
 		</select>
 		{elseif substr($var.type,0,4) == 'ctx_'}
 			{$context = substr($var.type,4)}
-			<button type="button" class="chooser" context="{$context}" node_name="{$field_name}[{$var.key}]"><span class="glyphicons glyphicons-search"></span></button>
+			<button type="button" class="cerb-chooser-trigger" data-context="{$context}" data-field-name="{$field_name}[{$var.key}][]"><span class="glyphicons glyphicons-search"></span></button>
 			<ul class="bubbles chooser-container" style="display:inline-block;">
 				{if is_array($variable_values.$var_key)}
 				{foreach from=$variable_values.$var_key item=context_id}
@@ -56,12 +63,12 @@
 </div>
 
 <script type="text/javascript">
-// Elastic textareas
-$('#{$vars_uniqid} textarea').autosize();
-
-// Choosers
-$('#{$vars_uniqid} button.chooser').each(function() {
-	var $this = $(this);
-	ajax.chooser(this, $this.attr('context'), $this.attr('node_name'), { autocomplete:false });
+$(function() {
+	var $container = $('#{$vars_uniqid}');
+	
+	// Choosers
+	$container.find('button.cerb-chooser-trigger')
+		.cerbChooserTrigger()
+		;
 });
 </script>

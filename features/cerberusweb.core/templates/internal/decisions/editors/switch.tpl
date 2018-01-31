@@ -50,6 +50,14 @@ $(function() {
 	$popup.one('popup_open', function(event,ui) {
 		$popup.dialog('option','title',"{if empty($id)}New {/if}Decision");
 		$popup.find('input:text').first().focus();
+		
+		// Close confirmation
+		
+		$popup.on('dialogbeforeclose', function(e, ui) {
+			var keycode = e.keyCode || e.which;
+			if(keycode == 27)
+				return confirm('{'warning.core.editor.close'|devblocks_translate}');
+		});
 	});
 });
 </script>

@@ -30,7 +30,7 @@
 </div>
 
 <div class="peek-status-reopen" style="{if empty($params.status_id)}display:none;{/if}">
-<b>{'ticket.reopen_at'|devblocks_translate|capitalize}:</b>
+<b>{'common.reopen_at'|devblocks_translate|capitalize}:</b>
 <div style="margin-left:10px;margin-bottom:0.5em;">
 	<input type="text" name="{$namePrefix}[reopen_at]" value="{$params.reopen_at}" size="45" style="width:100%;" class="placeholders">
 </div>
@@ -103,8 +103,7 @@
 
 <script type="text/javascript">
 $(function() {
-	var $action = $('fieldset#{$namePrefix}');
-	$action.find('textarea').autosize();
+	var $action = $('#{$namePrefix}_{$nonce}');
 	$action.find('input:radio[name$="[status]"]').change(function() {
 		var $val = $(this).val();
 		

@@ -85,9 +85,9 @@ class ChPageController extends DevblocksControllerExtension {
 	public function writeResponse(DevblocksHttpResponse $response) {
 		$path = $response->path;
 
-		$tpl = DevblocksPlatform::getTemplateService();
-		$session = DevblocksPlatform::getSessionService();
-		$settings = DevblocksPlatform::getPluginSettingsService();
+		$tpl = DevblocksPlatform::services()->template();
+		$session = DevblocksPlatform::services()->session();
+		$settings = DevblocksPlatform::services()->pluginSettings();
 		$translate = DevblocksPlatform::getTranslationService();
 		$active_worker = CerberusApplication::getActiveWorker();
 		
@@ -149,8 +149,8 @@ class ChPageController extends DevblocksControllerExtension {
 		// [JAS]: Listeners (Step-by-step guided tour, etc.)
 		$listenerManifests = DevblocksPlatform::getExtensions('devblocks.listener.http');
 		foreach($listenerManifests as $listenerManifest) { /* @var $listenerManifest DevblocksExtensionManifest */
-			 $inst = $listenerManifest->createInstance(); /* @var $inst DevblocksHttpRequestListenerExtension */
-			 $inst->run($response, $tpl);
+			$inst = $listenerManifest->createInstance(); /* @var $inst DevblocksHttpRequestListenerExtension */
+			$inst->run($response, $tpl);
 		}
 
 		$tpl->assign('active_worker', $active_worker);
@@ -215,12 +215,17 @@ class ChPageController extends DevblocksControllerExtension {
 		
 		$tpl->assign('search_menu', $search_menu);
 		
-		// Conversational bots
-		if($active_worker) {
-			$conversational_bots = DAO_Bot::getReadableByActorAndInteraction($active_worker, 'worker');
-			$tpl->assign('conversational_bots', $conversational_bots);
+		// Conversational interactions
+		$interactions = Event_GetInteractionsForWorker::getByPoint('global');
+		$tpl->assign('global_interactions_show', !empty($interactions));
+		
+		// Proactive interactions
+		if(!empty($active_worker)) {
+			$proactive_interactions_count = DAO_BotInteractionProactive::getCountByWorker($active_worker->id);
+			$tpl->assign('proactive_interactions_count', $proactive_interactions_count);
 		}
-
+		
+		// Template
 		$tpl->display('devblocks:cerberusweb.core::border.tpl');
 		
 		if(!empty($active_worker)) {
@@ -236,12 +241,12 @@ interface IServiceProvider_HttpRequestSigner {
 }
 
 interface IServiceProvider_OAuth {
+	function oauthRender();
 	function oauthCallback();
 }
 
-interface IServiceProvider_Popup {
-	function renderAuthForm();
-	function saveAuthFormAndReturnJson();
+interface IServiceProvider_OAuthRefresh {
+	function oauthRefreshAccessToken(Model_ConnectedAccount $account);
 }
 
 class WgmCerb_API {
@@ -391,58 +396,48 @@ class WgmCerb_API {
 	}
 };
 
-class ServiceProvider_Cerb extends Extension_ServiceProvider implements IServiceProvider_Popup, IServiceProvider_HttpRequestSigner {
+class ServiceProvider_Cerb extends Extension_ServiceProvider implements IServiceProvider_HttpRequestSigner {
 	const ID = 'core.service.provider.cerb';
 	
-	function renderPopup() {
-		$this->_renderPopupAuthForm();
-	}
-	
-	function renderAuthForm() {
-		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'], 'string', '');
+	function renderConfigForm(Model_ConnectedAccount $account) {
+		$tpl = DevblocksPlatform::services()->template();
+		$active_worker = CerberusApplication::getActiveWorker();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
-		
-		$tpl->assign('view_id', $view_id);
+		$params = $account->decryptParams($active_worker);
+		$tpl->assign('params', $params);
 		
 		$tpl->display('devblocks:cerberusweb.core::internal/connected_account/providers/cerb.tpl');
 	}
 	
-	function saveAuthFormAndReturnJson() {
-		@$params = DevblocksPlatform::importGPC($_POST['params'], 'array', array());
-		
+	function saveConfigForm(Model_ConnectedAccount $account, array &$params) {
+		@$edit_params = DevblocksPlatform::importGPC($_POST['params'], 'array', array());
+	
 		$active_worker = CerberusApplication::getActiveWorker();
 		
-		if(!isset($params['base_url']) || empty($params['base_url']))
-			return json_encode(array('status' => false, 'error' => "The 'Base URL' is required."));
+		if(!isset($edit_params['base_url']) || empty($edit_params['base_url']))
+			return "The 'Base URL' is required.";
 		
-		if(!isset($params['access_key']) || empty($params['access_key']))
-			return json_encode(array('status' => false, 'error' => "The 'Access Key' is required."));
+		if(!isset($edit_params['access_key']) || empty($edit_params['access_key']))
+			return "The 'Access Key' is required.";
 		
-		if(!isset($params['secret_key']) || empty($params['secret_key']))
-			return json_encode(array('status' => false, 'error' => "The 'Secret Key' is required."));
+		if(!isset($edit_params['secret_key']) || empty($edit_params['secret_key']))
+			return "The 'Secret Key' is required.";
 		
 		// Test the credentials
-		$cerb = new WgmCerb_API($params['base_url'], $params['access_key'], $params['secret_key']);
+		$cerb = new WgmCerb_API($edit_params['base_url'], $edit_params['access_key'], $edit_params['secret_key']);
 		
 		$json = $cerb->get('workers/me.json');
 		
 		if(!is_array($json) || !isset($json['__status']))
-			return json_encode(array('status' => false, 'error' => "Unable to connect to the API. Please check your URL."));
+			return "Unable to connect to the API. Please check your URL.";
 		
 		if($json['__status'] == 'error')
-			return json_encode(array('status' => false, 'error' => $json['message']));
+			return $json['message'];
 		
-		$id = DAO_ConnectedAccount::create(array(
-			DAO_ConnectedAccount::NAME => sprintf('Cerb API: %s (%s)', $json['full_name'], $params['access_key']),
-			DAO_ConnectedAccount::EXTENSION_ID => ServiceProvider_Cerb::ID,
-			DAO_ConnectedAccount::OWNER_CONTEXT => CerberusContexts::CONTEXT_WORKER,
-			DAO_ConnectedAccount::OWNER_CONTEXT_ID => $active_worker->id,
-		));
+		foreach($edit_params as $k => $v)
+			$params[$k] = $v;
 		
-		DAO_ConnectedAccount::setAndEncryptParams($id, $params);
-		
-		return json_encode(array('status' => true, 'id' => $id));
+		return true;
 	}
 	
 	function authenticateHttpRequest(Model_ConnectedAccount $account, &$ch, &$verb, &$url, &$body, &$headers) {
@@ -485,7 +480,7 @@ class ServiceProvider_Cerb extends Extension_ServiceProvider implements IService
 
 class VaAction_HttpRequest extends Extension_DevblocksEventAction {
 	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('params', $params);
 		
 		$active_worker = CerberusApplication::getActiveWorker();
@@ -500,7 +495,7 @@ class VaAction_HttpRequest extends Extension_DevblocksEventAction {
 	}
 	
 	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
-		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 
 		$out = null;
 		
@@ -550,11 +545,12 @@ class VaAction_HttpRequest extends Extension_DevblocksEventAction {
 		}
 		
 		$out .= sprintf(">>> Saving response to {{%1\$s}}\n".
-				" * {{%1\$s.content_type}}\n".
 				" * {{%1\$s.body}}\n".
+				" * {{%1\$s.content_type}}\n".
+				" * {{%1\$s.error}}\n".
+				" * {{%1\$s.headers}}\n".
 				" * {{%1\$s.info}}\n".
 				" * {{%1\$s.info.http_code}}\n".
-				" * {{%1\$s.error}}\n".
 				"\n",
 				$response_placeholder
 		);
@@ -567,15 +563,27 @@ class VaAction_HttpRequest extends Extension_DevblocksEventAction {
 			
 			if(isset($response['error']) && !empty($response['error'])) {
 				$out .= sprintf(">>> Error in response:\n%s\n", $response['error']);
+			} else {
+				if(isset($response['info']))
+					$out .= sprintf(">>> Response info:\n%s\n\n", DevblocksPlatform::strFormatJson(json_encode($response['info'])));
+				
+				if(isset($response['headers']))
+					$out .= sprintf(">>> Response headers:\n%s\n\n", DevblocksPlatform::strFormatJson(json_encode($response['headers'])));
+				
+				if(isset($response['body']))
+					$out .= sprintf(">>> Response body:\n%s\n", $response['body']);
 			}
+			
+		} else {
+			$out .= ">>> NOTE: This HTTP request is not configured to run in the simulator.\n";
 		}
 		
 		return $out;
 	}
 	
 	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
-		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
-        @$http_cert = $tpl_builder->build($params['http_cert'], $dict);
+  $tpl_builder = DevblocksPlatform::services()->templateBuilder();
+    @$http_cert = $tpl_builder->build($params['http_cert'], $dict);
 		@$http_verb = $params['http_verb'];
 		@$http_url = $tpl_builder->build($params['http_url'], $dict);
 		@$http_headers = DevblocksPlatform::parseCrlfString($tpl_builder->build($params['http_headers'], $dict));
@@ -645,6 +653,20 @@ private function _execute($verb='get', $url, $params=array(), $body=null, $heade
 				curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
 				break;
 				
+			case 'patch':
+				curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PATCH");
+				curl_setopt($ch, CURLOPT_POST, 1);
+				curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+				break;
+				
+			case 'head':
+				curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "HEAD");
+				break;
+				
+			case 'options':
+				curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "OPTIONS");
+				break;
+				
 			case 'delete':
 				curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
 				break;
@@ -665,11 +687,48 @@ private function _execute($verb='get', $url, $params=array(), $body=null, $heade
 		
 		curl_setopt($ch, CURLINFO_HEADER_OUT, true);
 		
+		$response_headers = [];
+		
+		// See: https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
+		curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($curl, $header) use (&$response_headers) {
+			$len = strlen($header);
+			
+			$parts = explode(':', $header, 2);
+			
+			if(count($parts) < 2)
+				return $len;
+			
+			$header_name = trim(strtolower($parts[0]));
+			$header_value = trim($parts[1]);
+			
+			if(!isset($response_headers[$header_name])) {
+				$response_headers[$header_name] = $header_value;
+			} else {
+				$response_headers[$header_name] .= ', ' . $header_value;
+			}
+			
+			return $len;
+		});
+		
 		// [TODO] User-level option to follow redirects
 		
 		$out = DevblocksPlatform::curlExec($ch, true);
 		
 		$info = curl_getinfo($ch);
+		
+		// Unauthorized: Give connected accounts a chance to refresh tokens
+		if($info['http_code'] == 401 
+			&& (!isset($options['ignore_oauth_unauthenticated']) || !$options['ignore_oauth_unauthenticated'])) {
+			if(isset($connected_account)) {
+				$service_provider = $connected_account->getExtension();
+				if($service_provider instanceof IServiceProvider_OAuthRefresh 
+					&& $service_provider->oauthRefreshAccessToken($connected_account)) {
+						// Don't loop failed auth
+						$options['ignore_oauth_unauthenticated'] = true;
+						return self::_execute($verb, $url, $params, $body, $headers, $options);
+				}
+			}
+		}
 		
 		$content_type = null;
 		$content_charset = null;
@@ -680,7 +739,14 @@ private function _execute($verb='get', $url, $params=array(), $body=null, $heade
 			
 		} elseif (isset($info['content_type'])) {
 			// Split content_type + charset in the header
-			@list($content_type, $content_charset) = explode(';', DevblocksPlatform::strLower($info['content_type']));
+			@list($content_type, $content_attributes) = explode(';', $info['content_type'], 2);
+			
+			$content_type = trim(DevblocksPlatform::strLower($content_type));
+			$content_attributes = DevblocksPlatform::parseHttpHeaderAttributes($content_attributes);
+			
+			// Fix bad encodings
+			if(isset($content_attributes['charset']))
+				$out = mb_convert_encoding($out, $content_attributes['charset']);
 			
 			// Auto-convert the response body based on the type
 			if(!(isset($options['raw_response_body']) && $options['raw_response_body'])) {
@@ -722,18 +788,327 @@ private function _execute($verb='get', $url, $params=array(), $body=null, $heade
 		
 		curl_close($ch);
 		
-		return array(
+		$result = [
 			'content_type' => $content_type,
+			'headers' => $response_headers,
 			'body' => $out,
 			'info' => $info,
 			'error' => $error,
+		];
+		
+		return $result;
+	}
+};
+
+class BotAction_EmailParser extends Extension_DevblocksEventAction {
+	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=array(), $seq=null) {
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('params', $params);
+		
+		$active_worker = CerberusApplication::getActiveWorker();
+		
+		if(!is_null($seq))
+			$tpl->assign('namePrefix', 'action'.$seq);
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_action_email_parser.tpl');
+	}
+	
+	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+
+		$out = null;
+		
+		@$message_source = $tpl_builder->build($params['message_source'], $dict);
+		@$run_in_simulator = $params['run_in_simulator'];
+		@$response_placeholder = $params['response_placeholder'];
+		
+		if(empty($message_source))
+			return "[ERROR] Message source is required.";
+		
+		if(empty($response_placeholder))
+			return "[ERROR] Return placeholder is required.";
+		
+		// Output
+		$out = sprintf(">>> Executing email parser:\n\n%s\n\n",
+			$message_source
 		);
+		
+		if($run_in_simulator) {
+			// Run the parser
+			$this->run($token, $trigger, $params, $dict);
+			
+			$response = $dict->$response_placeholder;
+			
+			if(isset($response['error']) && !empty($response['error'])) {
+				$out .= sprintf(">>> Error:\n%s\n", $response['error']);
+				
+			} else {
+				$out .= sprintf(">>> Response:\n%s\n\n", DevblocksPlatform::strFormatJson(json_encode($response)));
+			}
+			
+		} else {
+			$out .= ">>> NOTE: The email parser is not configured to run in the simulator.\n";
+		}
+		
+		return $out;
+	}
+	
+	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$result = [];
+		
+		// Stash the current state
+		$node_log = EventListener_Triggers::getNodeLog();
+		
+		try {
+			$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+			@$message_source = $tpl_builder->build($params['message_source'], $dict);
+			@$response_placeholder = $params['response_placeholder'];
+			
+			if(empty($message_source))
+				throw new Exception_DevblocksValidationError("The message is empty.");
+			
+			if(false == ($message = CerberusParser::parseMimeString($message_source)))
+				throw new Exception_DevblocksValidationError("Failed to parse MIME message.");
+			
+			if(false == ($ticket_id = CerberusParser::parseMessage($message)))
+				throw new Exception_DevblocksValidationError("Failed to parse message into ticket.");
+			
+			if(empty($response_placeholder))
+				throw new Exception_DevblocksValidationError("The response placeholder is empty.");
+			
+			$result = [
+				'success' => true,
+				'ticket_id' => $ticket_id,
+			];
+			
+		} catch(Exception_DevblocksValidationError $e) {
+			$result = ['error' => $e->getMessage()];
+			
+			// Pop the current state
+			EventListener_Triggers::setNodeLog($node_log);
+		}
+		
+		// Pop the current state
+		EventListener_Triggers::setNodeLog($node_log);
+		
+		// Set the result
+		$dict->$response_placeholder = $result;
+	}
+};
+
+class BotAction_ScheduleInteractionProactive extends Extension_DevblocksEventAction {
+	const ID = 'core.bot.action.interaction_proactive.schedule';
+	
+	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=array(), $seq=null) {
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('params', $params);
+		
+		if(!is_null($seq))
+			$tpl->assign('namePrefix', 'action'.$seq);
+		
+		$event = $trigger->getEvent();
+		$values_to_contexts = $event->getValuesContexts($trigger);
+		$tpl->assign('values_to_contexts', $values_to_contexts);
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_action_create_interaction.tpl');
+	}
+	
+	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$date = DevblocksPlatform::services()->date();
+
+		$out = null;
+		
+		@$on = $params['on'];
+		@$behavior_id = $params['behavior_id'];
+		@$interaction = $tpl_builder->build($params['interaction'], $dict);
+		@$interaction_params_json = $tpl_builder->build($params['interaction_params_json'], $dict);
+		@$run = $tpl_builder->build($params['run'], $dict);
+		@$expires = $tpl_builder->build($params['expires'], $dict);
+		
+		$event = $trigger->getEvent();
+		
+		$on_result = DevblocksEventHelper::onContexts($on, $event->getValuesContexts($trigger), $dict);
+		@$on_objects = $on_result['objects'];
+		
+		if(empty($on) || empty($on_objects))
+			return "[ERROR] At least one target worker is required.";
+		
+		if(empty($behavior_id))
+			return "[ERROR] behavior is required.";
+		
+		if(empty($interaction))
+			return "[ERROR] behavior is required.";
+		
+		if(empty($expires) || false == (@$expires_at = strtotime($expires)))
+			$expires_at = 0;
+		
+		if(empty($run) || false == (@$run_at = strtotime($run)))
+			$run_at = time();
+		
+		$out = sprintf(">>> Creating proactive interaction:\nInteraction: %s\nRun: %s\nExpires: %s\nParams:\n%s\n",
+			$interaction,
+			$run_at ? $date->formatTime(DevblocksPlatform::getDateTimeFormat(), $run_at) : 'now',
+			$expires_at ? $date->formatTime(DevblocksPlatform::getDateTimeFormat(), $expires_at) : 'never',
+			$interaction_params_json . (!empty($interaction_params_json) ? "\n" : '')
+		);
+		
+		if(is_array($on_objects)) {
+			$out .= ">>> For:\n";
+			
+			foreach($on_objects as $on_object) {
+				$out .= ' * ' . $on_object->_label . "\n";
+			}
+		}
+		
+		// Run in simulator
+		@$run_in_simulator = !empty($params['run_in_simulator']);
+		if($run_in_simulator) {
+			$this->run($token, $trigger, $params, $dict);
+		}
+		
+		return $out;
+	}
+	
+	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		
+		@$on = $params['on'];
+		@$behavior_id = $params['behavior_id'];
+		@$interaction = $tpl_builder->build($params['interaction'], $dict);
+		@$interaction_params_json = $tpl_builder->build($params['interaction_params_json'], $dict);
+		@$run = $tpl_builder->build($params['run'], $dict);
+		@$expires = $tpl_builder->build($params['expires'], $dict);
+
+		$event = $trigger->getEvent();
+		
+		if(false == ($interaction_params = @json_decode($interaction_params_json, true)))
+			$interaction_params = [];
+		
+		if(empty($expires) || false == (@$expires_at = strtotime($expires)))
+			$expires_at = 0;
+		
+		if(empty($run) || false == (@$run_at = strtotime($run)))
+			$run_at = time();
+		
+		// On workers
+		
+		$on_result = DevblocksEventHelper::onContexts($on, $event->getValuesContexts($trigger), $dict);
+		@$on_objects = $on_result['objects'];
+		
+		if(is_array($on_objects))
+		foreach($on_objects as $on_object) {
+			// Create the notification
+			DAO_BotInteractionProactive::create($on_object->id, $behavior_id, $interaction, $interaction_params, $trigger->bot_id, $expires_at, $run_at);
+		}
+	}
+};
+
+class BotAction_CalculateTimeElapsed extends Extension_DevblocksEventAction {
+	const ID = 'core.bot.action.calculate_time_elapsed';
+	
+	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=array(), $seq=null) {
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('params', $params);
+		
+		if(!is_null($seq))
+			$tpl->assign('namePrefix', 'action'.$seq);
+		
+		$event = $trigger->getEvent();
+		$values_to_contexts = $event->getValuesContexts($trigger);
+		$tpl->assign('values_to_contexts', $values_to_contexts);
+		
+		$calendars = DAO_Calendar::getReadableByActor($trigger->getBot());
+		$tpl->assign('calendars', $calendars);
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_action_calc_time_elapsed.tpl');
+	}
+	
+	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$date = DevblocksPlatform::services()->date();
+
+		$out = null;
+		
+		@$date_from = $tpl_builder->build($params['date_from'], $dict);
+		@$date_to = $tpl_builder->build($params['date_to'], $dict);
+		@$calendar_id = $params['calendar_id'];
+		@$placeholder = $tpl_builder->build($params['placeholder'], $dict);
+		
+		$event = $trigger->getEvent();
+		
+		if(empty($date_from) || (!is_numeric($date_from) && false == (@$date_from = strtotime($date_from))))
+			$date_from = 0;
+		
+		if(empty($date_to) || (!is_numeric($date_to) && false == (@$date_to = strtotime($date_to))))
+			$date_to = 0;
+		
+		if(!is_numeric($calendar_id)) {
+			$value = $dict->$calendar_id;
+			if(is_array($value))
+				$value = key($value);
+			$calendar_id = intval($value);
+		}
+		
+		if(!$calendar_id || false == ($calendar = DAO_Calendar::get($calendar_id))) {
+			return false;
+		}
+		
+		$this->run($token, $trigger, $params, $dict);
+		
+		$out = sprintf(">>> Calculating time elapsed:\nFrom: %s\nTo: %s\nCalendar: %s\nElapsed: %s",
+			$date_from ? $date->formatTime(DevblocksPlatform::getDateTimeFormat(), $date_from) : 'never',
+			$date_to ? $date->formatTime(DevblocksPlatform::getDateTimeFormat(), $date_to) : 'never',
+			$calendar->name,
+			_DevblocksTemplateManager::modifier_devblocks_prettysecs($dict->$placeholder)
+		);
+		
+		return $out;
+	}
+	
+	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		
+		@$date_from = $tpl_builder->build($params['date_from'], $dict);
+		@$date_to = $tpl_builder->build($params['date_to'], $dict);
+		@$calendar_id = $params['calendar_id'];
+		@$placeholder = $tpl_builder->build($params['placeholder'], $dict);
+		
+		$event = $trigger->getEvent();
+		
+		if(empty($date_from) || (!is_numeric($date_from) && false == (@$date_from = strtotime($date_from))))
+			$date_from = 0;
+		
+		if(empty($date_to) || (!is_numeric($date_to) && false == (@$date_to = strtotime($date_to))))
+			$date_to = 0;
+		
+		if(!is_numeric($calendar_id)) {
+			$value = $dict->$calendar_id;
+			if(is_array($value))
+				$value = key($value);
+			$calendar_id = intval($value);
+		}
+		
+		if(!$calendar_id || false == ($calendar = DAO_Calendar::get($calendar_id))) {
+			return false;
+		}
+		
+		$calendar_events = $calendar->getEvents($date_from, $date_to);
+		$availability = $calendar->computeAvailability($date_from, $date_to, $calendar_events);
+		
+		// [TODO] Option for counting in available or busy time?
+		
+		$mins = $availability->getMinutes();
+		$secs = strlen(str_replace('0', '', $mins)) * 60;
+		
+		if($placeholder)
+			$dict->$placeholder = $secs;
 	}
 };
 
 class VaAction_CreateAttachment extends Extension_DevblocksEventAction {
 	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('params', $params);
 		
 		if(!is_null($seq))
@@ -743,7 +1118,7 @@ class VaAction_CreateAttachment extends Extension_DevblocksEventAction {
 	}
 	
 	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
-		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 
 		$out = null;
 		
@@ -793,7 +1168,7 @@ class VaAction_CreateAttachment extends Extension_DevblocksEventAction {
 	}
 	
 	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
-		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 		
 		@$file_name = $tpl_builder->build($params['file_name'], $dict);
 		@$file_type = $tpl_builder->build($params['file_type'], $dict);
@@ -851,14 +1226,987 @@ class VaAction_CreateAttachment extends Extension_DevblocksEventAction {
 		// Set object variable
 		DevblocksEventHelper::runActionCreateRecordSetVariable(CerberusContexts::CONTEXT_ATTACHMENT, $file_id, $params, $dict);
 	}
+};
+
+class BotAction_CreateReminder extends Extension_DevblocksEventAction {
+	const ID = 'core.bot.action.create_reminder';
 	
+	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=[], $seq=null) {
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('params', $params);
+		
+		if(!is_null($seq))
+			$tpl->assign('namePrefix', 'action'.$seq);
+		
+		$event = $trigger->getEvent();
+		$values_to_contexts = $event->getValuesContexts($trigger);
+		$tpl->assign('values_to_contexts', $values_to_contexts);
+
+		// Custom fields
+		DevblocksEventHelper::renderActionCreateRecordSetCustomFields(CerberusContexts::CONTEXT_REMINDER, $tpl);
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_action_create_reminder.tpl');
+	}
+	
+	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+
+		$out = null;
+		
+		@$name = $tpl_builder->build($params['name'], $dict);
+		@$remind_at = $tpl_builder->build($params['remind_at'], $dict);
+		@$object_placeholder = $params['object_placeholder'] ?: '_attachment_meta';
+		
+		@$worker_ids = DevblocksPlatform::importVar($params['worker_id'],'string','');
+		$worker_ids = DevblocksEventHelper::mergeWorkerVars($worker_ids, $dict);
+		$worker_id = array_shift($worker_ids) ?: 0;
+		
+		if(empty($name))
+			return "[ERROR] 'Name' is required.";
+		
+		if(empty($remind_at))
+			return "[ERROR] 'Remind at' is required.";
+		
+		$out = sprintf(">>> Creating reminder: %s (%s)\n", $name, $remind_at);
+		
+		// Set placeholder with object meta
+		
+		if(!empty($object_placeholder)) {
+			$out .= sprintf("\n>>> Saving metadata to {{%1\$s}}\n".
+				" * {{%1\$s.id}}\n".
+				" * {{%1\$s.name}}\n".
+				" * {{%1\$s.remind_at}}\n".
+				" * {{%1\$s.url}}\n".
+				" * {{%1\$s.worker_id}}\n".
+				"\n",
+				$object_placeholder
+			);
+		}
+		
+		// Connection
+		$out .= DevblocksEventHelper::simulateActionCreateRecordSetLinks($params, $dict);
+		
+		// Set object variable
+		$out .= DevblocksEventHelper::simulateActionCreateRecordSetVariable($params, $dict);
+		
+		// Run in simulator
+		@$run_in_simulator = !empty($params['run_in_simulator']);
+		if($run_in_simulator) {
+			$this->run($token, $trigger, $params, $dict);
+		}
+		
+		return $out;
+	}
+	
+	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		
+		@$name = $tpl_builder->build($params['name'], $dict);
+		@$remind_at = $tpl_builder->build($params['remind_at'], $dict);
+		@$behavior_ids = $params['behavior_ids'] ?: [];
+		@$behaviors = $params['behaviors'] ?: [];
+		@$object_placeholder = $params['object_placeholder'] ?: '_reminder_meta';
+		
+		@$worker_ids = DevblocksPlatform::importVar($params['worker_id'],'string','');
+		$worker_ids = DevblocksEventHelper::mergeWorkerVars($worker_ids, $dict);
+		$worker_id = array_shift($worker_ids) ?: 0;
+		
+		$reminder_params = ['behaviors' => []];
+		
+		if(is_array($behavior_ids))
+		foreach($behavior_ids as $behavior_id)
+			$reminder_params['behaviors'][$behavior_id] = @$behaviors[$behavior_id] ?: [];
+		
+		$fields = [
+			DAO_Reminder::NAME => $name,
+			DAO_Reminder::REMIND_AT => @strtotime($remind_at) ?: 0,
+			DAO_Reminder::IS_CLOSED => 0,
+			DAO_Reminder::PARAMS_JSON => json_encode($reminder_params),
+			DAO_Reminder::UPDATED_AT => time(),
+			DAO_Reminder::WORKER_ID => $worker_id,
+		];
+		
+		$remind_id = DAO_Reminder::create($fields);
+
+		if(empty($remind_id))
+			return;
+		
+		// Set placeholder with object meta
+		
+		if(!empty($object_placeholder)) {
+			$url_writer = DevblocksPlatform::services()->url();
+			
+			$dict->$object_placeholder = [
+				'id' => $remind_id,
+				'name' => $name,
+				'remind_at' => $remind_at,
+				'url' => $url_writer->write('c=profiles&what=reminder&id=' . $remind_id, true) . '-' . DevblocksPlatform::strToPermalink($name),
+				'worker_id' => $worker_id,
+			];
+		}
+		
+		// Custom fields
+		DevblocksEventHelper::runActionCreateRecordSetCustomFields(CerberusContexts::CONTEXT_REMINDER, $remind_id, $params, $dict);
+		
+		// Connection
+		DevblocksEventHelper::runActionCreateRecordSetLinks(CerberusContexts::CONTEXT_REMINDER, $remind_id, $params, $dict);
+
+		// Set object variable
+		DevblocksEventHelper::runActionCreateRecordSetVariable(CerberusContexts::CONTEXT_REMINDER, $remind_id, $params, $dict);
+	}
+};
+
+class BotAction_RecordCreate extends Extension_DevblocksEventAction {
+	const ID = 'core.bot.action.record.create';
+	
+	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=[], $seq=null) {
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('params', $params);
+		
+		if(!is_null($seq))
+			$tpl->assign('namePrefix', 'action'.$seq);
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_action_record_create.tpl');
+	}
+	
+	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$actor = $trigger->getBot();
+
+		$out = null;
+		
+		@$context = $tpl_builder->build(DevblocksPlatform::importVar($params['context'],'string',''), $dict);
+		@$changeset_json = $tpl_builder->build(DevblocksPlatform::importVar($params['changeset_json'],'string',''), $dict);
+		@$object_placeholder = $params['object_placeholder'];
+		
+		if(false == (@$changeset = json_decode($changeset_json, true)))
+			return "Invalid changeset JSON.";
+		
+		if(!$context || false == ($context = Extension_DevblocksContext::getByAlias($context, false)))
+			return "Invalid record type.";
+		
+		// Make sure we can create records of this type
+		if(!$context->hasOption('records'))
+			return "This record type is not supported.";
+		
+		$context_ext = $context->createInstance(); /* @var $context_ext Extension_DevblocksContext */
+		
+		$dao_class = $context_ext->getDaoClass();
+		$dao_fields = $custom_fields = [];
+		
+		// Fail if there's no DAO::create() method
+		if(!method_exists($dao_class, 'create'))
+			return "This record type is not supported";
+		
+		if(!$context_ext->getDaoFieldsFromKeysAndValues($changeset, $dao_fields, $custom_fields, $error))
+			return $error;
+		
+		if(is_array($dao_fields))
+		if(!$dao_class::validate($dao_fields, $error))
+			return $error;
+		
+		if($custom_fields)
+		if(!DAO_CustomField::validateCustomFields($custom_fields, $context_ext->id, $error))
+			return $error;
+
+		// Check implementation permissions
+		if(!$dao_class::onBeforeUpdateByActor($actor, $dao_fields, null, $error))
+			return $error;
+		
+		$out = sprintf(">>> Creating %s\r\n%s\n", $context_ext->manifest->name, $changeset_json);
+		
+		// Run in simulator
+		@$run_in_simulator = !empty($params['run_in_simulator']);
+		if($run_in_simulator) {
+			$this->run($token, $trigger, $params, $dict);
+		}
+		
+		return $out;
+	}
+	
+	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$actor = $trigger->getBot();
+		
+		@$context = $tpl_builder->build(DevblocksPlatform::importVar($params['context'],'string',''), $dict);
+		@$changeset_json = $tpl_builder->build(DevblocksPlatform::importVar($params['changeset_json'],'string',''), $dict);
+		@$object_placeholder = $params['object_placeholder'];
+		
+		if(!empty($object_placeholder)) {
+			$dict->$object_placeholder = null;
+		}
+		
+		if(false == (@$changeset = json_decode($changeset_json, true)))
+			return false;
+		
+		if(false == ($context = Extension_DevblocksContext::getByAlias($context, false)))
+			return false;
+		
+		// Make sure we can create records of this type
+		if(!$context->hasOption('records'))
+			return false;
+		
+		$context_ext = $context->createInstance(); /* @var $context_ext Extension_DevblocksContext */
+		
+		$dao_class = $context_ext->getDaoClass();
+		$dao_fields = $custom_fields = [];
+		
+		// Fail if there's no DAO::create() method
+		if(!method_exists($dao_class, 'create'))
+			return false;
+		
+		if(!$context_ext->getDaoFieldsFromKeysAndValues($changeset, $dao_fields, $custom_fields, $error))
+			return false;
+		
+		if(is_array($dao_fields))
+		if(!$dao_class::validate($dao_fields, $error))
+			return false;
+		
+		if($custom_fields)
+		if(!DAO_CustomField::validateCustomFields($custom_fields, $context_ext->id, $error))
+			return false;
+
+		// Check implementation permissions
+		if(!$dao_class::onBeforeUpdateByActor($actor, $dao_fields, null, $error))
+			return false;
+		
+		if(false == ($id = $dao_class::create($dao_fields)))
+			return false;
+		
+		if($custom_fields)
+			DAO_CustomFieldValue::formatAndSetFieldValues($context_ext->id, $id, $custom_fields);
+		
+		$dao_class::onUpdateByActor($actor, $dao_fields, $id);
+		
+		// Set placeholder with object meta
+		
+		if(!empty($object_placeholder)) {
+			$labels = $values = [];
+			CerberusContexts::getContext($context_ext->id, $id, $labels, $values, null, true, true);
+			$obj_dict = DevblocksDictionaryDelegate::instance($values);
+			$obj_dict->custom_;
+			$dict->$object_placeholder = $obj_dict;
+		}
+	}
+};
+
+class BotAction_RecordUpdate extends Extension_DevblocksEventAction {
+	const ID = 'core.bot.action.record.update';
+	
+	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=[], $seq=null) {
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('params', $params);
+		
+		if(!is_null($seq))
+			$tpl->assign('namePrefix', 'action'.$seq);
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_action_record_update.tpl');
+	}
+	
+	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$actor = $trigger->getBot();
+
+		$out = null;
+		
+		@$context = $tpl_builder->build(DevblocksPlatform::importVar($params['context'],'string',''), $dict);
+		@$id = $tpl_builder->build(DevblocksPlatform::importVar($params['id'],'string',''), $dict);
+		@$changeset_json = $tpl_builder->build(DevblocksPlatform::importVar($params['changeset_json'],'string',''), $dict);
+		@$object_placeholder = $params['object_placeholder'];
+		
+		if(false == (@$changeset = json_decode($changeset_json, true)))
+			return "Invalid changeset JSON.";
+		
+		if(!$id)
+			return "ID is empty.";
+		
+		if(!$context || false == ($context = Extension_DevblocksContext::getByAlias($context, false)))
+			return "Invalid record type.";
+		
+		// Make sure we can create records of this type
+		if(!$context->hasOption('records'))
+			return "This record type is not supported.";
+		
+		$context_ext = $context->createInstance(); /* @var $context_ext Extension_DevblocksContext */
+		
+		$dao_class = $context_ext->getDaoClass();
+		$dao_fields = $custom_fields = [];
+		
+		// Fail if there's no DAO::update() method
+		if(!method_exists($dao_class, 'update'))
+			return "This record type is not supported";
+		
+		if(!CerberusContexts::isWriteableByActor($context->id, $id, $actor))
+			return DevblocksPlatform::translate('error.core.no_acl.edit') . sprintf(" %s:%d", $context->id, $id);
+		
+		if(!$context_ext->getDaoFieldsFromKeysAndValues($changeset, $dao_fields, $custom_fields, $error))
+			return $error;
+		
+		if(is_array($dao_fields))
+		if(!$dao_class::validate($dao_fields, $error, $id))
+			return $error;
+		
+		if($custom_fields)
+		if(!DAO_CustomField::validateCustomFields($custom_fields, $context_ext->id, $error))
+			return $error;
+
+		// Check implementation permissions
+		if(!$dao_class::onBeforeUpdateByActor($actor, $dao_fields, $id, $error))
+			return $error;
+		
+		$out = sprintf(">>> Updating %s (#%d)\r\n%s\n", $context_ext->manifest->name, $id, $changeset_json);
+		
+		// Run in simulator
+		@$run_in_simulator = !empty($params['run_in_simulator']);
+		if($run_in_simulator) {
+			$this->run($token, $trigger, $params, $dict);
+		}
+		
+		return $out;
+	}
+	
+	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$actor = $trigger->getBot();
+		
+		@$context = $tpl_builder->build(DevblocksPlatform::importVar($params['context'],'string',''), $dict);
+		@$id = $tpl_builder->build(DevblocksPlatform::importVar($params['id'],'string',''), $dict);
+		@$changeset_json = $tpl_builder->build(DevblocksPlatform::importVar($params['changeset_json'],'string',''), $dict);
+		@$object_placeholder = $params['object_placeholder'];
+		
+		if(!empty($object_placeholder)) {
+			$dict->$object_placeholder = null;
+		}
+		
+		if(false == (@$changeset = json_decode($changeset_json, true)))
+			return false;
+		
+		if(!$id)
+			return false;
+		
+		if(false == ($context = Extension_DevblocksContext::getByAlias($context, false)))
+			return false;
+		
+		// Make sure we can create records of this type
+		if(!$context->hasOption('records'))
+			return false;
+		
+		$context_ext = $context->createInstance(); /* @var $context_ext Extension_DevblocksContext */
+		
+		$dao_class = $context_ext->getDaoClass();
+		$dao_fields = $custom_fields = [];
+		
+		// Fail if there's no DAO::update() method
+		if(!method_exists($dao_class, 'update'))
+			return false;
+		
+		if(!CerberusContexts::isWriteableByActor($context->id, $id, $actor))
+			return false;
+		
+		if(!$context_ext->getDaoFieldsFromKeysAndValues($changeset, $dao_fields, $custom_fields, $error))
+			return false;
+		
+		if(is_array($dao_fields))
+		if(!$dao_class::validate($dao_fields, $error, $id))
+			return false;
+		
+		if($custom_fields)
+		if(!DAO_CustomField::validateCustomFields($custom_fields, $context_ext->id, $error))
+			return false;
+
+		// Check implementation permissions
+		if(!$dao_class::onBeforeUpdateByActor($actor, $dao_fields, $id, $error))
+			return false;
+		
+		$dao_class::update($id, $dao_fields);
+		
+		if($custom_fields)
+			DAO_CustomFieldValue::formatAndSetFieldValues($context_ext->id, $id, $custom_fields);
+		
+		$dao_class::onUpdateByActor($actor, $dao_fields, $id);
+		
+		// Set placeholder with object meta
+		
+		if(!empty($object_placeholder)) {
+			$labels = $values = [];
+			CerberusContexts::getContext($context_ext->id, $id, $labels, $values, null, true, true);
+			$obj_dict = DevblocksDictionaryDelegate::instance($values);
+			$obj_dict->custom_;
+			$dict->$object_placeholder = $obj_dict;
+		}
+	}
+};
+
+class BotAction_RecordUpsert extends Extension_DevblocksEventAction {
+	const ID = 'core.bot.action.record.upsert';
+	
+	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=[], $seq=null) {
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('params', $params);
+		
+		if(!is_null($seq))
+			$tpl->assign('namePrefix', 'action'.$seq);
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_action_record_upsert.tpl');
+	}
+	
+	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+
+		@$context = $tpl_builder->build(DevblocksPlatform::importVar($params['context'],'string',''), $dict);
+		@$query = $tpl_builder->build(DevblocksPlatform::importVar($params['query'],'string',''), $dict);
+		
+		if(!$query)
+			return "Query is empty.";
+		
+		if(!$context || false == ($context = Extension_DevblocksContext::getByAlias($context, false)))
+			return "Invalid record type.";
+		
+		// Make sure we can create records of this type
+		if(!$context->hasOption('records'))
+			return "This record type is not supported.";
+		
+		$context_ext = $context->createInstance(); /* @var $context_ext Extension_DevblocksContext */
+		
+		if(false == ($view = $context_ext->getChooserView()))
+			return sprintf("Can't create a worklist of type: %s", $context_ext->name);
+		
+		$view->addParamsWithQuickSearch($query, true);
+		$view->renderTotal = true;
+		
+		list($results, $total) = $view->getData();
+		
+		if(0 == $total) {
+			$action = new BotAction_RecordCreate();
+			$action_params = [
+				'context' => $context_ext->id,
+				'changeset_json' => $params['changeset_json'],
+				'object_placeholder' => $params['object_placeholder'],
+				'run_in_simulator' => $params['run_in_simulator']
+			];
+			return $action->simulate($token, $trigger, $action_params, $dict);
+			
+		} elseif (1 == $total) {
+			$action = new BotAction_RecordUpdate();
+			$action_params = [
+				'context' => $context_ext->id,
+				'id' => key($results),
+				'changeset_json' => $params['changeset_json'],
+				'object_placeholder' => $params['object_placeholder'],
+				'run_in_simulator' => $params['run_in_simulator'],
+			];
+			return $action->simulate($token, $trigger, $action_params, $dict);
+			
+		} else {
+			return "The upsert query must match exactly 0 or 1 records.";
+		}
+	}
+	
+	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		
+		@$query = $tpl_builder->build(DevblocksPlatform::importVar($params['query'],'string',''), $dict);
+		@$context = $tpl_builder->build(DevblocksPlatform::importVar($params['context'],'string',''), $dict);
+		
+		if(!$query)
+			return false;
+		
+		if(false == ($context = Extension_DevblocksContext::getByAlias($context, false)))
+			return false;
+		
+		// Make sure we can create records of this type
+		if(!$context->hasOption('records'))
+			return false;
+		
+		$context_ext = $context->createInstance(); /* @var $context_ext Extension_DevblocksContext */
+		
+		if(false == ($view = $context_ext->getChooserView()))
+			return false;
+		
+		$view->addParamsWithQuickSearch($query, true);
+		$view->renderTotal = true;
+		
+		list($results, $total) = $view->getData();
+		
+		if(0 == $total) {
+			$action = new BotAction_RecordCreate();
+			$action_params = [
+				'context' => $context_ext->id,
+				'changeset_json' => $params['changeset_json'],
+				'object_placeholder' => $params['object_placeholder'],
+				'run_in_simulator' => $params['run_in_simulator']
+			];
+			return $action->run($token, $trigger, $action_params, $dict);
+			
+		} elseif (1 == $total) {
+			$action = new BotAction_RecordUpdate();
+			$action_params = [
+				'context' => $context_ext->id,
+				'id' => key($results),
+				'changeset_json' => $params['changeset_json'],
+				'object_placeholder' => $params['object_placeholder'],
+				'run_in_simulator' => $params['run_in_simulator'],
+			];
+			return $action->run($token, $trigger, $action_params, $dict);
+			
+		} else {
+			return false;
+		}
+	}
+};
+
+class BotAction_RecordDelete extends Extension_DevblocksEventAction {
+	const ID = 'core.bot.action.record.delete';
+	
+	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=[], $seq=null) {
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('params', $params);
+		
+		if(!is_null($seq))
+			$tpl->assign('namePrefix', 'action'.$seq);
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_action_record_delete.tpl');
+	}
+	
+	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$actor = $trigger->getBot();
+
+		$out = null;
+		
+		@$context = $tpl_builder->build(DevblocksPlatform::importVar($params['context'],'string',''), $dict);
+		@$id = $tpl_builder->build(DevblocksPlatform::importVar($params['id'],'string',''), $dict);
+		
+		if(!$id)
+			return "ID is empty.";
+		
+		if(!$context || false == ($context = Extension_DevblocksContext::getByAlias($context, false)))
+			return "Invalid record type.";
+		
+		// Make sure we can create records of this type
+		if(!$context->hasOption('records'))
+			return "This record type is not supported.";
+		
+		$context_ext = $context->createInstance(); /* @var $context_ext Extension_DevblocksContext */
+		
+		$dao_class = $context_ext->getDaoClass();
+		
+		if(false == ($model = $dao_class::get($id)))
+			return sprintf("%s #%d was not found.", $context_ext->manifest->name, $id);
+		
+		// Fail if there's no DAO::delete() method
+		if(!method_exists($dao_class, 'delete'))
+			return "This record type is not supported";
+		
+		if(!CerberusContexts::isDeleteableByActor($context->id, $id, $actor))
+			return DevblocksPlatform::translate('error.core.no_acl.delete') . sprintf(" (%s:%d)", $context->id, $id);
+		
+		$out = sprintf(">>> Deleting %s (#%d)\n", $context_ext->manifest->name, $id);
+		
+		// Run in simulator
+		@$run_in_simulator = !empty($params['run_in_simulator']);
+		if($run_in_simulator) {
+			$this->run($token, $trigger, $params, $dict);
+		}
+		
+		return $out;
+	}
+	
+	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$actor = $trigger->getBot();
+		
+		@$context = $tpl_builder->build(DevblocksPlatform::importVar($params['context'],'string',''), $dict);
+		@$id = $tpl_builder->build(DevblocksPlatform::importVar($params['id'],'string',''), $dict);
+		
+		if(!$id)
+			return false;
+		
+		if(false == ($context = Extension_DevblocksContext::getByAlias($context, false)))
+			return false;
+		
+		// Make sure we can create records of this type
+		if(!$context->hasOption('records'))
+			return false;
+		
+		$context_ext = $context->createInstance(); /* @var $context_ext Extension_DevblocksContext */
+		
+		$dao_class = $context_ext->getDaoClass();
+		
+		if(false == ($model = $dao_class::get($id)))
+			return false;
+		
+		// Fail if there's no DAO::delete() method
+		if(!method_exists($dao_class, 'delete'))
+			return false;
+		
+		if(!CerberusContexts::isDeleteableByActor($context->id, $id, $actor))
+			return false;
+		
+		$dao_class::delete($id);
+	}
+};
+
+class BotAction_RecordRetrieve extends Extension_DevblocksEventAction {
+	const ID = 'core.bot.action.record.retrieve';
+	
+	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=[], $seq=null) {
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('params', $params);
+		
+		if(!is_null($seq))
+			$tpl->assign('namePrefix', 'action'.$seq);
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_action_record_retrieve.tpl');
+	}
+	
+	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$actor = $trigger->getBot();
+
+		$out = null;
+		
+		@$context = $tpl_builder->build(DevblocksPlatform::importVar($params['context'],'string',''), $dict);
+		@$id = $tpl_builder->build(DevblocksPlatform::importVar($params['id'],'string',''), $dict);
+		@$object_placeholder = $params['object_placeholder'];
+		
+		if(!$id)
+			return "ID is empty.";
+		
+		if(!$context || false == ($context = Extension_DevblocksContext::getByAlias($context, false)))
+			return "Invalid record type.";
+		
+		// Make sure we can create records of this type
+		if(!$context->hasOption('records'))
+			return "This record type is not supported.";
+		
+		$context_ext = $context->createInstance(); /* @var $context_ext Extension_DevblocksContext */
+		
+		$dao_class = $context_ext->getDaoClass();
+		
+		if(false == ($model = $dao_class::get($id)))
+			return sprintf("%s #%d was not found.", $context_ext->manifest->name, $id);
+		
+		// Fail if there's no DAO::get() method
+		if(!method_exists($dao_class, 'get'))
+			return "This record type is not supported";
+		
+		if(!CerberusContexts::isReadableByActor($context->id, $id, $actor))
+			return DevblocksPlatform::translate('error.core.no_acl.view') . sprintf(" (%s:%d)", $context->id, $id);
+		
+		$out = sprintf(">>> Retrieving %s (#%d)\n", $context_ext->manifest->name, $id);
+		
+		// Always run in simulator mode
+		$this->run($token, $trigger, $params, $dict);
+		
+		$out .= $dict->$object_placeholder;
+		
+		return $out;
+	}
+	
+	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$actor = $trigger->getBot();
+		
+		@$context = $tpl_builder->build(DevblocksPlatform::importVar($params['context'],'string',''), $dict);
+		@$id = $tpl_builder->build(DevblocksPlatform::importVar($params['id'],'string',''), $dict);
+		@$object_placeholder = $params['object_placeholder'];
+		
+		if(!empty($object_placeholder)) {
+			$dict->$object_placeholder = null;
+		}
+		
+		if(!$id)
+			return false;
+		
+		if(false == ($context = Extension_DevblocksContext::getByAlias($context, false)))
+			return false;
+		
+		// Make sure we can create records of this type
+		if(!$context->hasOption('records'))
+			return false;
+		
+		$context_ext = $context->createInstance(); /* @var $context_ext Extension_DevblocksContext */
+		
+		$dao_class = $context_ext->getDaoClass();
+		
+		// Fail if there's no DAO::get() method
+		if(!method_exists($dao_class, 'get'))
+			return false;
+		
+		if(false == ($model = $dao_class::get($id)))
+			return false;
+		
+		if(!CerberusContexts::isReadableByActor($context->id, $id, $actor))
+			return false;
+		
+		if(!empty($object_placeholder)) {
+			$labels = $values = [];
+			CerberusContexts::getContext($context_ext->id, $model, $labels, $values, null, true, true);
+			$obj_dict = DevblocksDictionaryDelegate::instance($values);
+			$obj_dict->custom_;
+			$dict->$object_placeholder = $obj_dict;
+		}
+	}
+};
+
+class BotAction_RecordSearch extends Extension_DevblocksEventAction {
+	const ID = 'core.bot.action.record.search';
+	
+	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=[], $seq=null) {
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('params', $params);
+		
+		if(!is_null($seq))
+			$tpl->assign('namePrefix', 'action'.$seq);
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_action_record_search.tpl');
+	}
+	
+	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$actor = $trigger->getBot();
+
+		$out = null;
+		
+		@$context = $tpl_builder->build(DevblocksPlatform::importVar($params['context'],'string',''), $dict);
+		@$query = $tpl_builder->build(DevblocksPlatform::importVar($params['query'],'string',''), $dict);
+		@$object_placeholder = $params['object_placeholder'];
+		
+		if(!$context || false == ($context = Extension_DevblocksContext::getByAlias($context, false)))
+			return "Invalid record type.";
+		
+		// Make sure we can create records of this type
+		if(!$context->hasOption('records'))
+			return "This record type is not supported.";
+		
+		$context_ext = $context->createInstance(); /* @var $context_ext Extension_DevblocksContext */
+		
+		$dao_class = $context_ext->getDaoClass();
+
+		// Fail if there's no DAO::getIds() method
+		if(!method_exists($dao_class, 'getIds'))
+			return "This record type is not supported";
+		
+		// Load a view
+		if(false == ($view = $context_ext->getChooserView()))
+			return "Failed to load a worklist of this record type.";
+		
+		// Set query filter
+		$view->addParamsWithQuickSearch($query, true);
+		$view->view_columns = [];
+		
+		$out = sprintf(">>> Searching %s\nQuery: %s\n", $context_ext->manifest->name, $query);
+		
+		list($results, $total) = $view->getData();
+		
+		$ids = array_keys($results);
+		
+		if(empty($ids))
+			return "No results.";
+		
+		if(false == ($models = $dao_class::getIds($ids)))
+			return sprintf("Unable to load %s records.", $context_ext->manifest->name);
+		
+		// Always run in simulator mode
+		$this->run($token, $trigger, $params, $dict);
+		
+		if($object_placeholder && is_array($dict->$object_placeholder)) {
+			$first = current($dict->$object_placeholder);
+			
+			$out .= sprintf("\n%s:\n%s", $object_placeholder,  $first);
+			
+			if($total > 1)
+				$out .= sprintf("\n\n... and %d more", ($total-1));
+			
+			$page_placeholder = $object_placeholder . '__page';
+			$total_placeholder = $object_placeholder . '__total';
+			
+			$out .= sprintf("\n\n%s: %d\n%s: %d",
+				$page_placeholder,
+				$dict->$page_placeholder,
+				$total_placeholder,
+				$dict->$total_placeholder
+			);
+		}
+		
+		return $out;
+	}
+	
+	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$actor = $trigger->getBot();
+		
+		@$context = $tpl_builder->build(DevblocksPlatform::importVar($params['context'],'string',''), $dict);
+		@$query = $tpl_builder->build(DevblocksPlatform::importVar($params['query'],'string',''), $dict);
+		@$expands = DevblocksPlatform::parseCrlfString($tpl_builder->build(DevblocksPlatform::importVar($params['expand'],'string',''), $dict));
+		@$object_placeholder = $params['object_placeholder'];
+		
+		if(!empty($object_placeholder)) {
+			$dict->$object_placeholder = [];
+		}
+		
+		if(!$context || false == ($context = Extension_DevblocksContext::getByAlias($context, false)))
+			return false;
+		
+		// Make sure we can create records of this type
+		if(!$context->hasOption('records'))
+			return false;
+		
+		$context_ext = $context->createInstance(); /* @var $context_ext Extension_DevblocksContext */
+		
+		$dao_class = $context_ext->getDaoClass();
+		
+		// Fail if there's no DAO::getIds() method
+		if(!method_exists($dao_class, 'getIds'))
+			return false;
+		
+		// Load a view
+		if(false == ($view = $context_ext->getChooserView()))
+			return false;
+		
+		// Set query filter
+		$view->addParamsWithQuickSearch($query, true);
+		$view->view_columns = [];
+		
+		list($results, $total) = $view->getData();
+		
+		$ids = array_keys($results);
+		
+		if(empty($ids) || false == ($models = $dao_class::getIds($ids)))
+			return false;
+		
+		if($object_placeholder) {
+			$total_placeholder = $object_placeholder . '__total';
+			$dict->$total_placeholder = $total;
+			
+			$page_placeholder = $object_placeholder . '__page';
+			$dict->$page_placeholder = $view->renderPage + 1;
+			
+			// Load dictionaries
+			$dicts = DevblocksDictionaryDelegate::getDictionariesFromModels($models, $context_ext->id);
+			
+			// Expand tokens
+			if(is_array($expands))
+			foreach($expands as $expand)
+				DevblocksDictionaryDelegate::bulkLazyLoad($dicts, $expand);
+			
+			// Set the preferred placeholder
+			$dict->$object_placeholder = $dicts;
+		}
+	}
+};
+
+class BotAction_PackageImport extends Extension_DevblocksEventAction {
+	const ID = 'core.bot.action.package.import';
+	
+	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=[], $seq=null) {
+		$actor = $trigger->getBot();
+		
+		// [TODO] When roles apply to bots, we'll allow non-admins to import packages
+		if(!CerberusContexts::isActorAnAdmin($actor)) {
+			echo "This action is only available to administrators.";
+			return false;
+		}
+		
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('params', $params);
+		
+		if(!is_null($seq))
+			$tpl->assign('namePrefix', 'action'.$seq);
+		
+		$tpl->display('devblocks:cerberusweb.core::internal/decisions/actions/_action_package_import.tpl');
+	}
+	
+	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$actor = $trigger->getBot();
+
+		$out = null;
+		
+		if(!CerberusContexts::isActorAnAdmin($actor)) {
+			$error = "This action is only available to administrators.";
+			return $error;
+		}
+		
+		@$package_json = DevblocksPlatform::importVar($params['package_json'],'string','');
+		@$prompts_json = $tpl_builder->build(DevblocksPlatform::importVar($params['prompts_json'],'string',''), $dict);
+		@$object_placeholder = DevblocksPlatform::importVar($params['object_placeholder'],'string','');
+		
+		$records_created = [];
+		
+		if(!$package_json || false == @json_decode($package_json, true))
+			return "Invalid package JSON: " . json_last_error_msg();
+		
+		if(false === @json_decode($prompts_json, true))
+			return "Invalid prompts JSON: " . json_last_error_msg();
+		
+		$out = sprintf(">>> Importing package\n%s\n", $package_json);
+		
+		if($prompts_json)
+			$out .= sprintf("\n>>> Configuration\n%s\n", $prompts_json);
+		
+		// Run in simulator
+		@$run_in_simulator = !empty($params['run_in_simulator']);
+		if($run_in_simulator) {
+			$this->run($token, $trigger, $params, $dict);
+			
+			if($object_placeholder) {
+				$out .= sprintf("\n>>> Setting placeholder {{%s}}:\n%s",
+					$object_placeholder,
+					DevblocksPlatform::strFormatJson(json_encode($dict->$object_placeholder))
+				);
+			}
+		}
+		
+		return $out;
+	}
+	
+	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$actor = $trigger->getBot();
+		
+		$response = [];
+		
+		try {
+			if(!CerberusContexts::isActorAnAdmin($actor))
+				throw new Exception_DevblocksValidationError("This action is only available to administrators.");
+			
+			@$package_json = DevblocksPlatform::importVar($params['package_json'],'string','');
+			@$prompts_json = @json_decode($tpl_builder->build(DevblocksPlatform::importVar($params['prompts_json'],'string',''), $dict), true);
+			@$object_placeholder = DevblocksPlatform::importVar($params['object_placeholder'],'string','');
+			
+			if(!is_array($prompts_json))
+				$prompts_json = [];
+			
+			CerberusApplication::packages()->import($package_json, $prompts_json, $response);
+			
+		} catch(Exception_DevblocksValidationError $e) {
+			$response = [
+				'_status' => false,
+				'error' => $e->getMessage()
+			];
+			
+		} catch(Exception $e) {
+			$response = [
+				'_status' => false,
+				'error' => "An unexpected error occurred."
+			];
+		}
+		
+		// Set placeholder with object meta
+		
+		if(!empty($object_placeholder)) {
+			$dict->$object_placeholder = $response;
+		}
+	}
 };
 
 class VaAction_ClassifierPrediction extends Extension_DevblocksEventAction {
 	const ID = 'core.va.action.classifier_prediction';
 	
 	function render(Extension_DevblocksEvent $event, Model_TriggerEvent $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('params', $params);
 		
 		$classifiers = DAO_Classifier::getReadableByActor(CerberusContexts::CONTEXT_BOT, $trigger->bot_id);
@@ -871,7 +2219,7 @@ class VaAction_ClassifierPrediction extends Extension_DevblocksEventAction {
 	}
 	
 	function simulate($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
-		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 		
 		@$classifier_id = $params['classifier_id'];
 		@$content = $tpl_builder->build($params['content'], $dict);
@@ -905,8 +2253,8 @@ class VaAction_ClassifierPrediction extends Extension_DevblocksEventAction {
 	}
 	
 	function run($token, Model_TriggerEvent $trigger, $params, DevblocksDictionaryDelegate $dict) {
-		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
-		$bayes = DevblocksPlatform::getBayesClassifierService();
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
+		$bayes = DevblocksPlatform::services()->bayesClassifier();
 		
 		@$classifier_id = $params['classifier_id'];
 		@$content = $tpl_builder->build($params['content'], $dict);
@@ -930,6 +2278,244 @@ class VaAction_ClassifierPrediction extends Extension_DevblocksEventAction {
 		}
 	}
 	
+};
+
+/**
+ * Based on: https://raw.githubusercontent.com/Mailgarant/switfmailer-openpgp/master/OpenPGPSigner.php
+ *
+ */
+class Cerb_SwiftPlugin_GPGSigner implements Swift_Signers_BodySigner {
+	protected $micalg = 'SHA256';
+	protected $encrypt = true;
+	
+	protected function createMessage(Swift_Message $message) {
+		$mimeEntity = new Swift_Message('', $message->getBody(), $message->getContentType(), $message->getCharset());
+		$mimeEntity->setChildren($message->getChildren());
+
+		$messageHeaders = $mimeEntity->getHeaders();
+		$messageHeaders->remove('Message-ID');
+		$messageHeaders->remove('Date');
+		$messageHeaders->remove('Subject');
+		$messageHeaders->remove('MIME-Version');
+		$messageHeaders->remove('To');
+		$messageHeaders->remove('From');
+
+		return $mimeEntity;
+	}
+	
+	protected function getSignKey(Swift_Message $message) {
+		if(false == ($gpg = DevblocksPlatform::services()->gpg()))
+			return false;
+		
+		if(false == ($from = $message->getFrom()) || !is_array($from))
+			return false;
+		
+		$email = key($from);
+		
+		$fingerprints = [];
+		
+		if(false != ($keys = $gpg->keyinfo(sprintf("<%s>", $email))) && is_array($keys)) {
+			foreach($keys as $key) {
+				if($this->isValidKey($key, 'sign'))
+				foreach($key['subkeys'] as $subkey) {
+					if($this->isValidKey($subkey, 'sign')) {
+						return $subkey['fingerprint'];
+					}
+				}
+			}
+		}
+		
+		return false;
+	}
+	
+	protected function getRecipientKeys(Swift_Message $message) {
+		$to = $message->getTo() ?: [];
+		$cc = $message->getCc() ?: [];
+		$bcc = $message->getBcc() ?: [];
+		
+		$recipients = $to + $cc	+ $bcc;
+		
+		if(!is_array($recipients) || empty($recipients))
+			throw new Swift_SwiftException(sprintf('Error: No valid recipients for GPG encryption'));
+		
+		$fingerprints = [];
+		
+		foreach($recipients as $email => $name) {
+			$gpg = DevblocksPlatform::services()->gpg();
+			$found = false;
+
+			if(false != ($keys = $gpg->keyinfo(sprintf("<%s>", $email))) && is_array($keys)) {
+				foreach($keys as $key) {
+					if($this->isValidKey($key, 'encrypt'))
+					foreach($key['subkeys'] as $subkey) {
+						if($this->isValidKey($subkey, 'encrypt')) {
+							$fingerprints[] = $subkey['fingerprint'];
+							$found = true;
+						}
+					}
+				}
+			}
+			
+			if(!$found)
+				throw new Swift_SwiftException(sprintf('Error: No recipient GPG public key for: %s', $email));
+		}
+		
+		return $fingerprints;
+	}
+	
+	protected function isValidKey($key, $purpose) {
+		return !(
+			$key['disabled'] 
+			|| $key['expired'] 
+			|| $key['revoked'] 
+			|| (
+				$purpose == 'sign' 
+				&& !$key['can_sign']
+				) 
+			|| (
+				$purpose == 'encrypt' 
+				&& !$key['can_encrypt']
+			)
+		);
+	}
+	
+	protected function signWithPGP($plaintext, $key_fingerprint) {
+		$gpg = DevblocksPlatform::services()->gpg();
+		
+		if(false != ($signed = $gpg->sign($plaintext, $key_fingerprint)))
+			return $signed;
+		
+		throw new Swift_SwiftException('Error: Failed to sign message (passphrase on the secret key?)');
+	}
+	
+	protected function encryptWithPGP($plaintext, $key_fingerprints) {
+		$gpg = DevblocksPlatform::services()->gpg();
+		
+		if(false != ($encrypted = $gpg->encrypt($plaintext, $key_fingerprints)))
+			return $encrypted;
+		
+		throw new Swift_SwiftException('Error: Failed to encrypt message');
+	}
+	
+	/**
+	 * Change the Swift_Signed_Message to apply the singing.
+	 *
+	 * @param Swift_Message $message
+	 *
+	 * @return self
+	 */
+	public function signMessage(Swift_Message $message) {
+		$sign_key = $this->getSignKey($message);
+		
+		if(false == ($recipient_keys = $this->getRecipientKeys($message)))
+			throw new Swift_SwiftException('Error: No recipient GPG public keys for encryption.');
+		
+		$originalMessage = $this->createMessage($message);
+		$message->setChildren([]);
+		$message->setEncoder(Swift_DependencyContainer::getInstance()->lookup('mime.rawcontentencoder'));
+		
+		if($sign_key) {
+			$type = $message->getHeaders()->get('Content-Type');
+			$type->setValue('multipart/signed');
+			$type->setParameters([
+				'micalg' => sprintf('pgp-%s', DevblocksPlatform::strLower($this->micalg)),
+				'protocol' => 'application/pgp-signature',
+				'boundary' => $message->getBoundary(),
+			]);
+			
+			$signed_body = $originalMessage->toString();
+			
+			$lines = DevblocksPlatform::parseCrlfString(rtrim($signed_body), true);
+			
+			array_walk($lines, function(&$line) {
+				$line = rtrim($line) . "\r\n";
+			});
+			
+			$signed_body = rtrim(implode('', $lines) . "\r\n");
+			
+			$signature = $this->signWithPGP($signed_body, $sign_key);
+			
+			$body = <<< EOD
+This is an OpenPGP/MIME signed message (RFC 4880 and 3156)
+
+--{$message->getBoundary()}
+$signed_body
+--{$message->getBoundary()}
+Content-Type: application/pgp-signature; name="signature.asc"
+Content-Description: OpenPGP digital signature
+Content-Disposition: attachment; filename="signature.asc"
+
+$signature
+
+--{$message->getBoundary()}--
+EOD;
+
+		} else { // No signature
+			$body = $originalMessage->toString();
+			
+		}
+		
+		$message->setBody($body);
+		
+		if($this->encrypt) {
+			if($sign_key) {
+				$content = sprintf("%s\r\n%s", $message->getHeaders()->get('Content-Type')->toString(), $body);
+			} else {
+				$content = $body;
+			}
+			
+			$encrypted_body = $this->encryptWithPGP($content, $recipient_keys);
+			
+			$type = $message->getHeaders()->get('Content-Type');
+			$type->setValue('multipart/encrypted');
+			$type->setParameters([
+				'protocol' => 'application/pgp-encrypted',
+				'boundary' => $message->getBoundary(),
+			]);
+			
+			$body = <<< EOD
+This is an OpenPGP/MIME encrypted message (RFC 4880 and 3156)
+
+--{$message->getBoundary()}
+Content-Type: application/pgp-encrypted
+Content-Description: PGP/MIME version identification
+
+Version: 1
+
+--{$message->getBoundary()}
+Content-Type: application/octet-stream; name="encrypted.asc"
+Content-Description: OpenPGP encrypted message
+Content-Disposition: inline; filename="encrypted.asc"
+
+$encrypted_body
+
+--{$message->getBoundary()}--
+EOD;
+		
+			$message->setBody($body);
+		}
+		
+		$message_headers = $message->getHeaders();
+		$message_headers->removeAll('Content-Transfer-Encoding');
+		
+		return $this;
+	}
+
+	/**
+	 * Return the list of header a signer might tamper.
+	 *
+	 * @return array
+	 */
+	public function getAlteredHeaders() {
+		return ['Content-Type', 'Content-Transfer-Encoding', 'Content-Disposition', 'Content-Description'];
+	}
+	
+	/**
+	 * return $this
+	 */
+	public function reset() {
+		return $this;
+	}
 };
 
 class Cerb_SwiftPlugin_TransportExceptionLogger implements Swift_Events_TransportExceptionListener {
@@ -957,7 +2543,7 @@ class CerbMailTransport_Smtp extends Extension_MailTransport {
 	private $_logger = null;
 	
 	function renderConfig(Model_MailTransport $model) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('model', $model);
 		$tpl->assign('extension', $this);
 		$tpl->display('devblocks:cerberusweb.core::internal/mail_transport/smtp/config.tpl');
@@ -984,7 +2570,7 @@ class CerbMailTransport_Smtp extends Extension_MailTransport {
 		
 		// Try connecting
 		
-		$mail_service = DevblocksPlatform::getMailService();
+		$mail_service = DevblocksPlatform::services()->mail();
 		
 		$options = array(
 			'host' => $host,
@@ -1123,7 +2709,7 @@ class CerbMailTransport_Null extends Extension_MailTransport {
 	const ID = 'core.mail.transport.null';
 	
 	function renderConfig(Model_MailTransport $model) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('model', $model);
 		$tpl->assign('extension', $this);
 		$tpl->display('devblocks:cerberusweb.core::internal/mail_transport/null/config.tpl');

@@ -1,4 +1,6 @@
 <?php
+@include_once(APP_PATH . '/vendor/autoload.php');
+
 include_once(DEVBLOCKS_PATH . "api/Model.php");
 include_once(DEVBLOCKS_PATH . "api/DAO.php");
 include_once(DEVBLOCKS_PATH . "api/Extension.php");
@@ -36,6 +38,7 @@ abstract class DevblocksEngine {
 
 	protected static $request = null;
 	protected static $response = null;
+	protected static $is_stateless = false;
 
 	/**
 	 * Reads and caches a single manifest from a given plugin directory.
@@ -57,7 +60,9 @@ abstract class DevblocksEngine {
 		if(!file_exists($manifest_file))
 			return NULL;
 
-		$plugin = simplexml_load_file($manifest_file);
+		if(false === ($plugin = @simplexml_load_file($manifest_file)))
+			return NULL;
+		
 		$prefix = (APP_DB_PREFIX != '') ? APP_DB_PREFIX.'_' : ''; // [TODO] Cleanup
 
 		$rel_dir = trim(substr($plugin_path, strlen(APP_PATH)), '/');
@@ -173,7 +178,7 @@ abstract class DevblocksEngine {
 			return $manifest;
 
 		// If the database is empty, return
-		if(null == ($db = DevblocksPlatform::getDatabaseService()) || DevblocksPlatform::isDatabaseEmpty())
+		if(null == ($db = DevblocksPlatform::services()->database()) || DevblocksPlatform::isDatabaseEmpty())
 			return $manifest;
 
 		list($columns, $indexes) = $db->metaTable($prefix . 'plugin');
@@ -435,6 +440,28 @@ abstract class DevblocksEngine {
 		
 		return $ip;
 	}
+
+	static function isIpAuthorized($ip, array $ip_patterns=[]) {
+		foreach($ip_patterns as $ip_pattern) {
+			// Wildcard subnet match
+			if(DevblocksPlatform::strEndsWith($ip_pattern, ['.'])) {
+				if(DevblocksPlatform::strStartsWith($ip, $ip_pattern))
+					return true;
+			
+			// Otherwise, exact match
+			} else {
+				if($ip == $ip_pattern)
+					return true;
+			}
+		}
+		
+		return false;
+	}
+	
+	static function getClientUserAgent() {
+		require_once(DEVBLOCKS_PATH . 'libs/user_agent_parser.php');
+		return parse_user_agent();
+	}
 	
 	static function getHostname() {
 		$app_hostname = APP_HOSTNAME;
@@ -478,7 +505,7 @@ abstract class DevblocksEngine {
 	 * @return DevblocksHttpRequest
 	 */
 	static function readRequest() {
-		$url = DevblocksPlatform::getUrlService();
+		$url = DevblocksPlatform::services()->url();
 
 		$location = self::getWebPath();
 
@@ -622,6 +649,17 @@ abstract class DevblocksEngine {
 		// Controllers
 
 		$controller_uri = array_shift($path);
+		
+		// Security: IP Whitelist
+		
+		if(!in_array($controller_uri, array('oauth', 'portal')) && defined('APP_SECURITY_FIREWALL_WHITELIST') && !empty(APP_SECURITY_FIREWALL_WHITELIST)) {
+			@$remote_addr = DevblocksPlatform::getClientIp();
+			$valid_ips = DevblocksPlatform::parseCsvString(APP_SECURITY_FIREWALL_WHITELIST);
+			
+			if(!DevblocksPlatform::isIpAuthorized($remote_addr, $valid_ips)) {
+				DevblocksPlatform::dieWithHttpError(sprintf("<h1>403 Forbidden for %s</h1>", $remote_addr), 403);
+			}
+		}
 		
 		// Security: CSRF
 		

@@ -6,6 +6,9 @@ function DevblocksClass() {
 			if(null == this.audio)
 				this.audio = new Audio();
 			
+			if(undefined == url || null == url || 0 == url.length)
+				return;
+			
 			this.audio.src = url;
 			this.audio.play();
 			
@@ -180,6 +183,7 @@ function DevblocksClass() {
 		var $status = $popup.find('div.status');
 		var options = e.data;
 		var is_delete = (options && options.mode == 'delete');
+		var is_continue = (options && options.mode == 'continue');
 		
 		if(options && options.before && typeof options.before == 'function') {
 			options.before(e, $frm);
@@ -228,7 +232,12 @@ function DevblocksClass() {
 				if(e.view_id)
 					genericAjaxGet('view'+e.view_id, 'c=internal&a=viewRefresh&id=' + e.view_id);
 				
-				genericAjaxPopupClose($popup, event);
+				if(is_continue) {
+					Devblocks.showSuccess($status, "Saved!");
+					
+				} else {
+					genericAjaxPopupClose($popup, event);
+				}
 				
 			} else {
 				// Output errors
@@ -342,7 +351,6 @@ function showLoadingPanel() {
 	}
 	
 	var options = {
-		bgiframe : true,
 		autoOpen : false,
 		closeOnEscape : false,
 		draggable : false,
@@ -449,13 +457,25 @@ function genericAjaxPopupRegister($layer, $popup) {
 function genericAjaxPopup($layer,request,target,modal,width,cb) {
 	// Default options
 	var options = {
-		bgiframe : true,
 		autoOpen : false,
 		closeOnEscape : true,
 		draggable : true,
 		modal : false,
 		resizable : true,
+		height: "auto",
 		width : Math.max(Math.floor($(window).width()/2), 500) + 'px', // Larger of 50% of browser width or 500px
+		dragStop: function(event, ui) {
+			var $popup = $(this);
+			var $dialog = $popup.closest('div.ui-dialog');
+			$popup.css('height', 'auto');
+			$dialog.css('height', 'auto');
+		},
+		resizeStop: function(event, ui) {
+			var $popup = $(this);
+			var $dialog = $popup.closest('div.ui-dialog');
+			$popup.css('height', 'auto');
+			$dialog.css('height', 'auto');
+		},
 		close: function(event, ui) {
 			var $this = $(this);
 			$('#devblocksPopups').removeData($layer);

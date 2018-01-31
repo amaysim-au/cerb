@@ -1,3 +1,4 @@
+{$peek_context = CerberusContexts::CONTEXT_ADDRESS}
 {$form_id = "formAddressPeek{uniqid()}"}
 <form action="#" method="POST" id="{$form_id}" onsubmit="return false;">
 <input type="hidden" name="c" value="profiles">
@@ -73,8 +74,36 @@
 				<label><input type="checkbox" name="is_defunct" value="1" title="Check this box if the email address is no longer active." {if $address->is_defunct}checked="checked"{/if}> {'address.is_defunct'|devblocks_translate|capitalize}</label>
 			</td>
 		</tr>
-		
 	</table>
+</fieldset>
+
+<fieldset class="peek">
+	<legend><label>{if $active_worker->is_superuser}<input type="checkbox" name="outgoing_enabled" value="1" {if $address->mail_transport_id}checked="checked"{/if} onclick="$(this).parent().parent().next('div').toggle();">{/if} Enable as a sender address for outgoing mail</label></legend>
+	
+	{if $active_worker->is_superuser}
+	<div style="{if !$address->mail_transport_id}display:none;{/if}">
+		<table cellpadding="0" cellspacing="2" border="0" width="98%">
+			<tr>
+				<td align="right" valign="middle" width="0%" nowrap="nowrap">
+					<b>{'common.email_transport'|devblocks_translate|capitalize}: </b>
+				</td>
+				<td valign="middle" width="100%">
+					<button type="button" class="chooser-abstract" data-field-name="mail_transport_id" data-context="{CerberusContexts::CONTEXT_MAIL_TRANSPORT}" data-single="true" data-query="" data-autocomplete="" data-autocomplete-if-empty="true"><span class="glyphicons glyphicons-search"></span></button>
+					
+					{$mail_transport = DAO_MailTransport::get($address->mail_transport_id)}
+					
+					<ul class="bubbles chooser-container">
+					{if $mail_transport}
+						<li><input type="hidden" name="mail_transport_id" value="{$mail_transport->id}"><a href="javascript:;" class="cerb-peek-trigger no-underline" data-context="{CerberusContexts::CONTEXT_MAIL_TRANSPORT}" data-context-id="{$mail_transport->id}">{$mail_transport->name}</a></li>
+					{/if}
+					</ul>
+				</td>
+			</tr>
+		</table>
+	</div>
+	{else}
+	Only <a href="javascript:;" style="font-weight:bold;" class="cerb-search-trigger" data-context="{CerberusContexts::CONTEXT_WORKER}" data-query="isAdmin:y">administrators</a> can configure outgoing mail.
+	{/if}
 </fieldset>
 
 {if !empty($custom_fields)}
@@ -84,11 +113,12 @@
 </fieldset>
 {/if}
 
-{include file="devblocks:cerberusweb.core::internal/custom_fieldsets/peek_custom_fieldsets.tpl" context=CerberusContexts::CONTEXT_ADDRESS context_id=$address->id}
+{include file="devblocks:cerberusweb.core::internal/custom_fieldsets/peek_custom_fieldsets.tpl" context=$peek_context context_id=$address->id}
 
 <div class="status"></div>
 
-{if $active_worker->hasPriv('core.addybook.addy.actions.update')}
+{if (!$address && $active_worker->hasPriv("contexts.{$peek_context}.create")) 
+	|| ($address && $active_worker->hasPriv("contexts.{$peek_context}.update"))}
 	<button type="button" class="submit"><span class="glyphicons glyphicons-circle-ok" style="color:rgb(0,180,0);"></span> {'common.save_changes'|devblocks_translate}</button>
 {else}
 	<div class="error">{'error.core.no_acl.edit'|devblocks_translate}</div>
@@ -132,6 +162,9 @@ $(function() {
 		
 		// Peek triggers
 		$popup.find('.cerb-peek-trigger').cerbPeekTrigger();
+		
+		// Search triggers
+		$popup.find('.cerb-search-trigger').cerbSearchTrigger();
 	});
 });
 </script>

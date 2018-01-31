@@ -17,7 +17,7 @@
 
 class PageSection_ProfilesSkillset extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$visit = CerberusApplication::getVisit();
 		$translate = DevblocksPlatform::getTranslationService();
 		$active_worker = CerberusApplication::getActiveWorker();
@@ -96,14 +96,6 @@ class PageSection_ProfilesSkillset extends Extension_PageSection {
 		
 		$tpl->assign('properties', $properties);
 			
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.skillset'
-		);
-		$tpl->assign('macros', $macros);
-
 		// Tabs
 		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_SKILLSET);
 		$tpl->assign('tab_manifests', $tab_manifests);
@@ -112,6 +104,7 @@ class PageSection_ProfilesSkillset extends Extension_PageSection {
 		$tpl->display('devblocks:cerberusweb.core::internal/skillsets/profile.tpl');
 	}
 	
+	// [TODO] cards
 	function savePeekAction() {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'], 'string', '');
 		
@@ -121,6 +114,9 @@ class PageSection_ProfilesSkillset extends Extension_PageSection {
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		if(!empty($id) && !empty($do_delete)) { // Delete
+			if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_SKILLSET)))
+				throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
+			
 			DAO_Skillset::delete($id);
 			
 		} else {
@@ -132,7 +128,15 @@ class PageSection_ProfilesSkillset extends Extension_PageSection {
 					DAO_Skillset::UPDATED_AT => time(),
 					DAO_Skillset::NAME => $name,
 				);
+				
+				if(!DAO_Skillset::validate($fields, $error, null))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
+				if(!DAO_Skillset::onBeforeUpdateByActor($active_worker, $fields, null, $error))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
 				$id = DAO_Skillset::create($fields);
+				DAO_Skillset::onUpdateByActor($active_worker, $fields, $id);
 				
 				if(!empty($view_id) && !empty($id))
 					C4_AbstractView::setMarqueeContextCreated($view_id, CerberusContexts::CONTEXT_SKILLSET, $id);
@@ -142,8 +146,15 @@ class PageSection_ProfilesSkillset extends Extension_PageSection {
 					DAO_Skillset::UPDATED_AT => time(),
 					DAO_Skillset::NAME => $name,
 				);
-				DAO_Skillset::update($id, $fields);
 				
+				if(!DAO_Skillset::validate($fields, $error, $id))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
+				if(!DAO_Skillset::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
+					throw new Exception_DevblocksAjaxValidationError($error);
+				
+				DAO_Skillset::update($id, $fields);
+				DAO_Skillset::onUpdateByActor($active_worker, $fields, $id);
 			}
 
 			// Custom fields
@@ -156,7 +167,7 @@ class PageSection_ProfilesSkillset extends Extension_PageSection {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		// Generate hash
 		$hash = md5($view_id.$active_worker->id.time());

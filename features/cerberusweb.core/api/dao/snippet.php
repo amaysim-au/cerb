@@ -16,18 +16,87 @@
 ***********************************************************************/
 
 class DAO_Snippet extends Cerb_ORMHelper {
+	const CONTENT = 'content';
+	const CONTEXT = 'context';
+	const CUSTOM_PLACEHOLDERS_JSON = 'custom_placeholders_json';
 	const ID = 'id';
-	const TITLE = 'title';
 	const OWNER_CONTEXT = 'owner_context';
 	const OWNER_CONTEXT_ID = 'owner_context_id';
-	const CONTEXT = 'context';
-	const CONTENT = 'content';
+	const TITLE = 'title';
 	const TOTAL_USES = 'total_uses';
 	const UPDATED_AT = 'updated_at';
-	const CUSTOM_PLACEHOLDERS_JSON = 'custom_placeholders_json';
+	
+	private function __construct() {}
 
+	static function getFields() {
+		$validation = DevblocksPlatform::services()->validation();
+		
+		// longtext
+		$validation
+			->addField(self::CONTENT)
+			->string()
+			->setMaxLength('32 bits')
+			->setRequired(true)
+			;
+		// varchar(255)
+		$validation
+			->addField(self::CONTEXT)
+			->string()
+			->setMaxLength(255)
+			;
+		// mediumtext
+		$validation
+			->addField(self::CUSTOM_PLACEHOLDERS_JSON)
+			->string()
+			->setMaxLength('24 bits')
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::ID)
+			->id()
+			->setEditable(false)
+			;
+		// varchar(128)
+		$validation
+			->addField(self::OWNER_CONTEXT)
+			->context()
+			->setRequired(true)
+			;
+		// int(11)
+		$validation
+			->addField(self::OWNER_CONTEXT_ID)
+			->id()
+			->setRequired(true)
+			;
+		// varchar(255)
+		$validation
+			->addField(self::TITLE)
+			->string()
+			->setMaxLength(255)
+			->setRequired(true)
+			->setNotEmpty(true)
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::TOTAL_USES)
+			->uint(4)
+			;
+		// int(10) unsigned
+		$validation
+			->addField(self::UPDATED_AT)
+			->timestamp()
+			;
+		$validation
+			->addField('_links')
+			->string()
+			->setMaxLength(65535)
+			;
+			
+		return $validation->getFields();
+	}
+	
 	static function create($fields) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$sql = sprintf("INSERT INTO snippet () ".
 			"VALUES ()"
@@ -46,6 +115,9 @@ class DAO_Snippet extends Cerb_ORMHelper {
 		
 		if(!isset($fields[DAO_Snippet::UPDATED_AT]))
 			$fields[DAO_Snippet::UPDATED_AT] = time();
+		
+		$context = CerberusContexts::CONTEXT_SNIPPET;
+		self::_updateAbstract($context, $ids, $fields);
 		
 		// Make a diff for the requested objects in batches
 		
@@ -66,7 +138,7 @@ class DAO_Snippet extends Cerb_ORMHelper {
 			if($check_deltas) {
 				
 				// Trigger an event about the changes
-				$eventMgr = DevblocksPlatform::getEventService();
+				$eventMgr = DevblocksPlatform::services()->event();
 				$eventMgr->trigger(
 					new Model_DevblocksEvent(
 						'dao.snippet.update',
@@ -84,6 +156,26 @@ class DAO_Snippet extends Cerb_ORMHelper {
 	
 	static function updateWhere($fields, $where) {
 		parent::_updateWhere('snippet', $fields, $where);
+	}
+	
+	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
+		$context = CerberusContexts::CONTEXT_SNIPPET;
+		
+		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
+			return false;
+		
+		@$owner_context = $fields[self::OWNER_CONTEXT];
+		@$owner_context_id = intval($fields[self::OWNER_CONTEXT_ID]);
+		
+		// Verify that the actor can use this new owner
+		if($owner_context) {
+			if(!CerberusContexts::isOwnableBy($owner_context, $owner_context_id, $actor)) {
+				$error = DevblocksPlatform::translate('error.core.no_acl.owner');
+				return false;
+			}
+		}
+		
+		return true;
 	}
 	
 	/**
@@ -138,7 +230,7 @@ class DAO_Snippet extends Cerb_ORMHelper {
 	}
 	
 	static function incrementUse($id, $worker_id) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		// Update the aggregate counter
 		$sql = sprintf("UPDATE snippet SET total_uses = total_uses + 1 WHERE id = %d", $id);
@@ -165,7 +257,7 @@ class DAO_Snippet extends Cerb_ORMHelper {
 	 * @return Model_Snippet[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -234,8 +326,8 @@ class DAO_Snippet extends Cerb_ORMHelper {
 	}
 	
 	static function maint() {
-		$db = DevblocksPlatform::getDatabaseService();
-		$logger = DevblocksPlatform::getConsoleLog();
+		$db = DevblocksPlatform::services()->database();
+		$logger = DevblocksPlatform::services()->log();
 		$tables = DevblocksPlatform::getDatabaseTables();
 		
 		// Search indexes
@@ -252,7 +344,7 @@ class DAO_Snippet extends Cerb_ORMHelper {
 	}
 	
 	static function delete($ids) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		if(!is_array($ids))
 			$ids = array($ids);
@@ -268,7 +360,7 @@ class DAO_Snippet extends Cerb_ORMHelper {
 		$db->ExecuteMaster(sprintf("DELETE FROM snippet_use_history WHERE snippet_id IN (%s)", $ids_list));
 		
 		// Fire event
-		$eventMgr = DevblocksPlatform::getEventService();
+		$eventMgr = DevblocksPlatform::services()->event();
 		$eventMgr->trigger(
 			new Model_DevblocksEvent(
 				'context.delete',
@@ -283,7 +375,7 @@ class DAO_Snippet extends Cerb_ORMHelper {
 	}
 	
 	static function deleteByOwner($owner_context, $owner_context_ids) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		if(!is_array($owner_context_ids))
 			$owner_context_ids = array($owner_context_ids);
@@ -394,7 +486,6 @@ class DAO_Snippet extends Cerb_ORMHelper {
 	}
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -406,7 +497,7 @@ class DAO_Snippet extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -672,7 +763,7 @@ class Search_Snippet extends Extension_DevblocksSearchSchema {
 	}
 	
 	public function index($stop_time=null) {
-		$logger = DevblocksPlatform::getConsoleLog();
+		$logger = DevblocksPlatform::services()->log();
 		
 		if(false == ($engine = $this->getEngine()))
 			return false;
@@ -841,7 +932,7 @@ class View_Snippet extends C4_AbstractView implements IAbstractView_Subtotals, I
 				
 				// Valid custom fields
 				default:
-					if('cf_' == substr($field_key,0,3))
+					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -905,8 +996,8 @@ class View_Snippet extends C4_AbstractView implements IAbstractView_Subtotals, I
 		$fields = array(
 			'text' => 
 				array(
-					'type' => DevblocksSearchCriteria::TYPE_FULLTEXT,
-					'options' => array('param_key' => SearchFields_Snippet::FULLTEXT_SNIPPET),
+					'type' => DevblocksSearchCriteria::TYPE_TEXT,
+					'options' => array('param_key' => SearchFields_Snippet::TITLE, 'match' => DevblocksSearchCriteria::OPTION_TEXT_PARTIAL),
 				),
 			'content' => 
 				array(
@@ -1013,7 +1104,7 @@ class View_Snippet extends C4_AbstractView implements IAbstractView_Subtotals, I
 					}
 					
 					foreach($contexts as $context_id => $context) {
-						if(false !== stripos($context->name, $pattern))
+						if($context_id == $pattern || false !== stripos($context->name, $pattern))
 							$values[$context_id] = true;
 					}
 				}
@@ -1055,7 +1146,7 @@ class View_Snippet extends C4_AbstractView implements IAbstractView_Subtotals, I
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1068,7 +1159,7 @@ class View_Snippet extends C4_AbstractView implements IAbstractView_Subtotals, I
 		if(isset($placeholder_values['dicts'])) {
 			$tpl->assign('dicts', $placeholder_values['dicts']);
 
-			$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+			$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 			$tpl->assign('tpl_builder', $tpl_builder);
 		}
 		
@@ -1083,7 +1174,7 @@ class View_Snippet extends C4_AbstractView implements IAbstractView_Subtotals, I
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -1295,7 +1386,7 @@ class Context_Snippet extends Extension_DevblocksContext implements IDevblocksCo
 		if(empty($context_id))
 			return '';
 	
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		$url = $url_writer->writeNoProxy('c=profiles&type=snippet&id='.$context_id, true);
 		return $url;
 	}
@@ -1306,7 +1397,7 @@ class Context_Snippet extends Extension_DevblocksContext implements IDevblocksCo
 	
 	function getMeta($context_id) {
 		$snippet = DAO_Snippet::get($context_id);
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		return array(
 			'id' => $context_id,
@@ -1350,8 +1441,6 @@ class Context_Snippet extends Extension_DevblocksContext implements IDevblocksCo
 	function autocomplete($term, $query=null) {
 		$as_worker = CerberusApplication::getActiveWorker();
 		
-		$list = [];
-		
 		$contexts = DevblocksPlatform::getExtensions('devblocks.context', false);
 
 		$defaults = new C4_AbstractViewModel();
@@ -1363,25 +1452,10 @@ class Context_Snippet extends Extension_DevblocksContext implements IDevblocksCo
 			return [];
 		
 		// By owner
-		$params = $view->getParamsFromQuickSearch('usableBy.worker:' . $as_worker->id);
+		$params = $view->getParamsFromQuickSearch($query . ' usableBy.worker:' . $as_worker->id);
 		
 		// Search by title
 		$params[] = new DevblocksSearchCriteria(SearchFields_Snippet::TITLE,DevblocksSearchCriteria::OPER_LIKE,'%'.$term.'%');
-		
-		// [TODO] This needs to be abstracted properly
-		@$context_list = DevblocksPlatform::importGPC($_REQUEST['contexts'],'array',array());
-		if(is_array($context_list))
-		foreach($context_list as $k => $v) {
-			if(!isset($contexts[$v]))
-				unset($context_list[$k]);
-		}
-
-		$context_list[] = ''; // plaintext
-		
-		// Filter contexts
-		$params[] =
-			new DevblocksSearchCriteria(SearchFields_Snippet::CONTEXT,DevblocksSearchCriteria::OPER_IN,$context_list)
-			;
 		
 		$view->addParams($params, true);
 		$view->view_columns = [
@@ -1396,7 +1470,10 @@ class Context_Snippet extends Extension_DevblocksContext implements IDevblocksCo
 		$view->setAutoPersist(false);
 		
 		list($results, $null) = $view->getData();
+		
+		$list = [];
 
+		if(is_array($results))
 		foreach($results AS $row){
 			$entry = new stdClass();
 			$entry->label = sprintf("%s -- used %s",
@@ -1485,6 +1562,45 @@ class Context_Snippet extends Extension_DevblocksContext implements IDevblocksCo
 
 		return true;
 	}
+	
+	function getKeyToDaoFieldMap() {
+		return [
+			'content' => DAO_Snippet::CONTENT,
+			'context' => DAO_Snippet::CONTEXT,
+			'id' => DAO_Snippet::ID,
+			'links' => '_links',
+			'owner__context' => DAO_Snippet::OWNER_CONTEXT,
+			'owner_id' => DAO_Snippet::OWNER_CONTEXT_ID,
+			'title' => DAO_Snippet::TITLE,
+			'total_uses' => DAO_Snippet::TOTAL_USES,
+			'updated_at' => DAO_Snippet::UPDATED_AT,
+		];
+	}
+	
+	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
+		$dict_key = DevblocksPlatform::strLower($key);
+		switch($dict_key) {
+			case 'links':
+				$this->_getDaoFieldsLinks($value, $out_fields, $error);
+				break;
+			
+			case 'placeholders':
+				if(!is_array($value)) {
+					$error = 'must be an object.';
+					return false;
+				}
+				
+				if(false == ($json = json_encode($value))) {
+					$error = 'could not be JSON encoded.';
+					return false;
+				}
+				
+				$out_fields[DAO_Snippet::CUSTOM_PLACEHOLDERS_JSON] = $json;
+				break;
+		}
+		
+		return true;
+	}
 
 	function lazyLoadContextValues($token, $dictionary) {
 		if(!isset($dictionary['id']))
@@ -1568,7 +1684,7 @@ class Context_Snippet extends Extension_DevblocksContext implements IDevblocksCo
 	}
 	
 	function renderPeekPopup($context_id=0, $view_id='', $edit=false) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('view_id', $view_id);
 		
 		$active_worker = CerberusApplication::getActiveWorker();

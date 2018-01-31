@@ -16,17 +16,72 @@
 ***********************************************************************/
 
 class DAO_ContextActivityLog extends Cerb_ORMHelper {
-	const ID = 'id';
 	const ACTIVITY_POINT = 'activity_point';
 	const ACTOR_CONTEXT = 'actor_context';
 	const ACTOR_CONTEXT_ID = 'actor_context_id';
-	const TARGET_CONTEXT = 'target_context';
-	const TARGET_CONTEXT_ID = 'target_context_id';
 	const CREATED = 'created';
 	const ENTRY_JSON = 'entry_json';
-
+	const ID = 'id';
+	const TARGET_CONTEXT = 'target_context';
+	const TARGET_CONTEXT_ID = 'target_context_id';
+	
+	private function __construct() {}
+	
+	static function getFields() {
+		$validation = DevblocksPlatform::services()->validation();
+		
+		$validation
+			->addField(self::ACTIVITY_POINT)
+			->string()
+			->setMaxLength(128)
+			->setRequired(true)
+			;
+		$validation
+			->addField(self::ACTOR_CONTEXT)
+			->context()
+			->setRequired(true)
+			;
+		$validation
+			->addField(self::ACTOR_CONTEXT_ID)
+			->id()
+			->setRequired(true)
+			;
+		$validation
+			->addField(self::CREATED)
+			->timestamp()
+			;
+		$validation
+			->addField(self::ENTRY_JSON)
+			->string()
+			->setMaxLength(16777215)
+			->setRequired(true)
+			;
+		$validation
+			->addField(self::ID)
+			->id()
+			->setEditable(false)
+			;
+		$validation
+			->addField(self::TARGET_CONTEXT)
+			->context()
+			->setRequired(true)
+			;
+		$validation
+			->addField(self::TARGET_CONTEXT_ID)
+			->id()
+			->setRequired(true)
+			;
+		$validation
+			->addField('_links')
+			->string()
+			->setMaxLength(65535)
+			;
+			
+		return $validation->getFields();
+	}
+	
 	static function create($fields) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		@$target_context = $fields[DAO_ContextActivityLog::TARGET_CONTEXT];
 		@$target_context_id = $fields[DAO_ContextActivityLog::TARGET_CONTEXT_ID];
@@ -37,10 +92,69 @@ class DAO_ContextActivityLog extends Cerb_ORMHelper {
 		if(is_null($target_context_id))
 			$fields[DAO_ContextActivityLog::TARGET_CONTEXT_ID] = 0;
 		
+		if(!isset($fields[self::CREATED]))
+			$fields[self::CREATED] = time();
+		
 		// [TODO] This should be an example for insertion of other immutable records
 		$id = parent::_insert('context_activity_log', $fields);
 		
 		return $id;
+	}
+	
+	static function update($ids, $fields, $check_deltas=true) {
+		if(!is_array($ids))
+			$ids = array($ids);
+		
+		$context = CerberusContexts::CONTEXT_ACTIVITY_LOG;
+		self::_updateAbstract($context, $ids, $fields);
+		
+		// Make a diff for the requested objects in batches
+		
+		$chunks = array_chunk($ids, 100, true);
+		while($batch_ids = array_shift($chunks)) {
+			if(empty($batch_ids))
+				continue;
+
+			// Send events
+			if($check_deltas) {
+				CerberusContexts::checkpointChanges(CerberusContexts::CONTEXT_ACTIVITY_LOG, $batch_ids);
+			}
+
+			// Make changes
+			parent::_update($batch_ids, 'context_activity_log', $fields);
+			
+			// Send events
+			if($check_deltas) {
+				
+				// Trigger an event about the changes
+				$eventMgr = DevblocksPlatform::services()->event();
+				$eventMgr->trigger(
+					new Model_DevblocksEvent(
+						'dao.context_activity_log.update',
+						array(
+							'fields' => $fields,
+						)
+					)
+				);
+				
+				// Log the context update
+				DevblocksPlatform::markContextChanged(CerberusContexts::CONTEXT_ACTIVITY_LOG, $batch_ids);
+			}
+		}
+	}
+	
+	static public function onBeforeUpdateByActor($actor, $fields, $id=null, &$error=null) {
+		$context = CerberusContexts::CONTEXT_ACTIVITY_LOG;
+		
+		if(!self::_onBeforeUpdateByActorCheckContextPrivs($actor, $context, $id, $error))
+			return false;
+		
+		if(!CerberusContexts::isActorAnAdmin($actor)) {
+			$error = DevblocksPlatform::translate('error.core.no_acl.admin');
+			return false;
+		}
+		
+		return true;
 	}
 	
 	/**
@@ -51,7 +165,7 @@ class DAO_ContextActivityLog extends Cerb_ORMHelper {
 	 * @return Model_ContextActivityLog[]
 	 */
 	static function getWhere($where=null, $sortBy=null, $sortAsc=true, $limit=null) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 
 		list($where_sql, $sort_sql, $limit_sql) = self::_getWhereSQL($where, $sortBy, $sortAsc, $limit);
 		
@@ -160,7 +274,7 @@ class DAO_ContextActivityLog extends Cerb_ORMHelper {
 	
 	static function delete($ids) {
 		if(!is_array($ids)) $ids = array($ids);
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		if(empty($ids))
 			return;
@@ -179,7 +293,7 @@ class DAO_ContextActivityLog extends Cerb_ORMHelper {
 		if(empty($context_ids))
 			return;
 			
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		$db->ExecuteMaster(sprintf("DELETE FROM context_activity_log WHERE (actor_context = %s AND actor_context_id IN (%s)) OR (target_context = %s AND target_context_id IN (%s)) ",
 			$db->qstr($context),
@@ -240,7 +354,6 @@ class DAO_ContextActivityLog extends Cerb_ORMHelper {
 	}
 	
 	/**
-	 * Enter description here...
 	 *
 	 * @param array $columns
 	 * @param DevblocksSearchCriteria[] $params
@@ -252,7 +365,7 @@ class DAO_ContextActivityLog extends Cerb_ORMHelper {
 	 * @return array
 	 */
 	static function search($columns, $params, $limit=10, $page=0, $sortBy=null, $sortAsc=null, $withCounts=true) {
-		$db = DevblocksPlatform::getDatabaseService();
+		$db = DevblocksPlatform::services()->database();
 		
 		// Build search queries
 		$query_parts = self::getSearchQueryComponents($columns,$params,$sortBy,$sortAsc);
@@ -355,6 +468,7 @@ class SearchFields_ContextActivityLog extends DevblocksSearchFields {
 					$view = $ext->getSearchView(uniqid());
 					$view->is_ephemeral = true;
 					$view->setAutoPersist(false);
+					$view->renderPage = 0;
 					$view->addParamsWithQuickSearch($query, true);
 					
 					$params = $view->getParams();
@@ -544,7 +658,7 @@ class View_ContextActivityLog extends C4_AbstractView implements IAbstractView_S
 					
 				// Valid custom fields
 				default:
-					if('cf_' == substr($field_key,0,3))
+					if(DevblocksPlatform::strStartsWith($field_key, 'cf_'))
 						$pass = $this->_canSubtotalCustomField($field_key);
 					break;
 			}
@@ -681,7 +795,7 @@ class View_ContextActivityLog extends C4_AbstractView implements IAbstractView_S
 	function render() {
 		$this->_sanitize();
 		
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 		$tpl->assign('view', $this);
 
@@ -690,7 +804,7 @@ class View_ContextActivityLog extends C4_AbstractView implements IAbstractView_S
 	}
 
 	function renderCriteria($field) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('id', $this->id);
 
 		switch($field) {
@@ -874,7 +988,7 @@ class Context_ContextActivityLog extends Extension_DevblocksContext {
 	}
 	
 	function getMeta($context_id) {
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		$entry = DAO_ContextActivityLog::get($context_id);
 		
@@ -938,6 +1052,7 @@ class Context_ContextActivityLog extends Extension_DevblocksContext {
 		$token_labels = array(
 			'_label' => $prefix,
 			'id' => $prefix.$translate->_('common.id'),
+			'activity_point' => sprintf("%s %s", $prefix.$translate->_('common.event'), $prefix.$translate->_('common.id')),
 			'event' => $prefix.$translate->_('common.event'),
 			'created' => $prefix.$translate->_('common.created'),
 			'actor__label' => $prefix.$translate->_('common.actor'),
@@ -948,6 +1063,7 @@ class Context_ContextActivityLog extends Extension_DevblocksContext {
 		$token_types = array(
 			'_label' => 'context_url',
 			'id' => Model_CustomField::TYPE_NUMBER,
+			'activity_point' => Model_CustomField::TYPE_SINGLE_LINE,
 			'created' => Model_CustomField::TYPE_DATE,
 			'event' => Model_CustomField::TYPE_SINGLE_LINE,
 			'actor__label' => 'context_url',
@@ -965,17 +1081,57 @@ class Context_ContextActivityLog extends Extension_DevblocksContext {
 			$token_values['_loaded'] = true;
 			$token_values['_label'] = CerberusContexts::formatActivityLogEntry(json_decode($entry->entry_json,true),'text');
 			$token_values['id'] = $entry->id;
+			$token_values['activity_point'] = $entry->activity_point;
 			$token_values['created'] = $entry->created;
 			
 			$activities = DevblocksPlatform::getActivityPointRegistry();
-			if(isset($activities[$entry->activity_point]))
+			if(isset($activities[$entry->activity_point])) {
 				$token_values['event'] = $activities[$entry->activity_point]['params']['label_key'];
+			}
 			
 			$token_values['actor__context'] = $entry->actor_context;
 			$token_values['actor_id'] = $entry->actor_context_id;
 			
 			$token_values['target__context'] = $entry->target_context;
 			$token_values['target_id'] = $entry->target_context_id;
+		}
+		
+		return true;
+	}
+	
+	function getKeyToDaoFieldMap() {
+		return [
+			'activity_point' => DAO_ContextActivityLog::ACTIVITY_POINT,
+			'actor__context' => DAO_ContextActivityLog::ACTOR_CONTEXT,
+			'actor_id' => DAO_ContextActivityLog::ACTOR_CONTEXT_ID,
+			'created' => DAO_ContextActivityLog::CREATED,
+			'id' => DAO_ContextActivityLog::ID,
+			'links' => '_links',
+			'target__context' => DAO_ContextActivityLog::TARGET_CONTEXT,
+			'target_id' => DAO_ContextActivityLog::TARGET_CONTEXT_ID,
+		];
+	}
+	
+	function getDaoFieldsFromKeyAndValue($key, $value, &$out_fields, &$error) {
+		$dict_key = DevblocksPlatform::strLower($key);
+		switch($dict_key) {
+			case 'links':
+				$this->_getDaoFieldsLinks($value, $out_fields, $error);
+				break;
+			
+			case 'params':
+				if(!is_array($value)) {
+					$error = 'must be an object.';
+					return false;
+				}
+				
+				if(false == ($json = json_encode($value))) {
+					$error = 'could not be JSON encoded.';
+					return false;
+				}
+				
+				$out_fields[DAO_Notification::ENTRY_JSON] = $json;
+				break;
 		}
 		
 		return true;

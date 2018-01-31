@@ -1,6 +1,5 @@
 <?php
 define('SMARTY_RESOURCE_CHAR_SET', DevblocksPlatform::strUpper(LANG_CHARSET_CODE));
-require(DEVBLOCKS_PATH . 'libs/smarty/Smarty.class.php');
 
 /**
  * Smarty Template Manager Singleton
@@ -60,6 +59,7 @@ class _DevblocksTemplateManager {
 			$instance->registerPlugin('modifier','devblocks_prettytime', array('_DevblocksTemplateManager', 'modifier_devblocks_prettytime'));
 			$instance->registerPlugin('modifier','devblocks_prettybytes', array('_DevblocksTemplateManager', 'modifier_devblocks_prettybytes'));
 			$instance->registerPlugin('modifier','devblocks_prettysecs', array('_DevblocksTemplateManager', 'modifier_devblocks_prettysecs'));
+			$instance->registerPlugin('modifier','devblocks_prettyjson', array('_DevblocksTemplateManager', 'modifier_devblocks_prettyjson'));
 			$instance->registerPlugin('modifier','devblocks_rangy_deserialize', array('_DevblocksTemplateManager', 'modifier_devblocks_rangy_deserialize'));
 			$instance->registerPlugin('modifier','devblocks_translate', array('_DevblocksTemplateManager', 'modifier_devblocks_translate'));
 			
@@ -168,7 +168,7 @@ class _DevblocksTemplateManager {
 		if($repeat)
 			return;
 		
-		$url = DevblocksPlatform::getUrlService();
+		$url = DevblocksPlatform::services()->url();
 		
 		$contents = $url->write($content, !empty($params['full']) ? true : false);
 		
@@ -188,7 +188,7 @@ class _DevblocksTemplateManager {
 		if(empty($string))
 			return '';
 	
-		$date = DevblocksPlatform::getDateService();
+		$date = DevblocksPlatform::services()->date();
 		return $date->formatTime($format, $string, $gmt);
 	}
 	
@@ -202,6 +202,10 @@ class _DevblocksTemplateManager {
 		
 	static function modifier_devblocks_prettysecs($string, $length=0) {
 		return DevblocksPlatform::strSecsToString($string, $length);
+	}
+	
+	static function modifier_devblocks_prettyjson($string) {
+		return DevblocksPlatform::strFormatJson($string);
 	}
 
 	static function modifier_devblocks_prettybytes($string, $precision='0') {
@@ -378,6 +382,9 @@ class _DevblocksTemplateManager {
 };
 
 class _DevblocksSmartyTemplateResource extends Smarty_Resource_Custom {
+	public function getBasename(Smarty_Template_Source $source) {
+		return basename(str_replace(':','_',$source->name));
+	}
 
 	protected function fetch($name, &$source, &$mtime) {
 		list($plugin_id, $tag, $tpl_path) = explode(':',$name,3);

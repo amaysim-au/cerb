@@ -1,40 +1,42 @@
 {$page_context = CerberusContexts::CONTEXT_BUCKET}
 {$page_context_id = $bucket->id}
+{$is_writeable = Context_Bucket::isWriteableByActor($bucket, $active_worker)}
+
+<div style="float:left;margin-right:10px;">
+	<img src="{devblocks_url}c=avatars&context=group&context_id={$bucket->group_id}{/devblocks_url}?v={$bucket->updated_at}" style="height:75px;width:75px;border-radius:5px;">
+</div>
 
 <div style="float:left">
 	<h1>{$bucket->name}</h1>
-</div>
-
-<div style="float:right;">
-{$ctx = Extension_DevblocksContext::get($page_context)}
-{include file="devblocks:cerberusweb.core::search/quick_search.tpl" view=$ctx->getSearchView() return_url="{devblocks_url}c=search&context={$ctx->manifest->params.alias}{/devblocks_url}"}
+	
+	<div class="cerb-profile-toolbar">
+		<form class="toolbar" action="{devblocks_url}{/devblocks_url}" onsubmit="return false;" style="margin-bottom:5px;">
+			<input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
+			
+			<span id="spanInteractions">
+			{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.tpl"}
+			</span>
+			
+			<!-- Card -->
+			<button type="button" id="btnProfileCard" title="{'common.card'|devblocks_translate|capitalize}" data-context="{$page_context}" data-context-id="{$page_context_id}"><span class="glyphicons glyphicons-nameplate"></span></button>
+			
+			<!-- Edit -->
+			{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
+			<button type="button" id="btnDisplayBucketEdit" title="{'common.edit'|devblocks_translate|capitalize} (E)" class="cerb-peek-trigger" data-context="{$page_context}" data-context-id="{$page_context_id}" data-edit="true"><span class="glyphicons glyphicons-cogwheel"></span></button>
+			{/if}
+		</form>
+		
+		{if $pref_keyboard_shortcuts}
+			<small>
+			{$translate->_('common.keyboard')|lower}:
+			{if $active_worker->isGroupManager($page_context_id)}(<b>e</b>) {'common.edit'|devblocks_translate|lower}{/if}
+			(<b>1-9</b>) change tab
+			</small>
+		{/if}
+	</div>
 </div>
 
 <div style="clear:both;"></div>
-
-<div class="cerb-profile-toolbar">
-	<form class="toolbar" action="{devblocks_url}{/devblocks_url}" onsubmit="return false;" style="margin-bottom:5px;">
-		<input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
-		
-		<!-- Macros -->
-		{devblocks_url assign=return_url full=true}c=profiles&type=bucket&id={$page_context_id}-{$bucket->name|devblocks_permalink}{/devblocks_url}
-		{include file="devblocks:cerberusweb.core::internal/macros/display/button.tpl" context=$page_context context_id=$page_context_id macros=$macros return_url=$return_url}
-		
-		<!-- Edit -->
-		{if $active_worker->isGroupManager($bucket->group_id)}
-		<button type="button" id="btnDisplayBucketEdit" title="{'common.edit'|devblocks_translate|capitalize}"><span class="glyphicons glyphicons-cogwheel"></span></button>
-		{/if}
-	</form>
-	
-	{if $pref_keyboard_shortcuts}
-		<small>
-		{$translate->_('common.keyboard')|lower}:
-		{if $active_worker->isGroupManager($page_context_id)}(<b>e</b>) {'common.edit'|devblocks_translate|lower}{/if}
-		{if !empty($macros)}(<b>m</b>) {'common.macros'|devblocks_translate|lower} {/if}
-		(<b>1-9</b>) change tab
-		</small>
-	{/if}
-</div>
 
 <fieldset class="properties">
 	<legend>{'Bucket'|devblocks_translate|capitalize}</legend>
@@ -91,15 +93,27 @@ $(function() {
 
 	var tabs = $("#bucketTabs").tabs(tabOptions);
 	
-	$('#btnDisplayBucketEdit').bind('click', function() {
-		$popup = genericAjaxPopup('peek','c=internal&a=showPeekPopup&context={$page_context}&context_id={$page_context_id}',null,false,'50%');
-		$popup.one('bucket_save', function(event) {
-			event.stopPropagation();
+	$('#btnProfileCard').cerbPeekTrigger();
+	
+	$('#btnDisplayBucketEdit')
+		.cerbPeekTrigger()
+		.on('cerb-peek-opened', function(e) {
+		})
+		.on('cerb-peek-saved', function(e) {
+			e.stopPropagation();
 			document.location.reload();
-		});
-	});
-
-	{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_button=null selector_menu=null}
+		})
+		.on('cerb-peek-deleted', function(e) {
+			document.location.href = '{devblocks_url}{/devblocks_url}';
+			
+		})
+		.on('cerb-peek-closed', function(e) {
+		})
+	;
+	
+	// Interactions
+	var $interaction_container = $('#spanInteractions');
+	{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.js.tpl"}
 });
 </script>
 

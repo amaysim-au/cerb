@@ -20,7 +20,7 @@ class Event_CrmOpportunityMacro extends Extension_DevblocksEvent {
 	const ID = 'event.macro.crm.opportunity';
 	
 	static function trigger($trigger_id, $context_id, $variables=array()) {
-		$events = DevblocksPlatform::getEventService();
+		$events = DevblocksPlatform::services()->event();
 		return $events->trigger(
 			new Model_DevblocksEvent(
 				self::ID,
@@ -33,6 +33,12 @@ class Event_CrmOpportunityMacro extends Extension_DevblocksEvent {
 				)
 			)
 		);
+	}
+	
+	function renderEventParams(Model_TriggerEvent $trigger=null) {
+		$tpl = DevblocksPlatform::services()->template();
+		$tpl->assign('trigger', $trigger);
+		$tpl->display('devblocks:cerberusweb.core::events/record/params_macro_default.tpl');
 	}
 	
 	/**
@@ -74,6 +80,24 @@ class Event_CrmOpportunityMacro extends Extension_DevblocksEvent {
 	function setEvent(Model_DevblocksEvent $event_model=null, Model_TriggerEvent $trigger=null) {
 		$labels = array();
 		$values = array();
+		
+		/**
+		 * Behavior
+		 */
+		
+		$merge_labels = array();
+		$merge_values = array();
+		CerberusContexts::getContext(CerberusContexts::CONTEXT_BEHAVIOR, $trigger, $merge_labels, $merge_values, null, true);
+
+			// Merge
+			CerberusContexts::merge(
+				'behavior_',
+				'',
+				$merge_labels,
+				$merge_values,
+				$labels,
+				$values
+			);
 
 		// We can accept a model object or a context_id
 		@$model = $event_model->params['context_model'] ?: $event_model->params['context_id'];
@@ -106,6 +130,14 @@ class Event_CrmOpportunityMacro extends Extension_DevblocksEvent {
 	
 	function getValuesContexts($trigger) {
 		$vals = array(
+			'behavior_id' => array(
+				'label' => 'Behavior',
+				'context' => CerberusContexts::CONTEXT_BEHAVIOR,
+			),
+			'behavior_bot_id' => array(
+				'label' => 'Bot',
+				'context' => CerberusContexts::CONTEXT_BOT,
+			),
 			'opp_id' => array(
 				'label' => 'Opportunity',
 				'context' => CerberusContexts::CONTEXT_OPPORTUNITY,
@@ -169,7 +201,7 @@ class Event_CrmOpportunityMacro extends Extension_DevblocksEvent {
 	}
 	
 	function renderConditionExtension($token, $as_token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -313,7 +345,7 @@ class Event_CrmOpportunityMacro extends Extension_DevblocksEvent {
 	}
 	
 	function renderActionExtension($token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -356,7 +388,7 @@ class Event_CrmOpportunityMacro extends Extension_DevblocksEvent {
 				break;
 				
 			default:
-				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token, $matches)) {
+				if(preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token, $matches)) {
 					$field_id = $matches[2];
 					$custom_field = DAO_CustomField::get($field_id);
 					DevblocksEventHelper::renderActionSetCustomField($custom_field, $trigger);
@@ -410,7 +442,7 @@ class Event_CrmOpportunityMacro extends Extension_DevblocksEvent {
 				break;
 				
 			default:
-				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token))
+				if(preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token))
 					return DevblocksEventHelper::simulateActionSetCustomField($token, $params, $dict);
 				break;
 		}
@@ -488,7 +520,7 @@ class Event_CrmOpportunityMacro extends Extension_DevblocksEvent {
 				break;
 				
 			default:
-				if(preg_match('#set_cf_(.*?)_custom_([0-9]+)#', $token))
+				if(preg_match('#set_cf_(.*?_*)custom_([0-9]+)#', $token))
 					return DevblocksEventHelper::runActionSetCustomField($token, $params, $dict);
 				break;
 		}

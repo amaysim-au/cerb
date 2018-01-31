@@ -20,7 +20,7 @@ class Event_MailReceivedByWatcher extends Extension_DevblocksEvent {
 	const ID = 'event.mail.received.watcher';
 	
 	static function trigger($message_id, $worker_id) {
-		$events = DevblocksPlatform::getEventService();
+		$events = DevblocksPlatform::services()->event();
 		return $events->trigger(
 			new Model_DevblocksEvent(
 				self::ID,
@@ -78,9 +78,28 @@ class Event_MailReceivedByWatcher extends Extension_DevblocksEvent {
 	function setEvent(Model_DevblocksEvent $event_model=null, Model_TriggerEvent $trigger=null) {
 		@$message_id = $event_model->params['message_id'];
 		@$worker_id = $event_model->params['worker_id'];
-		 
+		
 		$labels = array();
 		$values = array();
+		
+		/**
+		 * Behavior
+		 */
+		
+		$merge_labels = array();
+		$merge_values = array();
+		CerberusContexts::getContext(CerberusContexts::CONTEXT_BEHAVIOR, $trigger, $merge_labels, $merge_values, null, true);
+
+			// Merge
+			CerberusContexts::merge(
+				'behavior_',
+				'',
+				$merge_labels,
+				$merge_values,
+				$labels,
+				$values
+			);
+		
 		CerberusContexts::getContext(CerberusContexts::CONTEXT_MESSAGE, $message_id, $labels, $values, null, true);
 
 		$values['sender_is_worker'] = (!empty($values['worker_id'])) ? 1 : 0;
@@ -177,12 +196,18 @@ class Event_MailReceivedByWatcher extends Extension_DevblocksEvent {
 	
 	function getValuesContexts($trigger) {
 		$vals = array(
-			/*
+			'behavior_id' => array(
+				'label' => 'Behavior',
+				'context' => CerberusContexts::CONTEXT_BEHAVIOR,
+			),
+			'behavior_bot_id' => array(
+				'label' => 'Bot',
+				'context' => CerberusContexts::CONTEXT_BOT,
+			),
 			'group_id' => array(
 				'label' => 'Group',
 				'context' => CerberusContexts::CONTEXT_GROUP,
 			),
-			*/
 			'sender_id' => array(
 				'label' => 'Sender email',
 				'context' => CerberusContexts::CONTEXT_ADDRESS,
@@ -200,6 +225,10 @@ class Event_MailReceivedByWatcher extends Extension_DevblocksEvent {
 				'label' => 'Sender org_watchers',
 				'context' => CerberusContexts::CONTEXT_WORKER,
 				'is_multiple' => true,
+			),
+			'ticket_bucket_id' => array(
+				'label' => 'Ticket bucket',
+				'context' => CerberusContexts::CONTEXT_BUCKET,
 			),
 			'ticket_id' => array(
 				'label' => 'Ticket',
@@ -271,7 +300,7 @@ class Event_MailReceivedByWatcher extends Extension_DevblocksEvent {
 	}
 
 	function renderConditionExtension($token, $as_token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -444,7 +473,7 @@ class Event_MailReceivedByWatcher extends Extension_DevblocksEvent {
 	}
 	
 	function renderActionExtension($token, $trigger, $params=array(), $seq=null) {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$tpl->assign('params', $params);
 
 		if(!is_null($seq))
@@ -487,7 +516,11 @@ class Event_MailReceivedByWatcher extends Extension_DevblocksEvent {
 				break;
 				
 			case 'send_email':
-				DevblocksEventHelper::renderActionSendEmail($trigger);
+				$placeholders = [
+					'ticket_bucket_replyto_id,group_replyto_id' => 'Ticket Bucket',
+				];
+				
+				DevblocksEventHelper::renderActionSendEmail($trigger, $placeholders);
 				break;
 				
 			case 'send_email_recipients':
@@ -605,7 +638,7 @@ class Event_MailReceivedByWatcher extends Extension_DevblocksEvent {
 				
 			case 'send_email_recipients':
 				// Translate message tokens
-				$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+				$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 				
 				@$content = $tpl_builder->build($params['content'], $dict);
 				@$format = $params['format'];

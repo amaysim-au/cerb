@@ -17,7 +17,7 @@
 
 class PageSection_ProfilesMailHtmlTemplate extends Extension_PageSection {
 	function render() {
-		$tpl = DevblocksPlatform::getTemplateService();
+		$tpl = DevblocksPlatform::services()->template();
 		$visit = CerberusApplication::getVisit();
 		$translate = DevblocksPlatform::getTranslationService();
 		$active_worker = CerberusApplication::getActiveWorker();
@@ -90,14 +90,6 @@ class PageSection_ProfilesMailHtmlTemplate extends Extension_PageSection {
 		
 		$tpl->assign('properties', $properties);
 			
-		// Macros
-		
-		$macros = DAO_TriggerEvent::getReadableByActor(
-			$active_worker,
-			'event.macro.mail_html_template'
-		);
-		$tpl->assign('macros', $macros);
-
 		// Tabs
 		$tab_manifests = Extension_ContextProfileTab::getExtensions(false, CerberusContexts::CONTEXT_MAIL_HTML_TEMPLATE);
 		$tpl->assign('tab_manifests', $tab_manifests);
@@ -117,10 +109,10 @@ class PageSection_ProfilesMailHtmlTemplate extends Extension_PageSection {
 		header('Content-Type: application/json; charset=utf-8');
 		
 		try {
-			if(!$active_worker->is_superuser)
-				throw new Exception_DevblocksAjaxValidationError("You do not have permission to modify this record.");
-			
 			if(!empty($id) && !empty($do_delete)) { // Delete
+				if(!$active_worker->hasPriv(sprintf("contexts.%s.delete", CerberusContexts::CONTEXT_MAIL_HTML_TEMPLATE)))
+					throw new Exception_DevblocksAjaxValidationError(DevblocksPlatform::translate('error.core.no_acl.delete'));
+				
 				DAO_MailHtmlTemplate::delete($id);
 				
 				echo json_encode(array(
@@ -131,37 +123,48 @@ class PageSection_ProfilesMailHtmlTemplate extends Extension_PageSection {
 				return;
 				
 			} else {
-				@$name = DevblocksPlatform::importGPC($_REQUEST['name'], 'string', '');
 				@$content = DevblocksPlatform::importGPC($_REQUEST['content'], 'string', '');
+				@$name = DevblocksPlatform::importGPC($_REQUEST['name'], 'string', '');
 				@$signature = DevblocksPlatform::importGPC($_REQUEST['signature'], 'string', '');
 				
-				if(empty($name))
-					throw new Exception_DevblocksAjaxValidationError("The 'Name' field is required.", 'name');
-	
 				$owner_ctx = CerberusContexts::CONTEXT_APPLICATION;
 				$owner_ctx_id = 0;
 				
 				$fields = array(
-					DAO_MailHtmlTemplate::UPDATED_AT => time(),
+					DAO_MailHtmlTemplate::CONTENT => $content,
 					DAO_MailHtmlTemplate::NAME => $name,
 					DAO_MailHtmlTemplate::OWNER_CONTEXT => $owner_ctx,
 					DAO_MailHtmlTemplate::OWNER_CONTEXT_ID => $owner_ctx_id,
-					DAO_MailHtmlTemplate::CONTENT => $content,
 					DAO_MailHtmlTemplate::SIGNATURE => $signature,
+					DAO_MailHtmlTemplate::UPDATED_AT => time(),
 				);
 				
 				if(empty($id)) { // New
+					if(!DAO_MailHtmlTemplate::validate($fields, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					if(!DAO_MailHtmlTemplate::onBeforeUpdateByActor($active_worker, $fields, null, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
 					if(false == ($id = DAO_MailHtmlTemplate::create($fields)))
 						return false;
+					
+					DAO_MailHtmlTemplate::onUpdateByActor($active_worker, $fields, $id);
 					
 					if(!empty($view_id) && !empty($id))
 						C4_AbstractView::setMarqueeContextCreated($view_id, CerberusContexts::CONTEXT_MAIL_HTML_TEMPLATE, $id);
 					
 				} else { // Edit
-					DAO_MailHtmlTemplate::update($id, $fields);
+					if(!DAO_MailHtmlTemplate::validate($fields, $error, $id))
+						throw new Exception_DevblocksAjaxValidationError($error);
 					
+					if(!DAO_MailHtmlTemplate::onBeforeUpdateByActor($active_worker, $fields, $id, $error))
+						throw new Exception_DevblocksAjaxValidationError($error);
+					
+					DAO_MailHtmlTemplate::update($id, $fields);
+					DAO_MailHtmlTemplate::onUpdateByActor($active_worker, $fields, $id);
 				}
-	
+				
 				if($id) {
 					// Custom fields
 					@$field_ids = DevblocksPlatform::importGPC($_REQUEST['field_ids'], 'array', array());
@@ -202,7 +205,7 @@ class PageSection_ProfilesMailHtmlTemplate extends Extension_PageSection {
 	function getSignatureParsedownPreviewAction() {
 		@$signature = DevblocksPlatform::importGPC($_REQUEST['data'],'string', '');
 		
-		$tpl_builder = DevblocksPlatform::getTemplateBuilder();
+		$tpl_builder = DevblocksPlatform::services()->templateBuilder();
 		$active_worker = CerberusApplication::getActiveWorker();
 		
 		header('Content-Type: text/html; charset=' . LANG_CHARSET_CODE);
@@ -227,7 +230,7 @@ class PageSection_ProfilesMailHtmlTemplate extends Extension_PageSection {
 		@$view_id = DevblocksPlatform::importGPC($_REQUEST['view_id'],'string');
 		
 		$active_worker = CerberusApplication::getActiveWorker();
-		$url_writer = DevblocksPlatform::getUrlService();
+		$url_writer = DevblocksPlatform::services()->url();
 		
 		// Generate hash
 		$hash = md5($view_id.$active_worker->id.time());

@@ -1,46 +1,53 @@
 {$page_context = CerberusContexts::CONTEXT_CONTACT}
 {$page_context_id = $contact->id}
+{$is_writeable = Context_Contact::isWriteableByActor($contact, $active_worker)}
 
 <div style="float:left;margin-right:10px;">
 	<img src="{devblocks_url}c=avatars&context=contact&context_id={$contact->id}{/devblocks_url}?v={$contact->updated_at}" style="height:75px;width:75px;border-radius:5px;">
 </div>
 
-<div style="float:left">
-	<h1>{$contact->getName()}</h1>
+<div class="cerb-profile-header">
+	<h1>
+	{$contact->getName()}
+	
+	{if $dict->gender == 'M'}
+	<span class="glyphicons glyphicons-male"></span>
+	{elseif $dict->gender == 'F'}
+	<span class="glyphicons glyphicons-female"></span>
+	{/if}
+	
+	</h1>
 	
 	<div class="cerb-profile-toolbar" style="margin-top:5px;">
 		<form class="toolbar" action="{devblocks_url}{/devblocks_url}" onsubmit="return false;" style="margin-bottom:5px;">
 			<input type="hidden" name="_csrf_token" value="{$session.csrf_token}">
 			
-			<!-- Toolbar -->
+			<span id="spanInteractions">
+			{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.tpl"}
+			</span>
+			
+			<!-- Card -->
+			<button type="button" id="btnProfileCard" title="{'common.card'|devblocks_translate|capitalize}" data-context="{$page_context}" data-context-id="{$page_context_id}"><span class="glyphicons glyphicons-nameplate"></span></button>
+			
+			<!-- Edit -->
+			{if $is_writeable && $active_worker->hasPriv("contexts.{$page_context}.update")}
+			<button type="button" id="btnDisplayContactEdit" data-context="{CerberusContexts::CONTEXT_CONTACT}" data-context-id="{$contact->id}" data-edit="true" title="{'common.edit'|devblocks_translate|capitalize}">&nbsp;<span class="glyphicons glyphicons-cogwheel"></span>&nbsp;</button>
+			{/if}
 			
 			<span>
 			{$object_watchers = DAO_ContextLink::getContextLinks($page_context, array($page_context_id), CerberusContexts::CONTEXT_WORKER)}
 			{include file="devblocks:cerberusweb.core::internal/watchers/context_follow_button.tpl" context=$page_context context_id=$page_context_id full=true}
 			</span>
-			
-			<!-- Macros -->
-			{devblocks_url assign=return_url full=true}c=profiles&type=contact&id={$page_context_id}-{$contact->name|devblocks_permalink}{/devblocks_url}
-			{include file="devblocks:cerberusweb.core::internal/macros/display/button.tpl" context=$page_context context_id=$page_context_id macros=$macros return_url=$return_url}
-			
-			<!-- Edit -->
-			<button type="button" id="btnDisplayContactEdit" data-context="{CerberusContexts::CONTEXT_CONTACT}" data-context-id="{$contact->id}" data-edit="true" title="{'common.edit'|devblocks_translate|capitalize}">&nbsp;<span class="glyphicons glyphicons-cogwheel"></span>&nbsp;</button>
 		</form>
 		
 		{if $pref_keyboard_shortcuts}
 			<small>
 			{$translate->_('common.keyboard')|lower}:
 			(<b>e</b>) {'common.edit'|devblocks_translate|lower}
-			{if !empty($macros)}(<b>m</b>) {'common.macros'|devblocks_translate|lower} {/if}
 			(<b>1-9</b>) change tab
 			</small>
 		{/if}
 	</div>
-</div>
-
-<div style="float:right;">
-{$ctx = Extension_DevblocksContext::get($page_context)}
-{include file="devblocks:cerberusweb.core::search/quick_search.tpl" view=$ctx->getSearchView() return_url="{devblocks_url}c=search&context={$ctx->manifest->params.alias}{/devblocks_url}"}
 </div>
 
 <div style="clear:both;"></div>
@@ -102,6 +109,8 @@ $(function() {
 
 	var tabs = $("#contactTabs").tabs(tabOptions);
 	
+	$('#btnProfileCard').cerbPeekTrigger();
+	
 	// Edit
 	
 	$('#btnDisplayContactEdit')
@@ -120,7 +129,9 @@ $(function() {
 		})
 		;
 	
-	{include file="devblocks:cerberusweb.core::internal/macros/display/menu_script.tpl" selector_button=null selector_menu=null}
+	// Interactions
+	var $interaction_container = $('#spanInteractions');
+	{include file="devblocks:cerberusweb.core::events/interaction/interactions_menu.js.tpl"}
 });
 </script>
 
